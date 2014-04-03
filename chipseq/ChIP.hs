@@ -1,6 +1,14 @@
 {-# LANGUAGE OverloadedStrings, UnicodeSyntax, BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 
+module ChIP (
+      apprxCorr
+    , corrOverRange
+    , readBed
+    , slidingAverage
+    , readInterval
+) where
+
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as V
@@ -8,17 +16,16 @@ import qualified Data.HashSet as S
 import Data.Maybe
 import Data.Bits
 import Data.List
-import System.Environment
-import Graphics.Rendering.HPlot
-import Data.Default
 import Control.Concatenative
 import Control.Parallel.Strategies
+import Statistics.Sample (mean)
 
-apprxCorr ∷ S.HashSet Int → S.HashSet Int → Int → Double
-apprxCorr forwd rev d = fromIntegral $ S.foldl' f 0 rev
+-- | fast relative cross-correlation
+apprxCorr ∷ S.HashSet Int → S.HashSet Int → Int → Int → Double
+apprxCorr forwd rev smooth d = fromIntegral $ S.foldl' f 0 rev
     where
         f ∷ Int → Int → Int
-        f !acc r | any (`S.member` forwd) [r-d-4..r-d+4] = acc + 1
+        f !acc r | any (`S.member` forwd) [r-d-smooth..r-d+smooth] = acc + 1
                  | otherwise = acc
 
 type Interval = (Int, Int)
@@ -109,7 +116,7 @@ count_ ∷ (Num a, G.Vector v Interval) ⇒ S.HashSet Int → S.HashSet Int → 
 count_ forwd rev m d = S.foldl' f 0 rev
     where
         f acc i = let i' = i - d
-                  in if any (`S.member` forwd) [i'-4..i'+4] && binarySearch i' m
+                  in if any (`S.member` forwd) [i'-3..i'+3] && binarySearch i' m
                         then acc + 1
                         else acc
     
@@ -128,19 +135,13 @@ corrAtD forwd rev m readlength d = (count / n - μ1 * μ2) / sqrt (v1 * v2)
 corrOverRange ∷ S.HashSet Int → S.HashSet Int → [Interval] → Int → [Int] → [Double]
 corrOverRange forwd rev m readlength = parMap rseq (corrAtD forwd rev m readlength)
 
-main ∷ IO ()
-main = do
-    [f1, f2] ← getArgs
-    tags ← B.readFile f1
-    maps ← B.readFile f2
-    let (forwd, rev) = readBed $ B.lines tags
-        intervals = readInterval $ tail $ B.lines maps
-        forwd' = S.fromList forwd
-        rev' = S.fromList rev
-        readlength = 36
-        x = [0,2..400]
-        y = corrOverRange forwd' rev' intervals readlength x
-        y' = parMap rseq (apprxCorr forwd' rev') x
---    _ ← plot' def [line def (Just $ map fromIntegral x, y)] "2.png"
-    _ ← plot' def [line def (Just $ map fromIntegral x, y')] "1.png"
-    return ()
+slidingAverage ∷ [Double] → Int → [Double]
+slidingAverage xs windowSize = map f [0..n-1] 
+    where
+        xs' = V.fromList xs 
+        n = V.length xs'
+        f i = mean $ V.slice i' l xs'
+            where
+                i' = if i - windowSize >= 0 then i - windowSize else 0
+                l = if i + windowSize <= n then windowSize else n - i
+
