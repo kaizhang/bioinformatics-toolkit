@@ -4,7 +4,8 @@
 
 module BNFO.Utils (
       (+>)
-    , parseInt
+    , readInt
+    , readDouble
     , getFields
     , bins
     , binBySize
@@ -18,6 +19,7 @@ module BNFO.Utils (
 ) where
 
 import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Lex.Double as L
 import qualified Data.HashMap.Strict as M
 import qualified Data.IntervalMap.Strict as IM
 import Data.Maybe
@@ -48,16 +50,19 @@ setField ∷ Int → B.ByteString → B.ByteString → B.ByteString
 setField n field str = let fields = B.split '\t' str
                        in B.intercalate "\t" $ take n fields ++ (field : drop (n+1) fields)
 
-parseInt ∷ B.ByteString → Int
-parseInt = fst.fromJust.B.readInt
+readInt ∷ B.ByteString → Int
+readInt = fst.fromJust.B.readInt
 
--- divide a given region into fixed size fragments
+readDouble ∷ B.ByteString → Double
+readDouble = fst . fromJust . L.readDouble
+
+-- | divide a given region into fixed size fragments
 binBySize ∷ (Int, Int) → Int → [(Int, Int)]
 binBySize (start, end) step =
     let binNum = ceiling $ fromIntegral (end - start + 1) / fromIntegral step
     in take binNum $ zip [start,start+step..] [start+step-1,start+2*step-1..]
 
--- divide a given region into k equal size sub-regions
+-- | divide a given region into k equal size sub-regions
 bins ∷ (Int, Int) → Int → [(Int, Int)]
 bins (start, end) binNum = 
     let step = ceiling $ fromIntegral (end - start + 1) / fromIntegral binNum

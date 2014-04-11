@@ -116,7 +116,7 @@ count_ ∷ (Num a, G.Vector v Interval) ⇒ S.HashSet Int → S.HashSet Int → 
 count_ forwd rev m d = S.foldl' f 0 rev
     where
         f acc i = let i' = i - d
-                  in if any (`S.member` forwd) [i'-3..i'+3] && binarySearch i' m
+                  in if i' `S.member` forwd && binarySearch i' m
                         then acc + 1
                         else acc
     
@@ -124,7 +124,8 @@ count_ forwd rev m d = S.foldl' f 0 rev
 corrAtD ∷ S.HashSet Int → S.HashSet Int → [Interval] → Int → Int → Double
 corrAtD forwd rev m readlength d = (count / n - μ1 * μ2) / sqrt (v1 * v2)
     where
-        dm = V.fromList $ overlap m $ map (both (\i → i + d - readlength + 1)) m
+--        dm = V.fromList $ overlap m $ map (both (\i → i + d - readlength + 1)) m
+        dm = V.fromList m
         n = fromIntegral $ V.foldl' (+) 0 $ V.map size dm
         μ1 = countReads forwd dm / n
         μ2 = countReads rev dm / n
