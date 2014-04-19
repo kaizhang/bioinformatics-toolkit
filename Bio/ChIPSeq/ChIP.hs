@@ -3,6 +3,7 @@
 
 module ChIP (
       naiveCC
+    , naiveCC'
     , corrOverRange
     , slidingAverage
     , readInterval
@@ -20,7 +21,7 @@ import Control.Concatenative
 import Control.Parallel.Strategies
 import Statistics.Sample (mean)
 
--- | fast relative cross-correlation
+-- | fast relative cross-correlation with smoothing
 apprxCorr ∷ S.HashSet Int → S.HashSet Int → Int → Int → Double
 {-# INLINE apprxCorr #-}
 apprxCorr forwd rev smooth d = fromIntegral $ S.foldl' f 0 rev
@@ -30,10 +31,17 @@ apprxCorr forwd rev smooth d = fromIntegral $ S.foldl' f 0 rev
                  | otherwise = acc
 
 naiveCC ∷ B.ByteString → [Int] → Double
-naiveCC input range = mean.V.fromList.map (maxCC.snd) $ chrs
+naiveCC = naiveCCWithSmooth 0
+
+naiveCC' ∷ B.ByteString → [Int] → Double
+naiveCC' = naiveCCWithSmooth 4
+
+naiveCCWithSmooth ∷ Int → B.ByteString → [Int] → Double
+{-# INLINE naiveCCWithSmooth #-}
+naiveCCWithSmooth smooth input range = mean.V.fromList.map (maxCC.snd) $ chrs
     where
         chrs = readBed input
-        maxCC (forwd, rev) = fromIntegral.snd.maximum $ zip (parMap rpar (apprxCorr forwd rev 3) range) range
+        maxCC (forwd, rev) = fromIntegral.snd.maximum $ zip (parMap rpar (apprxCorr forwd rev smooth) range) range
 
 type Interval = (Int, Int)
 
@@ -69,18 +77,6 @@ overlap ((h1, e1) : xs) ((h2, e2) : ys)
     | otherwise = error "overlap error"
 overlap _ _ = []
 
-overlap' ∷ [Interval] → [Interval] → [Interval]
-overlap' a b = go a b []
-    where
-        go ((h1, e1) : xs) ((h2, e2) : ys) r
-            | h2 > h1 && e1 >= h2 && e2 >= e1 = go xs ((e1,e2):ys) ((h2,e1):r)
-            | h1 > h2 && e2 >= h1 && e1 >= e2 = go ((e2,e1):xs) ys ((h1,e2):r)
-            | e1 < h2 = go xs ((h2,e2):ys) r
-            | e2 < h1 = go ((h1,e1):xs) ys r
-            | h2 >= h1 && e2 <= e1 = go ((e2, e1):xs) ys ((h2,e2):r)
-            | h1 >= h2 && e1 <= e2 = go xs ((e1, e2):ys) ((h1,e1):r)
-        go _ _ r = r
-
 binarySearchWithBound ∷ G.Vector v Interval ⇒ (Int → Interval → Ordering) → Int → v Interval → Int → Int → Bool
 binarySearchWithBound cmp t v i j
     | i > j = False
@@ -92,7 +88,6 @@ binarySearchWithBound cmp t v i j
 
 binarySearch ∷ G.Vector v Interval ⇒ Int → v Interval → Bool
 binarySearch t v = binarySearchWithBound compare_ t v 0 $ G.length v
-
 
 toInt ∷ B.ByteString → Int
 {-# INLINE toInt #-}
