@@ -1,4 +1,9 @@
 {-# LANGUAGE OverloadedStrings, UnicodeSyntax, TemplateHaskell, BangPatterns #-}
+
+module Bio.Util.Overlap (
+    countOverlap
+) where
+
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.IntervalMap.Strict as IM
 import Data.List

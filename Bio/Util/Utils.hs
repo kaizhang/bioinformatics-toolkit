@@ -50,11 +50,6 @@ setField ∷ Int → B.ByteString → B.ByteString → B.ByteString
 setField n field str = let fields = B.split '\t' str
                        in B.intercalate "\t" $ take n fields ++ (field : drop (n+1) fields)
 
-readInt ∷ B.ByteString → Int
-readInt = fst.fromJust.B.readInt
-
-readDouble ∷ B.ByteString → Double
-readDouble = fst . fromJust . L.readDouble
 
 -- | divide a given region into fixed size fragments
 binBySize ∷ (Int, Int) → Int → [(Int, Int)]

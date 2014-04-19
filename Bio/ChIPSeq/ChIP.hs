@@ -7,6 +7,7 @@ module ChIP (
     , readBed
     , slidingAverage
     , readInterval
+    , binarySearch
 ) where
 
 import qualified Data.ByteString.Lazy.Char8 as B
@@ -124,8 +125,7 @@ count_ forwd rev m d = S.foldl' f 0 rev
 corrAtD ∷ S.HashSet Int → S.HashSet Int → [Interval] → Int → Int → Double
 corrAtD forwd rev m readlength d = (count / n - μ1 * μ2) / sqrt (v1 * v2)
     where
---        dm = V.fromList $ overlap m $ map (both (\i → i + d - readlength + 1)) m
-        dm = V.fromList m
+        dm = V.fromList $ overlap m $ map (both (\i → i + d - readlength + 1)) m
         n = fromIntegral $ V.foldl' (+) 0 $ V.map size dm
         μ1 = countReads forwd dm / n
         μ2 = countReads rev dm / n
