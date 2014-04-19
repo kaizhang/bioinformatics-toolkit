@@ -1,36 +1,56 @@
 {-# LANGUAGE OverloadedStrings, UnicodeSyntax, TemplateHaskell, BangPatterns #-}
 
 module Bio.Util.Overlap (
-    countOverlap
+      overlapFragment
+    , overlapNucl
 ) where
 
-import qualified Data.ByteString.Lazy.Char8 as B
+import qualified Data.ByteString.Char8 as B
 import qualified Data.IntervalMap.Strict as IM
-import Data.List
-import Data.Maybe
-import System.Environment
+import qualified Data.Vector.Unboxed as V
+import qualified Data.Vector.Unboxed.Mutable as VM
+import Bio.Util.Bed
+import Control.Monad
 
-countOverlap ∷ Ord a ⇒ 
-               [(a, a)] -- ^ Ascending order list
-             → [(a, a)]
-             → [Int]
-countOverlap xs ts = IM.elems $ foldl' search imap $ map toInterval ts
+overlapFragment, overlapNucl ∷ 
+                  [(Int, Int)] -- ^ Ascending order list
+                → [(Int, Int)] -- ^ tags in any order
+                → V.Vector Int
+overlapFragment xs ts = V.create (VM.replicate n 0 >>= go ts)
     where
-        search m t = let intervals = fst $ unzip $ m `IM.intersecting` t
-                     in foldl' (\ m0 x → IM.adjust (+1) x m0) m intervals
-        imap = IM.fromAscList $ zip (map toInterval xs) [0,0..]
-        toInterval (l, u) = IM.ClosedInterval l u
+        n = length xs
+        iMap = IM.fromAscList $ zip (map toInterval xs) [0..]
+        go ts' v = do
+            forM_ ts' (\x → do
+                let indices = snd.unzip.IM.intersecting iMap.toInterval $ x
+                forM_ indices (\i → VM.write v i . (+1) =<< VM.read v i)
+                )
+            return v
 
-readInt ∷ B.ByteString → Int
-readInt = fst.fromJust.B.readInt
+overlapNucl xs ts = V.create (VM.replicate n 0 >>= go ts)
+    where
+        n = length xs
+        iMap = IM.fromAscList $ zip (map toInterval xs) [0..]
+        go ts' v = do
+            forM_ ts' (\x → do
+                let intervals = IM.intersecting iMap.toInterval $ x
+                forM_ intervals (\interval → do 
+                    let i = snd interval
+                        nucl = overlap x . fst $ interval
+                    VM.write v i . (+nucl) =<< VM.read v i
+                    )
+                )
+            return v
+        overlap (l, u) (IM.ClosedInterval l' u') 
+            | l' >= l = if u' <= u then u'-l'+1 else u-l'+1
+            | otherwise = if u' <= u then u'-l+1 else u-l+1
+        overlap _ _ = 0
+
+toInterval ∷ (a, a) → IM.Interval a
+{-# INLINE toInterval #-}
+toInterval (l, u) = IM.ClosedInterval l u
 
 readBed ∷ B.ByteString → [(Int, Int)]
 readBed b = map (f.B.words) $ B.lines b
     where
         f (_:s:e:_) = (readInt s, readInt e)
-
-main = do
-    [f1, f2] ← getArgs
-    feats ← B.readFile f1
-    tags ← B.readFile f2
-    mapM_ print $ countOverlap (readBed feats) $ readBed tags

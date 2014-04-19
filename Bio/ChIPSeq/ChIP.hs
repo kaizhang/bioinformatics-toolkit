@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, UnicodeSyntax, BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module ChIP (
+module Bio.ChIPSeq.ChIP (
       naiveCC
     , naiveCC'
     , corrOverRange

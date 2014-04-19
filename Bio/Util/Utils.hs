@@ -51,17 +51,7 @@ setField n field str = let fields = B.split '\t' str
                        in B.intercalate "\t" $ take n fields ++ (field : drop (n+1) fields)
 
 
--- | divide a given region into fixed size fragments
-binBySize ∷ (Int, Int) → Int → [(Int, Int)]
-binBySize (start, end) step =
-    let binNum = ceiling $ fromIntegral (end - start + 1) / fromIntegral step
-    in take binNum $ zip [start,start+step..] [start+step-1,start+2*step-1..]
 
--- | divide a given region into k equal size sub-regions
-bins ∷ (Int, Int) → Int → [(Int, Int)]
-bins (start, end) binNum = 
-    let step = ceiling $ fromIntegral (end - start + 1) / fromIntegral binNum
-    in take binNum $ zip [start,start+step..] [start+step-1,start+2*step-1..]
 
 -- | read count with non-overlapping features
 countNonOverlap ∷ (Ord a, G.Vector v Int) ⇒

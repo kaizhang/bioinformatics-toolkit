@@ -15,12 +15,17 @@ build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
 
+data-files:
+    tests/f1.bed
+  , tests/f2.bed
+  , tests/test.txt
+
 library
   exposed-modules:     
       Bio.Util.Transform
 --      , Bio.ChIPSeq.Spline
---    , Bio.ChIPSeq.ChIP
---    , Bio.Util.Overlap
+    , Bio.ChIPSeq.ChIP
+    , Bio.Util.Overlap
     , Bio.Util.Bed
 --    , Bio.Util.Utils
 
@@ -36,10 +41,52 @@ library
     , containers >=0.5
     , concatenative >=1.0 && <1.1
     , parallel >=3.2 && <3.3
-    , statistics >=0.11 && <0.12
+    , statistics
     , IntervalMap >=0.3 && <0.4
     , bytestring-lexing >=0.4 && <0.5
     , list-extras
 
   -- hs-source-dirs:      
   default-language:    Haskell2010
+
+benchmark bench
+  type: exitcode-stdio-1.0
+  main-is: benchmarks/bench.hs
+  default-language:    Haskell2010
+  build-depends: 
+      base >=4.6 && <4.7
+    , shelly >=1.5 && <1.6
+    , text >=0.11 && <0.12
+    , bytestring >=0.10 && <0.11
+    , vector >=0.10 && <0.11
+    , unordered-containers >=0.2 && <0.3
+    , containers >=0.5
+    , concatenative >=1.0 && <1.1
+    , parallel >=3.2 && <3.3
+    , statistics
+    , IntervalMap >=0.3 && <0.4
+    , bytestring-lexing >=0.4 && <0.5
+    , list-extras
+    , criterion
+
+test-suite tests
+  type: exitcode-stdio-1.0
+  hs-source-dirs: tests
+  main-is: test.hs
+  default-language:    Haskell2010
+  build-depends: 
+      base
+    , shelly
+    , text
+    , bytestring
+    , vector
+    , unordered-containers
+    , containers
+    , concatenative
+    , parallel
+    , statistics
+    , IntervalMap
+    , bytestring-lexing
+    , tasty
+    , tasty-golden
+    , bioinformatics-toolkit
