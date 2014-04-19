@@ -18,7 +18,8 @@ cabal-version:       >=1.10
 data-files:
     tests/f1.bed
   , tests/f2.bed
-  , tests/test.txt
+  , tests/fragment.txt
+  , tests/nucl.txt
 
 library
   exposed-modules:     

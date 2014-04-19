@@ -2,7 +2,7 @@
 
 import qualified Data.ByteString.Char8 as B
 import System.Environment
-import ChIP
+import Bio.ChIPSeq.ChIP
 
 run ∷ [FilePath] → IO ()
 run [f1] = do

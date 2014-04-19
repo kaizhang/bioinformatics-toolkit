@@ -14,7 +14,8 @@ tests = testGroup "Tests" [unitTests]
 
 unitTests ∷ TestTree
 unitTests = testGroup "Unit tests"
-  [ goldenVsString "Nonoverlapping features" "tests/test.txt" test1
+  [ goldenVsString "Nonoverlapping features" "tests/fragment.txt" test1
+    , goldenVsString "Nonoverlapping features" "tests/nucl.txt" test2
   ]
 
 parseTags ∷ [B.ByteString] → [Int]
@@ -38,4 +39,13 @@ test1 = do
     feats ← B.readFile f1
     tags ← B.readFile f2
     let c = overlapFragment (parseBed $ B.lines feats) (parseBed $ B.lines tags)
+    return $ B.unlines $ fmap (B.pack.show) $ toList c
+
+test2 ∷ IO B.ByteString
+test2 = do
+    let f1 = "tests/f1.bed"
+        f2 = "tests/f2.bed"
+    feats ← B.readFile f1
+    tags ← B.readFile f2
+    let c = overlapNucl (parseBed $ B.lines feats) (parseBed $ B.lines tags)
     return $ B.unlines $ fmap (B.pack.show) $ toList c
