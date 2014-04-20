@@ -50,7 +50,28 @@ setField ∷ Int → B.ByteString → B.ByteString → B.ByteString
 setField n field str = let fields = B.split '\t' str
                        in B.intercalate "\t" $ take n fields ++ (field : drop (n+1) fields)
 
+binarySearchWithBound ∷ G.Vector v Interval ⇒ (Int → Interval → Ordering) → Int → v Interval → Int → Int → Bool
+binarySearchWithBound cmp t v i j
+    | i > j = False
+    | otherwise = let c = (i + j) `shiftR` 1
+                  in case t `cmp` (v `G.unsafeIndex` c) of
+        LT → binarySearchWithBound cmp t v i (c-1)
+        GT → binarySearchWithBound cmp t v (c+1) j
+        _ → True
 
+binarySearch ∷ G.Vector v Interval ⇒ Int → v Interval → Bool
+binarySearch t v = binarySearchWithBound compare_ t v 0 $ G.length v
+
+
+slidingAverage ∷ [Double] → Int → [Double]
+slidingAverage xs windowSize = map f [0..n-1] 
+    where
+        xs' = V.fromList xs 
+        n = V.length xs'
+        f i = mean $ V.slice i' l xs'
+            where
+                i' = if i - windowSize >= 0 then i - windowSize else 0
+                l = if i + windowSize <= n then windowSize else n - i
 
 
 -- | read count with non-overlapping features
