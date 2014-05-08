@@ -3,14 +3,59 @@
 module Bio.Util.Overlap (
       overlapFragment
     , overlapNucl
+    , coverage
 ) where
 
-import qualified Data.ByteString.Char8 as B
+--import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.IntervalMap.Strict as IM
+import qualified Data.HashMap.Strict as M
 import qualified Data.Vector.Unboxed as V
 import qualified Data.Vector.Unboxed.Mutable as VM
+import Data.List
+import Data.Function
 import Bio.Util.Bed
 import Control.Monad
+
+-- | convert lines of a BED file into a data structure - A hashmap of which the
+-- | chromosomes, and values are interval maps.
+toMap ∷ [(B.ByteString, (Int, Int))] → M.HashMap B.ByteString (IM.IntervalMap Int Int)
+{-# INLINE toMap #-}
+toMap input = M.fromList.map create.groupBy ((==) `on` (fst.fst)) $ zip input [0..]
+    where
+        f ((_, x), i) = (toInterval x, i)
+        create xs = (fst.fst.head $ xs, IM.fromDistinctAscList.map f $ xs)
+
+-- | coverages of bins
+coverage ∷ B.ByteString → B.ByteString → V.Vector Double
+coverage bin tags = V.zipWith normalize (V.create (VM.replicate n 0 >>= go (B.lines tags))) featWidth
+    where
+        go ts v = do
+            forM_ ts (\t → do
+                let (chr:start:end:_) = B.words t
+                    set = M.lookup chr featMap
+                    b = (readInt start, readInt end)
+                    intervals = case set of
+                        Just iMap → IM.intersecting iMap.toInterval $ b
+                        _ → []
+                forM_ intervals (\interval → do 
+                    let i = snd interval
+                        nucl = overlap b . fst $ interval
+                    VM.write v i . (+nucl) =<< VM.read v i
+                    )
+                )
+            return v
+        featMap = toMap input
+        input = map f.B.lines $ bin
+        featWidth = V.fromList.map (uncurry subtract.snd) $ input
+        f x = let (chr:start:end:_) = B.words x
+              in (chr, (readInt start, readInt end))
+        n = length input
+        overlap (l, u) (IM.ClosedInterval l' u') 
+            | l' >= l = if u' <= u then u'-l'+1 else u-l'+1
+            | otherwise = if u' <= u then u'-l+1 else u-l+1
+        overlap _ _ = 0
+        normalize a b = fromIntegral a / fromIntegral b
 
 overlapFragment, overlapNucl ∷ 
                   [(Int, Int)] -- ^ Ascending order list
@@ -49,8 +94,3 @@ overlapNucl xs ts = V.create (VM.replicate n 0 >>= go ts)
 toInterval ∷ (a, a) → IM.Interval a
 {-# INLINE toInterval #-}
 toInterval (l, u) = IM.ClosedInterval l u
-
-readBed ∷ B.ByteString → [(Int, Int)]
-readBed b = map (f.B.words) $ B.lines b
-    where
-        f (_:s:e:_) = (readInt s, readInt e)

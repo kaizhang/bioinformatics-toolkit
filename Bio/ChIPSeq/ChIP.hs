@@ -41,6 +41,7 @@ naiveCC = naiveCCWithSmooth 0
 naiveCC' ∷ B.ByteString → [Int] → Int
 naiveCC' = naiveCCWithSmooth 4
 
+-- | calcuate cross corrlation with different shifts
 naiveCCWithSmooth ∷ Int → B.ByteString → [Int] → Int
 {-# INLINE naiveCCWithSmooth #-}
 naiveCCWithSmooth smooth input range = maxCC.readBed $ input
