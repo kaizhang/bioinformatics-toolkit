@@ -23,11 +23,11 @@ data-files:
 
 library
   exposed-modules:     
-      Bio.Util.Transform
+      Bio.Utils.Transform
 --      , Bio.ChIPSeq.Spline
     , Bio.ChIPSeq.ChIP
-    , Bio.Util.Overlap
-    , Bio.Util.Bed
+    , Bio.Utils.Overlap
+    , Bio.Utils.Bed
 --    , Bio.Util.Utils
 
   -- other-modules:       
@@ -46,6 +46,7 @@ library
     , IntervalMap >=0.3 && <0.4
     , bytestring-lexing >=0.4 && <0.5
     , list-extras
+    , lens
 
   -- hs-source-dirs:      
   default-language:    Haskell2010

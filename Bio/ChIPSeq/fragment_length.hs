@@ -1,14 +1,14 @@
 {-# LANGUAGE OverloadedStrings, UnicodeSyntax #-}
 
-import qualified Data.ByteString.Char8 as B
 import System.Environment
 import Bio.ChIPSeq.ChIP
+import Bio.Utils.Bed
 
 run ∷ [FilePath] → IO ()
 run [f1] = do
-    tags ← B.readFile f1
+    beds <- readBED f1
     let x = [55..400]
-    print $ naiveCC' tags x
+    print $ naiveCC' beds x
 run _ = error "incorrect arguments"
 
 main ∷ IO ()

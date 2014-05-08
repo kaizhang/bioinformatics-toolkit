@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, UnicodeSyntax, BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Bio.Util.Transform (
+module Bio.Utils.Transform (
       ihs
     , ihs'
     , copula
