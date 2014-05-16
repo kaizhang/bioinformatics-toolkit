@@ -7,7 +7,7 @@ module Bio.Utils.Bed (
     , readDouble
     , bins
     , binBySize
-    , BED
+    , BED(..)
     , chrom
     , chromStart
     , chromEnd
@@ -15,6 +15,7 @@ module Bio.Utils.Bed (
     , score
     , strand
     , readBED
+    , writeBED 
 ) where
 
 import qualified Data.ByteString.Char8 as B
@@ -26,30 +27,37 @@ import Control.Lens
 import Control.Monad.State.Strict
 import Data.Default.Generics
 import GHC.Generics
+import System.IO
 
 -- | the type for BED format, as described in http://genome.ucsc.edu/FAQ/FAQformat.html#format1.7
 data BED = BED
-    { _chrom :: BL.ByteString
+    { _chrom :: B.ByteString
     , _chromStart :: {-# UNPACK #-} !Int
     , _chromEnd :: {-# UNPACK #-} !Int
-    , _name :: Maybe BL.ByteString
+    , _name :: Maybe B.ByteString
     , _score :: Maybe Double
-    , _strand :: Maybe Bool
+    , _strand :: Maybe Bool  -- ^ True: "+", False: "-"
     } deriving (Show, Generic)
 
 makeLenses ''BED
 
 instance Default BED
 
+-- | FIXME: use handler
 readBED :: FilePath -> IO [BED]
-readBED fl = do content <- BL.readFile fl
-                return.map fromLine.BL.lines $ content
+{-# INLINE readBED #-}
+readBED fl = do content <- B.readFile fl
+                return.map fromLine.B.lines $ content
 
-fromLine :: BL.ByteString -> BED
+writeBED :: FilePath -> [BED] -> IO ()
+{-# INLINE writeBED #-}
+writeBED fl beds = withFile fl WriteMode $ \h -> mapM_ (B.hPutStrLn h.toLine) beds
+
+fromLine :: B.ByteString -> BED
 {-# INLINE fromLine #-}
-fromLine l = evalState (f (BL.split '\t' l)) 1
+fromLine l = evalState (f (B.split '\t' l)) 1
   where
-    f :: [BL.ByteString] -> State Int BED
+    f :: [B.ByteString] -> State Int BED
     f [] = do i <- get
               if i <= 3 then error "Read BED fail: Incorrect number of fields"
                         else return def
@@ -73,6 +81,23 @@ fromLine l = evalState (f (BL.split '\t' l)) 1
     getStrand str | str == "-" = Just False
                   | str == "+" = Just True
                   | otherwise = Nothing
+
+toLine :: BED -> B.ByteString
+{-# INLINE toLine #-}
+toLine (BED f1 f2 f3 f4 f5 f6) = B.intercalate "\t" [ f1
+                                                    , (B.pack.show) f2
+                                                    , (B.pack.show) f3
+                                                    , fromMaybe "." f4
+                                                    , score'
+                                                    , strand'
+                                                    ]
+  where
+    strand' | f6 == Just True = "+"
+            | f6 == Just False = "-"
+            | otherwise = "."
+    score' = case f5 of
+                 Just x -> (B.pack.show) x
+                 _ -> "."
 
 class ToNum a where
     readInt :: a -> Int

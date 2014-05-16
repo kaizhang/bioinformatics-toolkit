@@ -5,7 +5,7 @@ module Bio.Utils.Overlap (
 ) where
 
 --import qualified Data.ByteString.Char8 as B
-import qualified Data.ByteString.Lazy.Char8 as B
+import qualified Data.ByteString.Char8 as B
 import qualified Data.IntervalMap.Strict as IM
 import qualified Data.HashMap.Strict as M
 import qualified Data.Vector.Unboxed as V
@@ -26,6 +26,7 @@ toMap input = M.fromList.map create.groupBy ((==) `on` (fst.fst)) $ zip input [0
         create xs = (fst.fst.head $ xs, IM.fromDistinctAscList.map f $ xs)
 
 -- | coverages of bins
+-- FIXME: space leak
 coverage :: [BED]  -- ^ genomic locus in BED format
          -> [BED]  -- ^ reads in BED format
          -> V.Vector Double
