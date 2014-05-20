@@ -50,6 +50,8 @@ library
     , mtl
     , data-default-generics
     , colour
+    , conduit
+    , transformers
 
   -- hs-source-dirs:      
   default-language:    Haskell2010
