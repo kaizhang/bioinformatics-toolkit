@@ -37,7 +37,7 @@ data BED = BED
     , _name :: Maybe B.ByteString
     , _score :: Maybe Double
     , _strand :: Maybe Bool  -- ^ True: "+", False: "-"
-    } deriving (Show, Generic)
+    } deriving (Read, Show, Generic)
 
 makeLenses ''BED
 
@@ -104,15 +104,19 @@ class ToNum a where
     readDouble :: a -> Double
 
 instance ToNum B.ByteString where
-    readInt = fst.fromJust.B.readInt
+    readInt x = fst . fromMaybe raiseError . B.readInt $ x
+      where raiseError = error $ "Fail to cast ByteString to Int:" ++ show x
     {-# INLINE readInt #-}
-    readDouble = fst . fromJust . L.readDouble
+    readDouble x = fst . fromMaybe raiseError. L.readDouble $ x
+      where raiseError = error $ "Fail to cast ByteString to Double:" ++ show x
     {-# INLINE readDouble #-}
 
 instance ToNum BL.ByteString where
-    readInt = fst.fromJust.BL.readInt
+    readInt x = fst. fromMaybe raiseError. BL.readInt $ x
+      where raiseError = error $ "Fail to cast ByteString to Int:" ++ show x
     {-# INLINE readInt #-}
-    readDouble = fst . fromJust . LL.readDouble
+    readDouble x = fst . fromMaybe raiseError . LL.readDouble $ x
+      where raiseError = error $ "Fail to cast ByteString to Double:" ++ show x
     {-# INLINE readDouble #-}
 
 -- | divide a given region into fixed size fragments

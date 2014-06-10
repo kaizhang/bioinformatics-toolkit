@@ -26,6 +26,7 @@ library
       Bio.Utils.Transform
 --      , Bio.ChIPSeq.Spline
     , Bio.ChIPSeq.ChIP
+    , Bio.Motif
     , Bio.Utils.Overlap
     , Bio.Utils.Bed
 --    , Bio.Util.Utils
@@ -45,6 +46,7 @@ library
     , statistics
     , IntervalMap >=0.3 && <0.4
     , bytestring-lexing >=0.4 && <0.5
+    , array
     , list-extras
     , lens
     , mtl
