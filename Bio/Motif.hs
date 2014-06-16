@@ -1,4 +1,3 @@
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Bio.Motif 
@@ -57,7 +56,7 @@ toIUPAC (PWM _ pwm) = map f $ toRows pwm
         | otherwise                     = undefined
       where 
         [a, c, g, t] = V.toList v
-        max' = maximum [a, c, g, t]
+        max' = V.maximum v
 
 -- | calculate distance between PWMs
 distanceBy :: (forall t. Foldable t => t Double -> t Double -> Double) -> PWM -> PWM -> Double
@@ -86,12 +85,15 @@ score :: BkgdModel -> PWM -> B.ByteString -> Double
 score (BG (a, c, g, t)) (PWM _ pwm) sequ = sum . map f $ [0 .. len-1]
   where
     f i = case sequ `B.index` i of
-              'A' -> log $ (pwm ! (i, 0)) / a
-              'C' -> log $ (pwm ! (i, 1)) / c
-              'G' -> log $ (pwm ! (i, 2)) / g
-              'T' -> log $ (pwm ! (i, 3)) / t
+              'A' -> log $ addSome (pwm ! (i, 0)) / a
+              'C' -> log $ addSome (pwm ! (i, 1)) / c
+              'G' -> log $ addSome (pwm ! (i, 2)) / g
+              'T' -> log $ addSome (pwm ! (i, 3)) / t
               _   -> error "Bio.Motif.score: invalid nucleotide!"
     len = nrows pwm
+    addSome x | x == 0 = pseudoCount
+              | otherwise = x
+    pseudoCount = 0.001
 
 -- | read pwm from a matrix
 readPWM :: B.ByteString -> PWM

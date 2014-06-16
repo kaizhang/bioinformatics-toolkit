@@ -28,6 +28,7 @@ library
       Bio.Utils.Transform
     , Bio.ChIPSeq.ChIP
     , Bio.Motif
+    , Bio.Seq
     , Bio.Utils.Overlap
     , Bio.Utils.Bed
 
@@ -54,6 +55,7 @@ library
     , colour
     , conduit
     , transformers
+    , split
     , nlp-scores >=0.6
 
   -- hs-source-dirs:      
