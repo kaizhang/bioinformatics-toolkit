@@ -31,12 +31,12 @@ import System.IO
 
 -- | the type for BED format, as described in http://genome.ucsc.edu/FAQ/FAQformat.html#format1.7
 data BED = BED
-    { _chrom :: B.ByteString
+    { _chrom :: !B.ByteString
     , _chromStart :: {-# UNPACK #-} !Int
     , _chromEnd :: {-# UNPACK #-} !Int
-    , _name :: Maybe B.ByteString
-    , _score :: Maybe Double
-    , _strand :: Maybe Bool  -- ^ True: "+", False: "-"
+    , _name :: !(Maybe B.ByteString)
+    , _score :: !(Maybe Double)
+    , _strand :: !(Maybe Bool)  -- ^ True: "+", False: "-"
     } deriving (Read, Show, Generic)
 
 makeLenses ''BED

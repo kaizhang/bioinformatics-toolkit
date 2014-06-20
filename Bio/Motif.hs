@@ -1,7 +1,9 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Bio.Motif 
-    ( score
+    ( Motif(..)
+    , PWM(..)
+    , score
     , readPWM
     , scores
     , toIUPAC
@@ -89,7 +91,8 @@ score (BG (a, c, g, t)) (PWM _ pwm) sequ = sum . map f $ [0 .. len-1]
               'C' -> log $ addSome (pwm ! (i, 1)) / c
               'G' -> log $ addSome (pwm ! (i, 2)) / g
               'T' -> log $ addSome (pwm ! (i, 3)) / t
-              _   -> error "Bio.Motif.score: invalid nucleotide!"
+--              _   -> error "Bio.Motif.score: invalid nucleotide!"
+              _   -> log 0.001
     len = nrows pwm
     addSome x | x == 0 = pseudoCount
               | otherwise = x
