@@ -16,12 +16,13 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.Vector as V
 import Data.Default.Generics
 import Bio.Utils.Bed (readDouble, readInt)
+import Bio.Seq
 import Data.Matrix
 import NLP.Scores
 import Control.Monad.State.Lazy
 
 -- | k x 4 position weight matrix for motifs
-data PWM = PWM !(Maybe Int)  -- ^ number of sites
+data PWM = PWM !(Maybe Int)  -- ^ number of sites used to generate this matrix
                !(Matrix Double)
     deriving (Show)
 
@@ -37,8 +38,8 @@ instance Default BkgdModel where
     def = BG (0.25, 0.25, 0.25, 0.25)
 
 -- | convert pwm to consensus sequence
-toIUPAC :: PWM -> String
-toIUPAC (PWM _ pwm) = map f $ toRows pwm
+toIUPAC :: PWM -> DNA IUPAC
+toIUPAC (PWM _ pwm) = fromBS . B.pack . map f $ toRows pwm
   where
     f v | a == c && c == g && g == t    = 'N'
         | a == c && c == g && g == max' = 'V'
@@ -76,23 +77,42 @@ deltaJS (PWM _ m1) (PWM _ m2) = sum $ zipWith jensenShannon x y
   where (x, y) = (toRows m1, toRows m2)
 
 -- | get scores of a long sequences at each position
-scores :: BkgdModel -> PWM -> B.ByteString -> [Double]
-scores bg p@(PWM _ pwm) = go
+scores :: BkgdModel -> PWM -> DNA a -> [Double]
+scores bg p@(PWM _ pwm) dna = go $! toBS dna
   where
     go s | B.length s >= len = score bg p (B.take len s) : go (B.tail s)
          | otherwise = []
     len = nrows pwm
 
 score :: BkgdModel -> PWM -> B.ByteString -> Double
-score (BG (a, c, g, t)) (PWM _ pwm) sequ = sum . map f $ [0 .. len-1]
+score (BG (a, c, g, t)) (PWM _ pwm) dna = sum . map f $ [0 .. len-1]
   where
-    f i = case sequ `B.index` i of
-              'A' -> log $ addSome (pwm ! (i, 0)) / a
-              'C' -> log $ addSome (pwm ! (i, 1)) / c
-              'G' -> log $ addSome (pwm ! (i, 2)) / g
-              'T' -> log $ addSome (pwm ! (i, 3)) / t
---              _   -> error "Bio.Motif.score: invalid nucleotide!"
-              _   -> log 0.001
+    f i = case dna `B.index` i of
+              'A' -> log $ addSome matchA / a
+              'a' -> log $ addSome matchA / a
+              'C' -> log $ addSome matchC / c
+              'c' -> log $ addSome matchC / c
+              'G' -> log $ addSome matchG / g
+              'g' -> log $ addSome matchG / g
+              'T' -> log $ addSome matchT / t
+              't' -> log $ addSome matchT / t
+              'N' -> log $ (matchA / a + matchC / c + matchG / g + matchT / t) / 4
+              'V' -> log $ (matchA / a + matchC / c + matchG / g) / 3
+              'H' -> log $ (matchA / a + matchC / c + matchT / t) / 3
+              'D' -> log $ (matchA / a + matchG / g + matchT / t) / 3
+              'B' -> log $ (matchC / c + matchG / g + matchT / t) / 3
+              'M' -> log $ (matchA / a + matchC / c) / 2
+              'K' -> log $ (matchG / g + matchT / t) / 2
+              'W' -> log $ (matchA / a + matchT / t) / 2
+              'S' -> log $ (matchC / c + matchG / g) / 2
+              'Y' -> log $ (matchC / c + matchT / t) / 2
+              'R' -> log $ (matchA / a + matchG / g) / 2
+              _   -> error "Bio.Motif.score: invalid nucleotide!"
+      where
+        matchA = pwm ! (i+1, 1)
+        matchC = pwm ! (i+1, 2)
+        matchG = pwm ! (i+1, 3)
+        matchT = pwm ! (i+1, 4)
     len = nrows pwm
     addSome x | x == 0 = pseudoCount
               | otherwise = x
