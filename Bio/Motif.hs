@@ -3,7 +3,6 @@
 module Bio.Motif 
     ( Motif(..)
     , PWM(..)
-    , score
     , readPWM
     , scores
     , toIUPAC
@@ -80,22 +79,18 @@ deltaJS (PWM _ m1) (PWM _ m2) = sum $ zipWith jensenShannon x y
 scores :: BkgdModel -> PWM -> DNA a -> [Double]
 scores bg p@(PWM _ pwm) dna = go $! toBS dna
   where
-    go s | B.length s >= len = score bg p (B.take len s) : go (B.tail s)
+    go s | B.length s >= len = scoreHelp bg p (B.take len s) : go (B.tail s)
          | otherwise = []
     len = nrows pwm
 
-score :: BkgdModel -> PWM -> B.ByteString -> Double
-score (BG (a, c, g, t)) (PWM _ pwm) dna = sum . map f $ [0 .. len-1]
+scoreHelp :: BkgdModel -> PWM -> B.ByteString -> Double
+scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = sum . map f $ [0 .. len-1]
   where
     f i = case dna `B.index` i of
               'A' -> log $ addSome matchA / a
-              'a' -> log $ addSome matchA / a
               'C' -> log $ addSome matchC / c
-              'c' -> log $ addSome matchC / c
               'G' -> log $ addSome matchG / g
-              'g' -> log $ addSome matchG / g
               'T' -> log $ addSome matchT / t
-              't' -> log $ addSome matchT / t
               'N' -> log $ (matchA / a + matchC / c + matchG / g + matchT / t) / 4
               'V' -> log $ (matchA / a + matchC / c + matchG / g) / 3
               'H' -> log $ (matchA / a + matchC / c + matchT / t) / 3
@@ -117,6 +112,7 @@ score (BG (a, c, g, t)) (PWM _ pwm) dna = sum . map f $ [0 .. len-1]
     addSome x | x == 0 = pseudoCount
               | otherwise = x
     pseudoCount = 0.001
+{-# INLINE scoreHelp #-}
 
 -- | read pwm from a matrix
 readPWM :: B.ByteString -> PWM
