@@ -1,17 +1,23 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Bio.Seq 
-    ( Basic
+    ( 
+    -- * Alphabet
+      Basic
     , IUPAC
     , Ext
+    -- * Sequence types
     , DNA
     , RNA
+    , Peptide
     , BioSeq(..)
     , toBS
+    -- * DNA related functions
+    , rc
+    -- * IO
     , getSeqs
     , getSeq
     , getIndex
-    , rc
     ) where
 
 import qualified Data.ByteString.Char8 as B
@@ -24,24 +30,38 @@ import Data.Char8
 import Control.Monad
 
 -- | Alphabet defined by http://www.chem.qmul.ac.uk/iupac/
+-- | Standard unambiguous alphabet
 data Basic
+
+-- | full IUPAC alphabet, including ambiguous letters
 data IUPAC
+
+-- | extended alphabet
 data Ext
 
+-- | DNA sequence
 newtype DNA alphabet = DNA B.ByteString
+
+-- | RNA sequence
 newtype RNA alphabet = RNA B.ByteString
+
+-- | Peptide sequence
+newtype Peptide alphabet = Peptide B.ByteString
 
 class BioSeq' s where
     toBS :: s a -> B.ByteString
-
-class BioSeq' s => BioSeq s a where
-    fromBS :: B.ByteString -> s a 
 
 instance BioSeq' DNA where
     toBS (DNA s) = s
 
 instance BioSeq' RNA where
     toBS (RNA s) = s
+
+instance BioSeq' Peptide where
+    toBS (Peptide s) = s
+
+class BioSeq' s => BioSeq s a where
+    fromBS :: B.ByteString -> s a 
 
 instance BioSeq DNA Basic where
     fromBS = DNA . B.map (f.toUpper)
@@ -60,11 +80,7 @@ instance BioSeq DNA IUPAC where
 instance BioSeq DNA Ext where
     fromBS = undefined
 
-type IndexTable = M.HashMap B.ByteString Int
-type OffSet = Int
-type Query = (B.ByteString, Int, Int) -- zero based
-
--- | reverse complement
+-- | reverse complementary of DNA sequence
 rc :: DNA alphabet -> DNA alphabet
 rc (DNA s) = DNA . B.map f . B.reverse $ s
   where
@@ -74,6 +90,12 @@ rc (DNA s) = DNA . B.map f . B.reverse $ s
         'G' -> 'C'
         'T' -> 'A'
         _ -> x
+
+type IndexTable = M.HashMap B.ByteString Int
+
+type OffSet = Int
+
+type Query = (B.ByteString, Int, Int) -- (chr, start, end), zero based
 
 getSeqs :: BioSeq s a => FilePath -> [Query] -> IO [s a]
 getSeqs fl querys = do h <- openFile fl ReadMode
