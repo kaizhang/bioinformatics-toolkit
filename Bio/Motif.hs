@@ -1,16 +1,20 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Bio.Motif 
-    ( Motif(..)
-    , PWM(..)
+    ( PWM (..)
+    , subPWM
+    , deltaKL
+    , deltaJS
+    , Motif (..)
     , readPWM
     , scores
+    , score
     , toIUPAC
     , readMEME
     ) where
 
 import Prelude hiding (sum)
-import Data.Foldable (Foldable)
+import Data.Traversable (Traversable)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Vector as V
 import Data.Default.Generics
@@ -25,6 +29,10 @@ data PWM = PWM !(Maybe Int)  -- ^ number of sites used to generate this matrix
                !(Matrix Double)
     deriving (Show)
 
+-- | extract sub-PWM given starting position and length, 1-based indexing
+subPWM :: Int -> Int -> PWM -> PWM
+subPWM i l (PWM n mat) = PWM n $ submatrix i (i+l-1) 1 4 mat
+
 data Motif = Motif
     { _name :: !B.ByteString
     , _pwm :: !PWM
@@ -36,7 +44,7 @@ newtype BkgdModel = BG (Double, Double, Double, Double)
 instance Default BkgdModel where
     def = BG (0.25, 0.25, 0.25, 0.25)
 
--- | convert pwm to consensus sequence
+-- | convert pwm to consensus sequence, FIXME: need to rewrite
 toIUPAC :: PWM -> DNA IUPAC
 toIUPAC (PWM _ pwm) = fromBS . B.pack . map f $ toRows pwm
   where
@@ -61,19 +69,20 @@ toIUPAC (PWM _ pwm) = fromBS . B.pack . map f $ toRows pwm
         max' = V.maximum v
 
 -- | calculate distance between PWMs
-distanceBy :: (forall t. Foldable t => t Double -> t Double -> Double) -> PWM -> PWM -> Double
-distanceBy f (PWM _ m1) (PWM _ m2) = sum $ zipWith f x y
+distanceBy :: (Traversable t, t ~ V.Vector) => (t Double -> t Double -> Double) -> PWM -> PWM -> Double
+distanceBy f (PWM _ m1) (PWM _ m2) = mean $ zipWith f x y
   where (x, y) = (toRows m1, toRows m2)
+{-# INLINE distanceBy #-}
 
 -- Calculate distance by Kullback-Leibler divergence
 deltaKL :: PWM -> PWM -> Double
-deltaKL (PWM _ m1) (PWM _ m2) = sum $ zipWith kullbackLeibler x y
-  where (x, y) = (toRows m1, toRows m2)
+deltaKL = distanceBy kullbackLeibler
+{-# INLINE deltaKL #-}
 
 -- Calculate distance by Jensen-Shannon divergence
 deltaJS :: PWM -> PWM -> Double
-deltaJS (PWM _ m1) (PWM _ m2) = sum $ zipWith jensenShannon x y
-  where (x, y) = (toRows m1, toRows m2)
+deltaJS = distanceBy jensenShannon
+{-# INLINE deltaJS #-}
 
 -- | get scores of a long sequences at each position
 scores :: BkgdModel -> PWM -> DNA a -> [Double]
@@ -82,6 +91,9 @@ scores bg p@(PWM _ pwm) dna = go $! toBS dna
     go s | B.length s >= len = scoreHelp bg p (B.take len s) : go (B.tail s)
          | otherwise = []
     len = nrows pwm
+
+score :: BkgdModel -> PWM -> DNA a -> Double
+score bg p dna = scoreHelp bg p $ toBS dna
 
 scoreHelp :: BkgdModel -> PWM -> B.ByteString -> Double
 scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = sum . map f $ [0 .. len-1]
@@ -141,13 +153,13 @@ fromMEME meme = evalState (go $ B.lines meme) (0, [])
                          else put (2, str ++ [x']) >> go xs
               _ -> go xs
     go [] = do (st, str) <- get
-               return $ if st == 2 then [toMotif str]
-                                   else []
+               return [toMotif str | st == 2]
     startOfPwm = B.isPrefixOf "letter-probability matrix:"
     toMotif (name:n:xs) = Motif name pwm
       where
         pwm = PWM (Just $ readInt n) $ fromLists . map (map readDouble.B.words) $ xs
     toMotif _ = error "error"
+{-# INLINE fromMEME #-}
 
 toRows :: Matrix a -> [V.Vector a]
 toRows m = map (`getRow` m) [1 .. nrows m]
