@@ -55,8 +55,8 @@ toIUPAC :: PWM -> DNA IUPAC
 toIUPAC (PWM _ pwm) = fromBS . B.pack . map f $ toRows pwm
   where
     f v | snd a > 0.5 && snd a > 2 * snd b = fst a
-        | snd a + snd b > 0.75 = iupac (fst a, fst b)
-        | otherwise                     = 'N'
+        | snd a + snd b > 0.75             = iupac (fst a, fst b)
+        | otherwise                        = 'N'
       where 
         [a, b, _, _] = sortBy (flip (comparing snd)) $ zip "ACGT" $ V.toList v
     iupac x = case sort' x of
@@ -69,7 +69,6 @@ toIUPAC (PWM _ pwm) = fromBS . B.pack . map f $ toRows pwm
         _ -> undefined
     sort' (x, y) | x > y = (y, x)
                  | otherwise = (x, y)
-
 
 -- | calculate distance between PWMs
 distanceBy :: (Traversable t, t ~ V.Vector) => (t Double -> t Double -> Double) -> PWM -> PWM -> Double
@@ -102,10 +101,10 @@ scoreHelp :: BkgdModel -> PWM -> B.ByteString -> Double
 scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = sum . map f $ [0 .. len-1]
   where
     f i = case dna `B.index` i of
-              'A' -> log $ addSome matchA / a
-              'C' -> log $ addSome matchC / c
-              'G' -> log $ addSome matchG / g
-              'T' -> log $ addSome matchT / t
+              'A' -> log $ matchA / a
+              'C' -> log $ matchC / c
+              'G' -> log $ matchG / g
+              'T' -> log $ matchT / t
               'N' -> log $ (matchA / a + matchC / c + matchG / g + matchT / t) / 4
               'V' -> log $ (matchA / a + matchC / c + matchG / g) / 3
               'H' -> log $ (matchA / a + matchC / c + matchT / t) / 3
@@ -117,16 +116,16 @@ scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = sum . map f $ [0 .. len-1]
               'S' -> log $ (matchC / c + matchG / g) / 2
               'Y' -> log $ (matchC / c + matchT / t) / 2
               'R' -> log $ (matchA / a + matchG / g) / 2
-              _   -> error "Bio.Motif.score: invalid nucleotide!"
+              _   -> error "Bio.Motif.score: invalid nucleotide"
       where
-        matchA = pwm ! (i+1, 1)
-        matchC = pwm ! (i+1, 2)
-        matchG = pwm ! (i+1, 3)
-        matchT = pwm ! (i+1, 4)
+        matchA = addSome $! pwm ! (i+1, 1)
+        matchC = addSome $! pwm ! (i+1, 2)
+        matchG = addSome $! pwm ! (i+1, 3)
+        matchT = addSome $! pwm ! (i+1, 4)
+        addSome x | x == 0 = pseudoCount
+                  | otherwise = x
+        pseudoCount = 0.001
     len = nrows pwm
-    addSome x | x == 0 = pseudoCount
-              | otherwise = x
-    pseudoCount = 0.001
 {-# INLINE scoreHelp #-}
 
 -- | read pwm from a matrix
