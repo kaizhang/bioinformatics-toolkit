@@ -39,7 +39,7 @@ library
     , shelly >=1.5 && <1.6
     , text >=0.11 && <0.12
     , bytestring >=0.10 && <0.11
-    , vector >=0.10 && <0.11
+    , vector
     , unordered-containers >=0.2 && <0.3
     , containers >=0.5
     , concatenative >=1.0 && <1.1
@@ -47,7 +47,6 @@ library
     , statistics
     , IntervalMap >=0.3 && <0.4
     , bytestring-lexing >=0.4 && <0.5
-    , matrix
     , list-extras
     , lens
     , mtl
@@ -58,6 +57,7 @@ library
     , split
     , nlp-scores >=0.6
     , word8 >=0.0.4
+    , hmatrix ==0.15.0.0
 
   -- hs-source-dirs:      
   default-language:    Haskell2010

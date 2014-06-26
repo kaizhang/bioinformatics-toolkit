@@ -1,31 +1,34 @@
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Bio.Motif 
     ( PWM (..)
     , subPWM
+    , Motif (..)
+    , DistanceFn
     , deltaKL
     , deltaJS
-    , Motif (..)
     , readPWM
     , scores
     , score
     , toIUPAC
     , readMEME
+    , toRows
 
     -- * References
     -- $references
     ) where
 
 import Prelude hiding (sum)
-import Data.Traversable (Traversable)
 import qualified Data.ByteString.Char8 as B
-import qualified Data.Vector as V
+import qualified Data.Vector.Generic as G
 import Data.Default.Generics
 import Data.List (sortBy)
+import Data.Function (on)
 import Data.Ord (comparing)
 import Bio.Utils.Bed (readDouble, readInt)
 import Bio.Seq
-import Data.Matrix
+import Data.Packed.Matrix
 import NLP.Scores
 import Control.Monad.State.Lazy
 
@@ -35,9 +38,9 @@ data PWM = PWM
     , _mat :: !(Matrix Double)
     } deriving (Show)
 
--- | extract sub-PWM given starting position and length, 1-based indexing
+-- | extract sub-PWM given starting position and length
 subPWM :: Int -> Int -> PWM -> PWM
-subPWM i l (PWM n mat) = PWM n $ submatrix i (i+l-1) 1 4 mat
+subPWM i l (PWM n mat) = PWM n $ subMatrix (i, 0) (l, 4) mat
 
 data Motif = Motif
     { _name :: !B.ByteString
@@ -58,7 +61,7 @@ toIUPAC (PWM _ pwm) = fromBS . B.pack . map f $ toRows pwm
         | snd a + snd b > 0.75             = iupac (fst a, fst b)
         | otherwise                        = 'N'
       where 
-        [a, b, _, _] = sortBy (flip (comparing snd)) $ zip "ACGT" $ V.toList v
+        [a, b, _, _] = sortBy (flip (comparing snd)) $ zip "ACGT" $ G.toList v
     iupac x = case sort' x of
         ('A', 'C') -> 'M'
         ('G', 'T') -> 'K'
@@ -70,20 +73,22 @@ toIUPAC (PWM _ pwm) = fromBS . B.pack . map f $ toRows pwm
     sort' (x, y) | x > y = (y, x)
                  | otherwise = (x, y)
 
+type DistanceFn = G.Vector v Double => v Double -> v Double -> Double
+
 -- | calculate distance between PWMs
-distanceBy :: (Traversable t, t ~ V.Vector) => (t Double -> t Double -> Double) -> PWM -> PWM -> Double
+distanceBy :: DistanceFn -> PWM -> PWM -> Double
 distanceBy f (PWM _ m1) (PWM _ m2) = mean $ zipWith f x y
   where (x, y) = (toRows m1, toRows m2)
 {-# INLINE distanceBy #-}
 
 -- Calculate distance by Kullback-Leibler divergence
 deltaKL :: PWM -> PWM -> Double
-deltaKL = distanceBy kullbackLeibler
+deltaKL = distanceBy (kullbackLeibler `on` G.toList)
 {-# INLINE deltaKL #-}
 
 -- Calculate distance by Jensen-Shannon divergence
 deltaJS :: PWM -> PWM -> Double
-deltaJS = distanceBy jensenShannon
+deltaJS = distanceBy (jensenShannon `on` G.toList)
 {-# INLINE deltaJS #-}
 
 -- | get scores of a long sequences at each position
@@ -92,7 +97,7 @@ scores bg p@(PWM _ pwm) dna = go $! toBS dna
   where
     go s | B.length s >= len = scoreHelp bg p (B.take len s) : go (B.tail s)
          | otherwise = []
-    len = nrows pwm
+    len = rows pwm
 
 score :: BkgdModel -> PWM -> DNA a -> Double
 score bg p dna = scoreHelp bg p $ toBS dna
@@ -118,14 +123,14 @@ scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = sum . map f $ [0 .. len-1]
               'R' -> log $ (matchA / a + matchG / g) / 2
               _   -> error "Bio.Motif.score: invalid nucleotide"
       where
-        matchA = addSome $! pwm ! (i+1, 1)
-        matchC = addSome $! pwm ! (i+1, 2)
-        matchG = addSome $! pwm ! (i+1, 3)
-        matchT = addSome $! pwm ! (i+1, 4)
+        matchA = addSome $! pwm @@> (i, 0)
+        matchC = addSome $! pwm @@> (i, 1)
+        matchG = addSome $! pwm @@> (i, 2)
+        matchT = addSome $! pwm @@> (i, 3)
         addSome x | x == 0 = pseudoCount
                   | otherwise = x
         pseudoCount = 0.001
-    len = nrows pwm
+    len = rows pwm
 {-# INLINE scoreHelp #-}
 
 -- | read pwm from a matrix
@@ -162,9 +167,6 @@ fromMEME meme = evalState (go $ B.lines meme) (0, [])
         pwm = PWM (Just $ readInt n) $ fromLists . map (map readDouble.B.words) $ xs
     toMotif _ = error "error"
 {-# INLINE fromMEME #-}
-
-toRows :: Matrix a -> [V.Vector a]
-toRows m = map (`getRow` m) [1 .. nrows m]
 
 -- $references
 --
