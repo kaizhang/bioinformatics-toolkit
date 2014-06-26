@@ -10,7 +10,7 @@ module Bio.Seq
     , DNA
     , RNA
     , Peptide
-    , BioSeq(..)
+    , BioSeq (..)
     , toBS
     -- * DNA related functions
     , rc
@@ -79,6 +79,13 @@ instance BioSeq DNA IUPAC where
 
 instance BioSeq DNA Ext where
     fromBS = undefined
+
+instance BioSeq RNA Basic where
+    fromBS = RNA . B.map (f.toUpper)
+      where
+        f x | x `S.member` alphabet = x
+            | otherwise = error "error"
+        alphabet = S.fromList "ACGU"
 
 -- | reverse complementary of DNA sequence
 rc :: DNA alphabet -> DNA alphabet

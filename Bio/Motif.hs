@@ -11,6 +11,9 @@ module Bio.Motif
     , score
     , toIUPAC
     , readMEME
+
+    -- * References
+    -- $references
     ) where
 
 import Prelude hiding (sum)
@@ -18,6 +21,8 @@ import Data.Traversable (Traversable)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Vector as V
 import Data.Default.Generics
+import Data.List (sortBy)
+import Data.Ord (comparing)
 import Bio.Utils.Bed (readDouble, readInt)
 import Bio.Seq
 import Data.Matrix
@@ -25,9 +30,10 @@ import NLP.Scores
 import Control.Monad.State.Lazy
 
 -- | k x 4 position weight matrix for motifs
-data PWM = PWM !(Maybe Int)  -- ^ number of sites used to generate this matrix
-               !(Matrix Double)
-    deriving (Show)
+data PWM = PWM 
+    { _nSites :: !(Maybe Int)  -- ^ number of sites used to generate this matrix
+    , _mat :: !(Matrix Double)
+    } deriving (Show)
 
 -- | extract sub-PWM given starting position and length, 1-based indexing
 subPWM :: Int -> Int -> PWM -> PWM
@@ -44,29 +50,26 @@ newtype BkgdModel = BG (Double, Double, Double, Double)
 instance Default BkgdModel where
     def = BG (0.25, 0.25, 0.25, 0.25)
 
--- | convert pwm to consensus sequence, FIXME: need to rewrite
+-- | convert pwm to consensus sequence, see D. R. Cavener (1987).
 toIUPAC :: PWM -> DNA IUPAC
 toIUPAC (PWM _ pwm) = fromBS . B.pack . map f $ toRows pwm
   where
-    f v | a == c && c == g && g == t    = 'N'
-        | a == c && c == g && g == max' = 'V'
-        | a == c && c == t && t == max' = 'H'
-        | a == g && g == t && t == max' = 'D'
-        | c == g && g == t && t == max' = 'B'
-        | a == c && c == max'           = 'M'
-        | g == t && t == max'           = 'K'
-        | a == t && t == max'           = 'W'
-        | c == g && g == max'           = 'S'
-        | c == t && t == max'           = 'Y'
-        | a == g && g == max'           = 'R'
-        | a == max'                     = 'A'
-        | c == max'                     = 'C'
-        | g == max'                     = 'G'
-        | t == max'                     = 'T'
-        | otherwise                     = undefined
+    f v | snd a > 0.5 && snd a > 2 * snd b = fst a
+        | snd a + snd b > 0.75 = iupac (fst a, fst b)
+        | otherwise                     = 'N'
       where 
-        [a, c, g, t] = V.toList v
-        max' = V.maximum v
+        [a, b, _, _] = sortBy (flip (comparing snd)) $ zip "ACGT" $ V.toList v
+    iupac x = case sort' x of
+        ('A', 'C') -> 'M'
+        ('G', 'T') -> 'K'
+        ('A', 'T') -> 'W'
+        ('C', 'G') -> 'S'
+        ('C', 'T') -> 'Y'
+        ('A', 'G') -> 'R'
+        _ -> undefined
+    sort' (x, y) | x > y = (y, x)
+                 | otherwise = (x, y)
+
 
 -- | calculate distance between PWMs
 distanceBy :: (Traversable t, t ~ V.Vector) => (t Double -> t Double -> Double) -> PWM -> PWM -> Double
@@ -163,3 +166,10 @@ fromMEME meme = evalState (go $ B.lines meme) (0, [])
 
 toRows :: Matrix a -> [V.Vector a]
 toRows m = map (`getRow` m) [1 .. nrows m]
+
+-- $references
+--
+-- * Douglas R. Cavener. (1987) Comparison of the consensus sequence flanking
+-- translational start sites in Drosophila and vertebrates.
+-- /Nucleic Acids Research/ 15 (4): 1353–1361.
+-- <doi:10.1093/nar/15.4.1353 http://nar.oxfordjournals.org/content/15/4/1353>
