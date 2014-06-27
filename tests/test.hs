@@ -1,14 +1,17 @@
 {-# LANGUAGE OverloadedStrings, UnicodeSyntax, TemplateHaskell, BangPatterns #-}
+import qualified Tests.Motif as Motif
 import qualified Data.ByteString.Lazy.Char8 as B
 import Test.Tasty
 import Test.Tasty.Golden
 import Data.Vector.Generic
-import Bio.Util.Bed
-import Bio.Util.Overlap
+import Bio.Utils.Bed
+import Bio.Utils.Overlap
 
 main ∷ IO ()
-main = defaultMain tests
+main = defaultMain $ testGroup "Main"
+    [ Motif.tests ]
 
+{-
 tests :: TestTree
 tests = testGroup "Tests" [unitTests]
 
@@ -49,3 +52,4 @@ test2 = do
     tags ← B.readFile f2
     let c = overlapNucl (parseBed $ B.lines feats) (parseBed $ B.lines tags)
     return $ B.unlines $ fmap (B.pack.show) $ toList c
+    -}

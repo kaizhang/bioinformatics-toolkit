@@ -48,6 +48,9 @@ newtype RNA alphabet = RNA B.ByteString
 -- | Peptide sequence
 newtype Peptide alphabet = Peptide B.ByteString
 
+instance Show (DNA a) where
+    show (DNA s) = B.unpack s
+
 class BioSeq' s where
     toBS :: s a -> B.ByteString
 
