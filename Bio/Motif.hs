@@ -1,19 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE BangPatterns #-}
 module Bio.Motif 
     ( PWM (..)
     , subPWM
     , Motif (..)
-    , DistanceFn
-    , deltaKL
-    , deltaJS
     , readPWM
     , scores
     , score
     , toIUPAC
     , readMEME
-    , toRows
+    , writeFasta
+    , readFasta
 
     -- * References
     -- $references
@@ -21,10 +18,10 @@ module Bio.Motif
 
 import Prelude hiding (sum)
 import qualified Data.ByteString.Char8 as B
+import Data.Double.Conversion.ByteString
 import qualified Data.Vector.Generic as G
 import Data.Default.Generics
 import Data.List (sortBy)
-import Data.Function (on)
 import Data.Ord (comparing)
 import Bio.Utils.Bed (readDouble, readInt)
 import Bio.Seq
@@ -73,24 +70,6 @@ toIUPAC (PWM _ pwm) = fromBS . B.pack . map f $ toRows pwm
     sort' (x, y) | x > y = (y, x)
                  | otherwise = (x, y)
 
-type DistanceFn = G.Vector v Double => v Double -> v Double -> Double
-
--- | calculate distance between PWMs
-distanceBy :: DistanceFn -> PWM -> PWM -> Double
-distanceBy f (PWM _ m1) (PWM _ m2) = mean $ zipWith f x y
-  where (x, y) = (toRows m1, toRows m2)
-{-# INLINE distanceBy #-}
-
--- Calculate distance by Kullback-Leibler divergence
-deltaKL :: PWM -> PWM -> Double
-deltaKL = distanceBy (kullbackLeibler `on` G.toList)
-{-# INLINE deltaKL #-}
-
--- Calculate distance by Jensen-Shannon divergence
-deltaJS :: PWM -> PWM -> Double
-deltaJS = distanceBy (jensenShannon `on` G.toList)
-{-# INLINE deltaJS #-}
-
 -- | get scores of a long sequences at each position
 scores :: BkgdModel -> PWM -> DNA a -> [Double]
 scores bg p@(PWM _ pwm) dna = go $! toBS dna
@@ -100,35 +79,36 @@ scores bg p@(PWM _ pwm) dna = go $! toBS dna
     len = rows pwm
 
 score :: BkgdModel -> PWM -> DNA a -> Double
-score bg p dna = scoreHelp bg p $ toBS dna
+score bg p dna = scoreHelp bg p $! toBS dna
+{-# INLINE score #-}
 
 scoreHelp :: BkgdModel -> PWM -> B.ByteString -> Double
 scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = sum . map f $ [0 .. len-1]
   where
     f i = case dna `B.index` i of
-              'A' -> log $ matchA / a
-              'C' -> log $ matchC / c
-              'G' -> log $ matchG / g
-              'T' -> log $ matchT / t
-              'N' -> log $ (matchA / a + matchC / c + matchG / g + matchT / t) / 4
-              'V' -> log $ (matchA / a + matchC / c + matchG / g) / 3
-              'H' -> log $ (matchA / a + matchC / c + matchT / t) / 3
-              'D' -> log $ (matchA / a + matchG / g + matchT / t) / 3
-              'B' -> log $ (matchC / c + matchG / g + matchT / t) / 3
-              'M' -> log $ (matchA / a + matchC / c) / 2
-              'K' -> log $ (matchG / g + matchT / t) / 2
-              'W' -> log $ (matchA / a + matchT / t) / 2
-              'S' -> log $ (matchC / c + matchG / g) / 2
-              'Y' -> log $ (matchC / c + matchT / t) / 2
-              'R' -> log $ (matchA / a + matchG / g) / 2
+              'A' -> log $! matchA / a
+              'C' -> log $! matchC / c
+              'G' -> log $! matchG / g
+              'T' -> log $! matchT / t
+              'N' -> log $! (matchA / a + matchC / c + matchG / g + matchT / t) / 4
+              'V' -> log $! (matchA / a + matchC / c + matchG / g) / 3
+              'H' -> log $! (matchA / a + matchC / c + matchT / t) / 3
+              'D' -> log $! (matchA / a + matchG / g + matchT / t) / 3
+              'B' -> log $! (matchC / c + matchG / g + matchT / t) / 3
+              'M' -> log $! (matchA / a + matchC / c) / 2
+              'K' -> log $! (matchG / g + matchT / t) / 2
+              'W' -> log $! (matchA / a + matchT / t) / 2
+              'S' -> log $! (matchC / c + matchG / g) / 2
+              'Y' -> log $! (matchC / c + matchT / t) / 2
+              'R' -> log $! (matchA / a + matchG / g) / 2
               _   -> error "Bio.Motif.score: invalid nucleotide"
       where
-        matchA = addSome $! pwm @@> (i, 0)
-        matchC = addSome $! pwm @@> (i, 1)
-        matchG = addSome $! pwm @@> (i, 2)
-        matchT = addSome $! pwm @@> (i, 3)
-        addSome x | x == 0 = pseudoCount
-                  | otherwise = x
+        matchA = addSome $ pwm @@> (i, 0)
+        matchC = addSome $ pwm @@> (i, 1)
+        matchG = addSome $ pwm @@> (i, 2)
+        matchT = addSome $ pwm @@> (i, 3)
+        addSome !x | x == 0 = pseudoCount
+                   | otherwise = x
         pseudoCount = 0.001
     len = rows pwm
 {-# INLINE scoreHelp #-}
@@ -136,7 +116,23 @@ scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = sum . map f $ [0 .. len-1]
 -- | read pwm from a matrix
 readPWM :: B.ByteString -> PWM
 readPWM x = PWM Nothing
-              $ fromLists . map (map readDouble.B.words) . B.lines $ x
+              $ fromLists . map (map readDouble.B.words) . filter (not.B.null) . B.lines $ x
+
+writePWM :: PWM -> B.ByteString
+writePWM = B.unlines . map (B.unwords . map toShortest) . toLists . _mat
+
+writeFasta :: FilePath -> [Motif] -> IO ()
+writeFasta fl motifs = B.writeFile fl contents
+  where
+    contents = B.intercalate "" . map f $ motifs
+    f x = B.unlines [">" `B.append` _name x, writePWM $ _pwm x]
+
+readFasta :: FilePath -> IO [Motif]
+readFasta fl = do contents <- B.readFile fl
+                  return . map f . tail . B.split '>' $ contents
+  where
+    f x = let (nm, remain) = B.break (=='\n') x
+          in Motif nm (readPWM remain)
 
 readMEME :: FilePath -> IO [Motif]
 readMEME = liftM fromMEME . B.readFile
