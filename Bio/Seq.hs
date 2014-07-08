@@ -12,6 +12,7 @@ module Bio.Seq
     , Peptide
     , BioSeq (..)
     , toBS
+    , length
     -- * DNA related functions
     , rc
     -- * IO
@@ -20,6 +21,7 @@ module Bio.Seq
     , getIndex
     ) where
 
+import Prelude hiding (length)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.HashMap.Lazy as M
 import qualified Data.HashSet as S
@@ -28,6 +30,7 @@ import Data.List.Split
 import Bio.Utils.Bed (readInt)
 import Data.Char8
 import Control.Monad
+import Data.Monoid
 
 -- | Alphabet defined by http://www.chem.qmul.ac.uk/iupac/
 -- | Standard unambiguous alphabet
@@ -51,17 +54,25 @@ newtype Peptide alphabet = Peptide B.ByteString
 instance Show (DNA a) where
     show (DNA s) = B.unpack s
 
+instance Monoid (DNA a) where
+    mempty = DNA B.empty
+    mappend (DNA x) (DNA y) = DNA (x <> y)
+
 class BioSeq' s where
     toBS :: s a -> B.ByteString
+    length :: s a -> Int
 
 instance BioSeq' DNA where
     toBS (DNA s) = s
+    length = B.length . toBS
 
 instance BioSeq' RNA where
     toBS (RNA s) = s
+    length = B.length . toBS
 
 instance BioSeq' Peptide where
     toBS (Peptide s) = s
+    length = B.length . toBS
 
 class BioSeq' s => BioSeq s a where
     fromBS :: B.ByteString -> s a 

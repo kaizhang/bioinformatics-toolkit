@@ -22,7 +22,7 @@ data-files:
   , tests/nucl.txt
 
 library
-  ghc-options: -Wall
+  ghc-options: -Wall -O2
 
   exposed-modules:     
       Bio.Utils.Transform
