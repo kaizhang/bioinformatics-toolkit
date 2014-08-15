@@ -25,7 +25,7 @@ import Data.List (sortBy)
 import Data.Ord (comparing)
 import Bio.Utils.Bed (readDouble, readInt)
 import Bio.Seq
-import Data.Packed.Matrix
+import Numeric.LinearAlgebra.Data
 import NLP.Scores
 import Control.Monad.State.Lazy
 
@@ -103,10 +103,10 @@ scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = sum . map f $ [0 .. len-1]
               'R' -> log $! (matchA / a + matchG / g) / 2
               _   -> error "Bio.Motif.score: invalid nucleotide"
       where
-        matchA = addSome $ pwm @@> (i, 0)
-        matchC = addSome $ pwm @@> (i, 1)
-        matchG = addSome $ pwm @@> (i, 2)
-        matchT = addSome $ pwm @@> (i, 3)
+        matchA = addSome $ pwm ! i ! 0
+        matchC = addSome $ pwm ! i ! 1
+        matchG = addSome $ pwm ! i ! 2
+        matchT = addSome $ pwm ! i ! 3
         addSome !x | x == 0 = pseudoCount
                    | otherwise = x
         pseudoCount = 0.001
