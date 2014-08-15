@@ -37,7 +37,7 @@ library
   -- other-extensions:
   build-depends:
       base >=4.6 && <5.0
-    , text >=0.11 && <0.12
+    , text >=0.11
     , bytestring >=0.10 && <0.11
     , vector
     , unordered-containers >=0.2 && <0.3
@@ -58,7 +58,7 @@ library
     , split
     , nlp-scores >=0.6
     , word8 >=0.0.4
-    , hmatrix ==0.15.0.0
+    , hmatrix >=0.16.0.0
     , hierarchical-clustering
 
   -- hs-source-dirs:      
@@ -72,17 +72,17 @@ benchmark bench
     Tests.Motif
   build-depends: 
       base >=4.6 && <5.0
-    , shelly >=1.5 && <1.6
-    , text >=0.11 && <0.12
-    , bytestring >=0.10 && <0.11
-    , vector >=0.10 && <0.11
-    , unordered-containers >=0.2 && <0.3
-    , containers >=0.5
-    , concatenative >=1.0 && <1.1
-    , parallel >=3.2 && <3.3
+    , shelly
+    , text
+    , bytestring
+    , vector
+    , unordered-containers
+    , containers
+    , concatenative
+    , parallel
     , statistics
-    , IntervalMap >=0.3 && <0.4
-    , bytestring-lexing >=0.4 && <0.5
+    , IntervalMap
+    , bytestring-lexing
     , list-extras
     , criterion
 
