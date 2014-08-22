@@ -114,6 +114,7 @@ rc (DNA s) = DNA . B.map f . B.reverse $ s
 
 type IndexTable = M.HashMap B.ByteString Int
 
+-- | the number of characters before the start of genome
 type OffSet = Int
 
 type Query = (B.ByteString, Int, Int) -- (chr, start, end), zero based
@@ -135,7 +136,8 @@ getSeq h index offset (chr, start, end) = do
 
 getIndex :: Handle -> IO (IndexTable, OffSet)
 getIndex h = do header <- B.hGetLine h
-                return (M.fromList.map f.chunksOf 2.B.words $ header, B.length header + 1)
+                return ( M.fromList . map f . chunksOf 2 . B.words $ header
+                       , B.length header + 1 )
   where
     f [k, v] = (k, readInt v)
     f _ = error "error"

@@ -7,6 +7,7 @@ module Bio.Motif
     , readPWM
     , scores
     , score
+    , findTFBS
     , toIUPAC
     , readMEME
     , writeFasta
@@ -81,6 +82,15 @@ scores bg p@(PWM _ pwm) dna = go $! toBS dna
 score :: BkgdModel -> PWM -> DNA a -> Double
 score bg p dna = scoreHelp bg p $! toBS dna
 {-# INLINE score #-}
+
+-- | given a user defined threshold, look for TF binding sites on a DNA 
+-- sequence. This function doesn't search for binding sites on the reverse strand
+findTFBS :: Motif -> DNA a -> Double -> [Int]
+findTFBS (Motif _ pwm) dna thres = go dna
+  where
+    go = fst . unzip . filter f . zip [1..] . scores def pwm
+    f x = snd x >= thres * maxScore
+    maxScore = sum . map (\x -> log (maximum x / 0.25)) . toLists . _mat $ pwm
 
 scoreHelp :: BkgdModel -> PWM -> B.ByteString -> Double
 scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = sum . map f $ [0 .. len-1]

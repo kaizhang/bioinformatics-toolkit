@@ -77,9 +77,11 @@ progressiveMerging t = case t of
   where
     f a b = merge $! snd $ alignment a b
 
+-- | build a guide tree from a set of motifs
 buildTree :: [Motif] -> Dendrogram Motif
 buildTree motifs = dendrogram UPGMA motifs δ
   where
+    -- shift motifs by 2
     δ (Motif _ x) (Motif _ y) = minimum $ map (deltaJS x) [shiftPWM y 0, shiftPWM y 1, shiftPWM y 2] ++ map (deltaJS y) [shiftPWM x 1, shiftPWM x 2]
     shiftPWM pwm i = subPWM i (n-i) pwm
       where n = rows $ _mat pwm
