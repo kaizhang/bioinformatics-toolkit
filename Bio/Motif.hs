@@ -6,6 +6,7 @@ module Bio.Motif
     , Motif (..)
     , readPWM
     , scores
+    , scores'
     , score
     , findTFBS
     , toIUPAC
@@ -29,6 +30,7 @@ import Bio.Seq
 import Numeric.LinearAlgebra.Data
 import NLP.Scores
 import Control.Monad.State.Lazy
+import Data.Conduit
 
 -- | k x 4 position weight matrix for motifs
 data PWM = PWM 
@@ -79,18 +81,36 @@ scores bg p@(PWM _ pwm) dna = go $! toBS dna
          | otherwise = []
     len = rows pwm
 
+-- | a streaming version of scores
+scores' :: Monad m => BkgdModel -> PWM -> DNA a -> Source m Double
+scores' bg p@(PWM _ pwm) dna = go 0
+  where
+    go i | i < n - len + 1 = do yield $ scoreHelp bg p $ B.take len $ B.drop i s
+                                go (i+1)
+         | otherwise = return ()
+    s = toBS dna
+    n = B.length s
+    len = rows pwm
+
 score :: BkgdModel -> PWM -> DNA a -> Double
 score bg p dna = scoreHelp bg p $! toBS dna
 {-# INLINE score #-}
 
 -- | given a user defined threshold, look for TF binding sites on a DNA 
 -- sequence. This function doesn't search for binding sites on the reverse strand
-findTFBS :: Motif -> DNA a -> Double -> [Int]
-findTFBS (Motif _ pwm) dna thres = go dna
+findTFBS :: Monad m => Motif -> DNA a -> Double -> Source m Int
+findTFBS (Motif _ pwm) dna thres = scores' def pwm dna
+                                $= loop 0
   where
-    go = fst . unzip . filter f . zip [1..] . scores def pwm
-    f x = snd x >= thres * maxScore
+    loop i = do v <- await
+                case v of
+                    Just v' ->  if v' >= gate
+                                   then yield i >> loop (i+1)
+                                   else loop (i+1)
+                    _ -> return ()
+    gate = thres * maxScore
     maxScore = sum . map (\x -> log (maximum x / 0.25)) . toLists . _mat $ pwm
+{-# INLINE findTFBS #-}
 
 scoreHelp :: BkgdModel -> PWM -> B.ByteString -> Double
 scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = sum . map f $ [0 .. len-1]
