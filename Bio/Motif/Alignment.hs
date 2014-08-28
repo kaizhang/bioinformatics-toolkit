@@ -10,6 +10,7 @@ import qualified Data.Vector.Generic as G
 import Data.Clustering.Hierarchical
 import NLP.Scores
 
+-- | penalty function takes the gaps number as input, return penalty value
 type PenalFn = Int -> Double
 
 type DistanceFn = G.Vector v Double => v Double -> v Double -> Double
@@ -33,19 +34,23 @@ deltaJS = distanceBy (jensenShannon `on` G.toList)
 alignment :: PWM -> PWM -> (Double, (PWM, PWM, Int))
 alignment = alignmentBy (jensenShannon `on` G.toList) quadPenal
 
+-- | linear penalty
 linPenal :: PenalFn
 linPenal n = fromIntegral n * 0.01
 
+-- | quadratic penalty
 quadPenal :: PenalFn
 quadPenal n = fromIntegral (n ^ (2 :: Int)) * 0.01
 
+-- | cubic penalty
 cubePenal :: PenalFn
 cubePenal n = fromIntegral (n ^ (3 :: Int)) * 0.01
 
+-- | exponentail penalty
 expPenal :: PenalFn
 expPenal n = fromIntegral (2^n :: Int) * 0.01
 
--- internal gaps are not allowed, larger score means larger distance, so the smaller the better
+{--
 alignmentBy :: DistanceFn -> PenalFn -> PWM -> PWM -> (Double, (PWM, PWM, Int))
 alignmentBy fn pFn m1 m2 = ( fst result, (m1, m2, snd result) )
   where
@@ -56,6 +61,27 @@ alignmentBy fn pFn m1 m2 = ( fst result, (m1, m2, snd result) )
             in mean xs + pFn nGaps
     s1 = toRows . _mat $ m1
     s2 = toRows . _mat $ m2
+    n1 = length s1
+    n2 = length s2
+{-# INLINE alignmentBy #-}
+--}
+
+-- internal gaps are not allowed, larger score means larger distance, so the smaller the better
+alignmentBy :: DistanceFn -> PenalFn -> PWM -> PWM -> (Double, (PWM, PWM, Int))
+alignmentBy fn pFn m1 m2 | fst forwardAlign <= fst reverseAlign = (fst forwardAlign, (m1, m2, snd forwardAlign))
+                         | otherwise = (fst reverseAlign, (m1, m2', snd reverseAlign))
+  where
+    forwardAlign = minimum $ zip (map (f s2 . flip drop s1) [0 .. n1-1]) [0 .. n1-1]
+                          ++ zip (map (f s1 . flip drop s2) [1 .. n2-1]) [-1, -2 .. -n2+1]
+    reverseAlign = minimum $ zip (map (f s2' . flip drop s1) [0 .. n1-1]) [0 .. n1-1]
+                          ++ zip (map (f s1 . flip drop s2') [1 .. n2-1]) [-1, -2 .. -n2+1]
+    f a b = let xs = zipWith fn a b
+                nGaps = n1 + n2 - 2 * length xs
+            in mean xs + pFn nGaps
+    s1 = toRows . _mat $ m1
+    s2 = toRows . _mat $ m2
+    s2' = toRows . _mat $ m2'
+    m2' = rcPWM m2
     n1 = length s1
     n2 = length s2
 {-# INLINE alignmentBy #-}

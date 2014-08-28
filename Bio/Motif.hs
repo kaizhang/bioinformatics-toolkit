@@ -3,6 +3,7 @@
 module Bio.Motif 
     ( PWM (..)
     , subPWM
+    , rcPWM
     , Motif (..)
     , readPWM
     , scores
@@ -41,6 +42,10 @@ data PWM = PWM
 -- | extract sub-PWM given starting position and length
 subPWM :: Int -> Int -> PWM -> PWM
 subPWM i l (PWM n mat) = PWM n $ subMatrix (i, 0) (l, 4) mat
+
+-- | reverse complementary of PWM
+rcPWM :: PWM -> PWM
+rcPWM (PWM n m) = PWM n (fliprl . flipud $ m)
 
 data Motif = Motif
     { _name :: !B.ByteString
