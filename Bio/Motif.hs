@@ -101,7 +101,7 @@ score :: BkgdModel -> PWM -> DNA a -> Double
 score bg p dna = scoreHelp bg p $! toBS dna
 {-# INLINE score #-}
 
--- | given a user defined threshold, look for TF binding sites on a DNA 
+-- | given a user defined threshold (between 0 and 1), look for TF binding sites on a DNA 
 -- sequence. This function doesn't search for binding sites on the reverse strand
 findTFBS :: Monad m => Motif -> DNA a -> Double -> Source m Int
 findTFBS (Motif _ pwm) dna thres = scores' def pwm dna
@@ -125,17 +125,17 @@ scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = sum . map f $ [0 .. len-1]
               'C' -> log $! matchC / c
               'G' -> log $! matchG / g
               'T' -> log $! matchT / t
-              'N' -> log $! (matchA / a + matchC / c + matchG / g + matchT / t) / 4
-              'V' -> log $! (matchA / a + matchC / c + matchG / g) / 3
-              'H' -> log $! (matchA / a + matchC / c + matchT / t) / 3
-              'D' -> log $! (matchA / a + matchG / g + matchT / t) / 3
-              'B' -> log $! (matchC / c + matchG / g + matchT / t) / 3
-              'M' -> log $! (matchA / a + matchC / c) / 2
-              'K' -> log $! (matchG / g + matchT / t) / 2
-              'W' -> log $! (matchA / a + matchT / t) / 2
-              'S' -> log $! (matchC / c + matchG / g) / 2
-              'Y' -> log $! (matchC / c + matchT / t) / 2
-              'R' -> log $! (matchA / a + matchG / g) / 2
+              'N' -> 0
+              'V' -> log $! (matchA + matchC + matchG) / (a + c + g)
+              'H' -> log $! (matchA + matchC + matchT) / (a + c + t)
+              'D' -> log $! (matchA + matchG + matchT) / (a + g + t)
+              'B' -> log $! (matchC + matchG + matchT) / (c + g + t)
+              'M' -> log $! (matchA + matchC) / (a + c)
+              'K' -> log $! (matchG + matchT) / (g + t)
+              'W' -> log $! (matchA + matchT) / (a + t)
+              'S' -> log $! (matchC + matchG) / (c + g)
+              'Y' -> log $! (matchC + matchT) / (c + t)
+              'R' -> log $! (matchA + matchG) / (a + g)
               _   -> error "Bio.Motif.score: invalid nucleotide"
       where
         matchA = addSome $ pwm ! i ! 0
@@ -144,7 +144,7 @@ scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = sum . map f $ [0 .. len-1]
         matchT = addSome $ pwm ! i ! 3
         addSome !x | x == 0 = pseudoCount
                    | otherwise = x
-        pseudoCount = 0.001
+        pseudoCount = 0.0001
     len = rows pwm
 {-# INLINE scoreHelp #-}
 
