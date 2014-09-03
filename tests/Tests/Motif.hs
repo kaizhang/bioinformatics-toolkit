@@ -3,7 +3,7 @@ module Tests.Motif (tests) where
 import Bio.Motif
 import Test.Tasty
 import Test.Tasty.HUnit
-import Data.Packed.Matrix
+import Numeric.LinearAlgebra.Data
 
 tests :: TestTree
 tests = testGroup "Test: Bio.Motif"
@@ -19,5 +19,9 @@ toIUPACTest = assertEqual "toIUPAC check" expect actual
                                   , [0.51, 0.2, 0.09, 0.2]
                                   ]
 
-
+motifScoringCheck :: Assertion
+motifScoringCheck = assertEqual "motif scoring check" expect actual
+  where
+    expect = 
+    actual = 
 

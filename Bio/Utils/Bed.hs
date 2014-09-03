@@ -1,28 +1,26 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveGeneric #-}
 
 module Bio.Utils.Bed (
-      readInt
-    , readDouble
-    , bins
-    , binBySize
-    , BED(..)
+      BED(..)
     , chrom
     , chromStart
     , chromEnd
     , name
     , score
     , strand
+    , fetchSeq
     , readBED
     , writeBED 
 ) where
 
 import qualified Data.ByteString.Char8 as B
-import qualified Data.ByteString.Lazy.Char8 as BL
-import qualified Data.ByteString.Lex.Double as L
-import qualified Data.ByteString.Lex.Lazy.Double as LL
+import Bio.Seq
+import Bio.Utils.Misc (readInt, readDouble)
 import Data.Maybe
+import Data.Conduit
 import Control.Lens
 import Control.Monad.State.Strict
 import Data.Default.Generics
@@ -43,11 +41,36 @@ makeLenses ''BED
 
 instance Default BED
 
--- | FIXME: use handler
-readBED :: FilePath -> IO [BED]
+readBED :: FilePath -> Source IO BED
+readBED fl = do handle <- liftIO $ openFile fl ReadMode
+                loop handle
+  where
+    loop h = do eof <- liftIO $ hIsEOF h
+                if eof 
+                   then liftIO $ hClose h
+                   else do
+                       line <- liftIO $ B.hGetLine h
+                       yield $ fromLine line
+                       loop h
 {-# INLINE readBED #-}
-readBED fl = do content <- B.readFile fl
-                return.map fromLine.B.lines $ content
+
+fetchSeq :: BioSeq DNA a => Genome -> Conduit BED IO (DNA a)
+fetchSeq g = do gH <- liftIO $ gHOpen g
+                (table, offset) <- liftIO $ getIndex gH
+                conduitWith gH table offset
+                liftIO $ gHClose gH
+  where
+    conduitWith h index' offset' = do 
+        bed <- await
+        case bed of
+            Just (BED chr start end _ _ isForward) -> do 
+                dna <- liftIO $ getSeq h index' offset' (chr, start, end)
+                case isForward of
+                    Just False -> yield $ rc dna
+                    _ -> yield dna
+                conduitWith h index' offset'
+            _ -> return ()
+{-# INLINE fetchSeq #-}
 
 writeBED :: FilePath -> [BED] -> IO ()
 {-# INLINE writeBED #-}
@@ -98,35 +121,3 @@ toLine (BED f1 f2 f3 f4 f5 f6) = B.intercalate "\t" [ f1
     score' = case f5 of
                  Just x -> (B.pack.show) x
                  _ -> "."
-
-class ToNum a where
-    readInt :: a -> Int
-    readDouble :: a -> Double
-
-instance ToNum B.ByteString where
-    readInt x = fst . fromMaybe raiseError . B.readInt $ x
-      where raiseError = error $ "Fail to cast ByteString to Int:" ++ show x
-    {-# INLINE readInt #-}
-    readDouble x = fst . fromMaybe raiseError. L.readDouble $ x
-      where raiseError = error $ "Fail to cast ByteString to Double:" ++ show x
-    {-# INLINE readDouble #-}
-
-instance ToNum BL.ByteString where
-    readInt x = fst. fromMaybe raiseError. BL.readInt $ x
-      where raiseError = error $ "Fail to cast ByteString to Int:" ++ show x
-    {-# INLINE readInt #-}
-    readDouble x = fst . fromMaybe raiseError . LL.readDouble $ x
-      where raiseError = error $ "Fail to cast ByteString to Double:" ++ show x
-    {-# INLINE readDouble #-}
-
--- | divide a given region into fixed size fragments
-binBySize :: (Int, Int) -> Int -> [(Int, Int)]
-binBySize (start, end) step =
-    let binNum = ceiling $ fromIntegral (end - start + 1) / (fromIntegral step :: Double)
-    in take binNum $ zip [start,start+step..] [start+step-1,start+2*step-1..]
-
--- | divide a given region into k equal size sub-regions
-bins :: (Int, Int) -> Int -> [(Int, Int)]
-bins (start, end) binNum = 
-    let step = ceiling $ fromIntegral (end - start + 1) / (fromIntegral binNum :: Double)
-    in take binNum $ zip [start,start+step..] [start+step-1,start+2*step-1..]

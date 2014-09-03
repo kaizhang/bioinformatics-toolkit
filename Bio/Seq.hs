@@ -16,6 +16,11 @@ module Bio.Seq
     -- * DNA related functions
     , rc
     -- * IO
+    , Genome
+    , GenomeH
+    , gHOpen
+    , gHClose
+    , pack
     , getSeqs
     , getSeq
     , getIndex
@@ -27,7 +32,7 @@ import qualified Data.HashMap.Lazy as M
 import qualified Data.HashSet as S
 import System.IO
 import Data.List.Split
-import Bio.Utils.Bed (readInt)
+import Bio.Utils.Misc (readInt)
 import Data.Char8
 import Control.Monad
 import Data.Monoid
@@ -112,6 +117,20 @@ rc (DNA s) = DNA . B.map f . B.reverse $ s
         'T' -> 'A'
         _ -> x
 
+newtype Genome = G FilePath
+
+newtype GenomeH = GH Handle
+
+pack :: FilePath -> Genome
+pack = G
+
+gHOpen :: Genome -> IO GenomeH
+gHOpen (G fl) = do h <- openFile fl ReadMode
+                   return $ GH h
+
+gHClose :: GenomeH -> IO ()
+gHClose (GH h) = hClose h
+
 type IndexTable = M.HashMap B.ByteString Int
 
 -- | the number of characters before the start of genome
@@ -119,25 +138,25 @@ type OffSet = Int
 
 type Query = (B.ByteString, Int, Int) -- (chr, start, end), zero based
 
-getSeqs :: BioSeq s a => FilePath -> [Query] -> IO [s a]
-getSeqs fl querys = do h <- openFile fl ReadMode
-                       (index, offset) <- getIndex h
-                       r <- mapM (getSeq h index offset) querys
-                       hClose h
-                       return r
+getSeqs :: BioSeq s a => Genome -> [Query] -> IO [s a]
+getSeqs g querys = do gH <- gHOpen g
+                      (index, offset) <- getIndex gH
+                      r <- mapM (getSeq gH index offset) querys
+                      gHClose gH
+                      return r
 
-getSeq :: BioSeq s a => Handle -> IndexTable -> OffSet -> Query -> IO (s a)
-getSeq h index offset (chr, start, end) = do 
+getSeq :: BioSeq s a => GenomeH -> IndexTable -> OffSet -> Query -> IO (s a)
+getSeq (GH h) index offset (chr, start, end) = do 
     hSeek h AbsoluteSeek (fromIntegral pos)
     liftM fromBS $ B.hGet h (end - start + 1)
   where
     pos = offset + chrStart + start
     chrStart = M.lookupDefault (error $ "Bio.Seq.getSeq: Cannot find " ++ show chr) chr index
 
-getIndex :: Handle -> IO (IndexTable, OffSet)
-getIndex h = do header <- B.hGetLine h
-                return ( M.fromList . map f . chunksOf 2 . B.words $ header
-                       , B.length header + 1 )
+getIndex :: GenomeH -> IO (IndexTable, OffSet)
+getIndex (GH h) = do header <- B.hGetLine h
+                     return ( M.fromList . map f . chunksOf 2 . B.words $ header
+                            , B.length header + 1 )
   where
     f [k, v] = (k, readInt v)
     f _ = error "error"
