@@ -9,6 +9,7 @@ module Bio.Motif
     , scores
     , scores'
     , score
+    , optimalScore
     , findTFBS
     , toIUPAC
     , readMEME
@@ -24,9 +25,9 @@ import qualified Data.ByteString.Char8 as B
 import Data.Double.Conversion.ByteString
 import qualified Data.Vector.Generic as G
 import Data.Default.Generics
-import Data.List (sortBy)
+import Data.List (sortBy, foldl')
 import Data.Ord (comparing)
-import Bio.Utils.Bed (readDouble, readInt)
+import Bio.Utils.Misc (readDouble, readInt)
 import Bio.Seq
 import Numeric.LinearAlgebra.Data
 import NLP.Scores
@@ -101,6 +102,11 @@ score :: BkgdModel -> PWM -> DNA a -> Double
 score bg p dna = scoreHelp bg p $! toBS dna
 {-# INLINE score #-}
 
+-- | the best possible score for a pwm, assuming equal probability of nuclotides
+optimalScore :: PWM -> Double
+optimalScore (PWM _ pwm) = foldl' (+) 0 . map (\x -> log (maximum x / 0.25)) . toLists $ pwm
+{-# INLINE optimalScore #-}
+
 -- | given a user defined threshold (between 0 and 1), look for TF binding sites on a DNA 
 -- sequence. This function doesn't search for binding sites on the reverse strand
 findTFBS :: Monad m => Motif -> DNA a -> Double -> Source m Int
@@ -113,8 +119,7 @@ findTFBS (Motif _ pwm) dna thres = scores' def pwm dna
                                    then yield i >> loop (i+1)
                                    else loop (i+1)
                     _ -> return ()
-    gate = thres * maxScore
-    maxScore = sum . map (\x -> log (maximum x / 0.25)) . toLists . _mat $ pwm
+    gate = thres * optimalScore pwm
 {-# INLINE findTFBS #-}
 
 scoreHelp :: BkgdModel -> PWM -> B.ByteString -> Double
