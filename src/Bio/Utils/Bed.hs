@@ -18,6 +18,7 @@ module Bio.Utils.Bed (
 
 import qualified Data.ByteString.Char8 as B
 import Bio.Seq
+import Bio.Seq.Query
 import Bio.Utils.Misc (readInt, readDouble)
 import Data.Maybe
 import Data.Conduit
@@ -56,19 +57,19 @@ readBED fl = do handle <- liftIO $ openFile fl ReadMode
 
 fetchSeq :: BioSeq DNA a => Genome -> Conduit BED IO (DNA a)
 fetchSeq g = do gH <- liftIO $ gHOpen g
-                (table, offset) <- liftIO $ getIndex gH
-                conduitWith gH table offset
+                table <- liftIO $ getIndex gH
+                conduitWith gH table
                 liftIO $ gHClose gH
   where
-    conduitWith h index' offset' = do 
+    conduitWith h index' = do 
         bed <- await
         case bed of
             Just (BED chr start end _ _ isForward) -> do 
-                dna <- liftIO $ getSeq h index' offset' (chr, start, end)
+                dna <- liftIO $ getSeq h index' (chr, start, end)
                 case isForward of
                     Just False -> yield $ rc dna
                     _ -> yield dna
-                conduitWith h index' offset'
+                conduitWith h index'
             _ -> return ()
 {-# INLINE fetchSeq #-}
 
