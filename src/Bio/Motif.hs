@@ -30,7 +30,6 @@ import Data.Ord (comparing)
 import Bio.Utils.Misc (readDouble, readInt)
 import Bio.Seq
 import Numeric.LinearAlgebra.Data
-import NLP.Scores
 import Control.Monad.State.Lazy
 import Data.Conduit
 
@@ -125,8 +124,10 @@ findTFBS (Motif _ pwm) dna thres = scores' def pwm dna
 {-# INLINE findTFBS #-}
 
 scoreHelp :: BkgdModel -> PWM -> B.ByteString -> Double
-scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = sum . map f $ [0 .. len-1]
+scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = loop 0 0
   where
+    loop !acc !x | x >= rows pwm = acc
+                 | otherwise = loop (acc + f x) (x+1)
     f i = case dna `B.index` i of
               'A' -> log $! matchA / a
               'C' -> log $! matchC / c
@@ -152,7 +153,6 @@ scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = sum . map f $ [0 .. len-1]
         addSome !x | x == 0 = pseudoCount
                    | otherwise = x
         pseudoCount = 0.0001
-    len = rows pwm
 {-# INLINE scoreHelp #-}
 
 -- | read pwm from a matrix

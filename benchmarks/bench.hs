@@ -8,7 +8,7 @@ import Bio.Seq
 import Data.Default.Generics
 
 dna :: DNA Basic
-dna = fromBS $ B.pack $ map f $ take 1000 $ randomRs (0, 3) (mkStdGen 2)
+dna = fromBS $ B.pack $ map f $ take 5000 $ randomRs (0, 3) (mkStdGen 2)
   where
     f :: Int -> Char
     f x = case x of
