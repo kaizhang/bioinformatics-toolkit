@@ -73,33 +73,27 @@ executable mkindex
   build-depends:
       base >=4.6 && <5.0
     , bioinformatics-toolkit
+  default-language:    Haskell2010
 
 benchmark bench
   type: exitcode-stdio-1.0
   main-is: benchmarks/bench.hs
   default-language:    Haskell2010
-  other-modules:       
-    Tests.Motif
   build-depends: 
       base >=4.6 && <5.0
-    , shelly
-    , text
-    , bytestring
-    , vector
-    , unordered-containers
-    , containers
-    , concatenative
-    , parallel
-    , statistics
-    , IntervalMap
-    , bytestring-lexing
-    , list-extras
+    , bioinformatics-toolkit
+    , random
     , criterion
+    , bytestring
+    , data-default-generics
+  default-language:    Haskell2010
 
 test-suite tests
   type: exitcode-stdio-1.0
   hs-source-dirs: tests
   main-is: test.hs
+  other-modules:       
+    Tests.Motif
   default-language:    Haskell2010
   build-depends: 
       base

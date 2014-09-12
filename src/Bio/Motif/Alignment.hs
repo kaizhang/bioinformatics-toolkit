@@ -50,22 +50,6 @@ cubePenal n = fromIntegral (n ^ (3 :: Int)) * 0.01
 expPenal :: PenalFn
 expPenal n = fromIntegral (2^n :: Int) * 0.01
 
-{--
-alignmentBy :: DistanceFn -> PenalFn -> PWM -> PWM -> (Double, (PWM, PWM, Int))
-alignmentBy fn pFn m1 m2 = ( fst result, (m1, m2, snd result) )
-  where
-    result = minimum $ zip (map (f s2 . flip drop s1) [0 .. n1-1]) [0 .. n1-1]
-                    ++ zip (map (f s1 . flip drop s2) [1 .. n2-1]) [-1, -2 .. -n2+1]
-    f a b = let xs = zipWith fn a b
-                nGaps = n1 + n2 - 2 * length xs
-            in mean xs + pFn nGaps
-    s1 = toRows . _mat $ m1
-    s2 = toRows . _mat $ m2
-    n1 = length s1
-    n2 = length s2
-{-# INLINE alignmentBy #-}
---}
-
 -- internal gaps are not allowed, larger score means larger distance, so the smaller the better
 alignmentBy :: DistanceFn -> PenalFn -> PWM -> PWM -> (Double, (PWM, PWM, Int))
 alignmentBy fn pFn m1 m2 | fst forwardAlign <= fst reverseAlign = (fst forwardAlign, (m1, m2, snd forwardAlign))

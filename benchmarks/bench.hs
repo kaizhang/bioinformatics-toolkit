@@ -1,16 +1,28 @@
-{-# LANGUAGE OverloadedStrings, UnicodeSyntax, BangPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 
-import Bio.Util.Overlap
-import Bio.Util.Bed
 import Criterion.Main
+import System.Random
+import qualified Data.ByteString.Char8 as B
+import Bio.Motif
+import Bio.Seq
+import Data.Default.Generics
 
-intervals ∷ [(Int,Int)]
-intervals = binBySize (1, 100000) 500
+dna :: DNA Basic
+dna = fromBS $ B.pack $ map f $ take 1000 $ randomRs (0, 3) (mkStdGen 2)
+  where
+    f :: Int -> Char
+    f x = case x of
+        0 -> 'A'
+        1 -> 'C'
+        2 -> 'G'
+        3 -> 'T'
+        _ -> undefined
+       
 
-tags ∷ [(Int,Int)]
-tags = binBySize (1,1000000) 10
+pwm :: PWM
+pwm = readPWM "0.3 0.3 0.3 0.1\n0 0.5 0 0.5\n0.1 0.2 0.5 0.3\n0.1 0.1 0.1 0.7\n0 0 0 1\n0.25 0.25 0.25 0.25"
 
-main ∷ IO ()
+main :: IO ()
 main = defaultMain [
-      bench "bench1" $ whnf (overlapFragment intervals) tags
+      bench "motif score" $ nf (scores def pwm) dna 
     ]

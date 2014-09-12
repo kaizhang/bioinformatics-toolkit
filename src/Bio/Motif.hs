@@ -86,6 +86,7 @@ scores bg p@(PWM _ pwm) dna = go $! toBS dna
     go s | B.length s >= len = scoreHelp bg p (B.take len s) : go (B.tail s)
          | otherwise = []
     len = rows pwm
+{-# INLINE scores #-}
 
 -- | a streaming version of scores
 scores' :: Monad m => BkgdModel -> PWM -> DNA a -> Source m Double
@@ -97,6 +98,7 @@ scores' bg p@(PWM _ pwm) dna = go 0
     s = toBS dna
     n = B.length s
     len = rows pwm
+{-# INLINE scores' #-}
 
 score :: BkgdModel -> PWM -> DNA a -> Double
 score bg p dna = scoreHelp bg p $! toBS dna
