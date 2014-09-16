@@ -21,31 +21,36 @@ module Bio.Motif
     ) where
 
 import Prelude hiding (sum)
-import qualified Data.ByteString.Char8 as B
-import Data.Double.Conversion.ByteString
-import qualified Data.Vector.Generic as G
-import Data.Default.Generics
-import Data.List (sortBy, foldl')
-import Data.Ord (comparing)
 import Bio.Utils.Misc (readDouble, readInt)
 import Bio.Seq
-import Numeric.LinearAlgebra.Data
 import Control.Monad.State.Lazy
+import Data.List (sortBy, foldl')
+import Data.List.Split (chunksOf)
+import Data.Ord (comparing)
+import Data.Double.Conversion.ByteString
+import Data.Default.Generics
 import Data.Conduit
+import qualified Data.ByteString.Char8 as B
+import qualified Data.Vector.Unboxed as V
+import Statistics.Matrix hiding (map)
 
 -- | k x 4 position weight matrix for motifs
 data PWM = PWM 
     { _nSites :: !(Maybe Int)  -- ^ number of sites used to generate this matrix
-    , _mat :: !(Matrix Double)
+    , _mat :: !Matrix
     } deriving (Show)
 
--- | extract sub-PWM given starting position and length
+-- | extract sub-PWM given starting position and length, zero indexed
 subPWM :: Int -> Int -> PWM -> PWM
-subPWM i l (PWM n mat) = PWM n $ subMatrix (i, 0) (l, 4) mat
+subPWM i l (PWM n (Matrix _ _ _ v)) = PWM n (fromVector l 4 v')
+  where
+    v' = V.slice (i * 4) (l * 4) v
+{-# INLINE subPWM #-}
 
 -- | reverse complementary of PWM
 rcPWM :: PWM -> PWM
-rcPWM (PWM n m) = PWM n (fliprl . flipud $ m)
+rcPWM (PWM n (Matrix nrow ncol p v)) = PWM n (Matrix nrow ncol p $ V.reverse v)
+{-# INLINE rcPWM #-}
 
 data Motif = Motif
     { _name :: !B.ByteString
@@ -66,7 +71,7 @@ toIUPAC (PWM _ pwm) = fromBS . B.pack . map f $ toRows pwm
         | snd a + snd b > 0.75             = iupac (fst a, fst b)
         | otherwise                        = 'N'
       where 
-        [a, b, _, _] = sortBy (flip (comparing snd)) $ zip "ACGT" $ G.toList v
+        [a, b, _, _] = sortBy (flip (comparing snd)) $ zip "ACGT" $ V.toList v
     iupac x = case sort' x of
         ('A', 'C') -> 'M'
         ('G', 'T') -> 'K'
@@ -105,7 +110,7 @@ score bg p dna = scoreHelp bg p $! toBS dna
 
 -- | the best possible score for a pwm, assuming equal probability of nuclotides
 optimalScore :: PWM -> Double
-optimalScore (PWM _ pwm) = foldl' (+) 0 . map (\x -> log (maximum x / 0.25)) . toLists $ pwm
+optimalScore (PWM _ pwm) = foldl' (+) 0 . map (\x -> log (V.maximum x / 0.25)) . toRows $ pwm
 {-# INLINE optimalScore #-}
 
 -- | given a user defined threshold (between 0 and 1), look for TF binding sites on a DNA 
@@ -146,10 +151,10 @@ scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = loop 0 0
               'R' -> log $! (matchA + matchG) / (a + g)
               _   -> error "Bio.Motif.score: invalid nucleotide"
       where
-        matchA = addSome $ pwm ! i ! 0
-        matchC = addSome $ pwm ! i ! 1
-        matchG = addSome $ pwm ! i ! 2
-        matchT = addSome $ pwm ! i ! 3
+        matchA = addSome $ unsafeIndex pwm i 0
+        matchC = addSome $ unsafeIndex pwm i 1
+        matchG = addSome $ unsafeIndex pwm i 2
+        matchT = addSome $ unsafeIndex pwm i 3
         addSome !x | x == 0 = pseudoCount
                    | otherwise = x
         pseudoCount = 0.0001
@@ -205,6 +210,27 @@ fromMEME meme = evalState (go $ B.lines meme) (0, [])
         pwm = PWM (Just $ readInt n) $ fromLists . map (map readDouble.B.words) $ xs
     toMotif _ = error "error"
 {-# INLINE fromMEME #-}
+
+------------------------------------------------------------------------------
+-- matrix functions
+toRows :: Matrix -> [Vector]
+toRows (Matrix _ ncol _ v) = loop v 
+  where 
+    loop x | V.length x >= ncol = let (a, b) = V.splitAt ncol v
+                                  in (a : loop b)
+           | otherwise = []
+{-# INLINE toRows #-}
+
+fromLists :: [[Double]] -> Matrix
+fromLists xs = Matrix nrow ncol 0 (V.fromList $ concat xs)
+  where
+    ncol = Prelude.length . head $ xs
+    nrow = Prelude.length xs
+{-# INLINE fromLists #-}
+
+toLists :: Matrix -> [[Double]]
+toLists (Matrix _ ncol _ v) = chunksOf ncol . V.toList $ v
+{-# INLINE toLists #-}
 
 -- $references
 --

@@ -4,11 +4,13 @@
 module Bio.Motif.Alignment where
 
 import Bio.Motif
-import Data.Packed.Matrix
 import Data.Function (on)
 import qualified Data.Vector.Generic as G
+import qualified Data.Vector.Unboxed as V
 import Data.Clustering.Hierarchical
+import Statistics.Matrix hiding (map)
 import NLP.Scores
+import Data.List.Split
 
 -- | penalty function takes the gaps number as input, return penalty value
 type PenalFn = Int -> Double
@@ -95,3 +97,31 @@ buildTree motifs = dendrogram UPGMA motifs δ
     δ (Motif _ x) (Motif _ y) = minimum $ map (deltaJS x) [shiftPWM y 0, shiftPWM y 1, shiftPWM y 2] ++ map (deltaJS y) [shiftPWM x 1, shiftPWM x 2]
     shiftPWM pwm i = subPWM i (n-i) pwm
       where n = rows $ _mat pwm
+
+------------------------------------------------------------------------------
+-- matrix functions
+toRows :: Matrix -> [Vector]
+toRows (Matrix _ ncol _ v) = loop v 
+  where 
+    loop x | V.length x >= ncol = let (a, b) = V.splitAt ncol v
+                                  in (a : loop b)
+           | otherwise = []
+{-# INLINE toRows #-}
+
+fromRows :: [Vector] -> Matrix
+fromRows rs = Matrix nrow ncol 0 $ V.concat rs
+  where
+    nrow = length rs
+    ncol = V.length . head $ rs
+{-# INLINE fromRows #-}
+
+fromLists :: [[Double]] -> Matrix
+fromLists xs = Matrix nrow ncol 0 (V.fromList $ concat xs)
+  where
+    ncol = Prelude.length . head $ xs
+    nrow = Prelude.length xs
+{-# INLINE fromLists #-}
+
+toLists :: Matrix -> [[Double]]
+toLists (Matrix _ ncol _ v) = chunksOf ncol . V.toList $ v
+{-# INLINE toLists #-}
