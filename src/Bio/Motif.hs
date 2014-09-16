@@ -216,9 +216,9 @@ fromMEME meme = evalState (go $ B.lines meme) (0, [])
 toRows :: Matrix -> [Vector]
 toRows (Matrix _ ncol _ v) = loop v 
   where 
-    loop x | V.length x >= ncol = let (a, b) = V.splitAt ncol v
-                                  in (a : loop b)
+    loop x | V.length x >= ncol = a : loop b
            | otherwise = []
+      where (a, b) = V.splitAt ncol x
 {-# INLINE toRows #-}
 
 fromLists :: [[Double]] -> Matrix
