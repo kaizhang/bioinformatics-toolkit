@@ -48,6 +48,7 @@ instance Show (DNA a) where
 instance Monoid (DNA a) where
     mempty = DNA B.empty
     mappend (DNA x) (DNA y) = DNA (x <> y)
+    mconcat dnas = DNA . B.concat . map toBS $ dnas
 
 class BioSeq' s where
     toBS :: s a -> B.ByteString
