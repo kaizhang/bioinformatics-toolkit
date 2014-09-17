@@ -10,9 +10,8 @@ module Bio.Seq
     , DNA
     , RNA
     , Peptide
-    , BioSeq (..)
-    , toBS
-    , length
+    , BioSeq'(..)
+    , BioSeq(..)
     -- * DNA related functions
     , rc
     ) where
@@ -53,18 +52,22 @@ instance Monoid (DNA a) where
 class BioSeq' s where
     toBS :: s a -> B.ByteString
     length :: s a -> Int
+    slice :: s a -> Int -> Int -> s a
 
 instance BioSeq' DNA where
     toBS (DNA s) = s
     length = B.length . toBS
+    slice (DNA s) i l = DNA . B.take l . B.drop i $ s
 
 instance BioSeq' RNA where
     toBS (RNA s) = s
     length = B.length . toBS
+    slice (RNA s) i l = RNA . B.take l . B.drop i $ s
 
 instance BioSeq' Peptide where
     toBS (Peptide s) = s
     length = B.length . toBS
+    slice (Peptide s) i l = Peptide . B.take l . B.drop i $ s
 
 class BioSeq' s => BioSeq s a where
     fromBS :: B.ByteString -> s a 
