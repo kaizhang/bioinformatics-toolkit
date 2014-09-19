@@ -32,7 +32,7 @@ library
     , Bio.Motif.Alignment
     , Bio.Motif.Search
     , Bio.Seq
-    , Bio.Seq.Query
+    , Bio.Seq.IO
     , Bio.Utils.Overlap
     , Bio.Utils.Bed
     , Bio.Utils.Misc

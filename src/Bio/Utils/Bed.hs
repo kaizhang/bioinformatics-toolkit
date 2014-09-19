@@ -18,7 +18,7 @@ module Bio.Utils.Bed (
 
 import qualified Data.ByteString.Char8 as B
 import Bio.Seq
-import Bio.Seq.Query
+import Bio.Seq.IO
 import Bio.Utils.Misc (readInt, readDouble)
 import Data.Maybe
 import Data.Conduit
