@@ -9,6 +9,7 @@ module Bio.Seq.Query
     , getSeqs
     , getSeq
     , readIndex
+    , getChrSize
     , mkIndex
     ) where
 
@@ -65,6 +66,12 @@ getSeq (GH h) index (chr, start, end) = do
     pos = headerSize + chrStart + start
     chrStart = fst $ M.lookupDefault (error $ "Bio.Seq.getSeq: Cannot find " ++ show chr) chr index
     headerSize = 2048
+
+getChrSize :: Genome -> IO [(B.ByteString, Int)]
+getChrSize g = do gh <- gHOpen g
+                  table <- readIndex gh
+                  gHClose gh
+                  return . map (\(k, (_, l)) -> (k, l)) . M.toList $ table
 
 readIndex :: GenomeH -> IO IndexTable
 readIndex (GH h) = do header <- B.hGetLine h >> B.hGetLine h

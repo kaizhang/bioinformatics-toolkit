@@ -1,17 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
 module Bio.Motif 
-    ( PWM (..)
+    ( PWM(..)
     , size
     , subPWM
     , rcPWM
-    , Motif (..)
+    , Motif(..)
+    , Bkgd(..)
     , readPWM
     , scores
     , scores'
     , score
     , optimalScore
-    , findTFBS
     , toIUPAC
     , readMEME
     , writeFasta
@@ -66,9 +66,9 @@ data Motif = Motif
     } deriving (Show)
 
 -- | background nucletide frequencies (A, C, G, T)
-newtype BkgdModel = BG (Double, Double, Double, Double)
+newtype Bkgd = BG (Double, Double, Double, Double)
 
-instance Default BkgdModel where
+instance Default Bkgd where
     def = BG (0.25, 0.25, 0.25, 0.25)
 
 -- | convert pwm to consensus sequence, see D. R. Cavener (1987).
@@ -92,7 +92,7 @@ toIUPAC (PWM _ pwm) = fromBS . B.pack . map f $ toRows pwm
                  | otherwise = (x, y)
 
 -- | get scores of a long sequences at each position
-scores :: BkgdModel -> PWM -> DNA a -> [Double]
+scores :: Bkgd -> PWM -> DNA a -> [Double]
 scores bg p@(PWM _ pwm) dna = go $! toBS dna
   where
     go s | B.length s >= len = scoreHelp bg p (B.take len s) : go (B.tail s)
@@ -101,7 +101,7 @@ scores bg p@(PWM _ pwm) dna = go $! toBS dna
 {-# INLINE scores #-}
 
 -- | a streaming version of scores
-scores' :: Monad m => BkgdModel -> PWM -> DNA a -> Source m Double
+scores' :: Monad m => Bkgd -> PWM -> DNA a -> Source m Double
 scores' bg p@(PWM _ pwm) dna = go 0
   where
     go i | i < n - len + 1 = do yield $ scoreHelp bg p $ B.take len $ B.drop i s
@@ -112,31 +112,24 @@ scores' bg p@(PWM _ pwm) dna = go 0
     len = rows pwm
 {-# INLINE scores' #-}
 
-score :: BkgdModel -> PWM -> DNA a -> Double
+score :: Bkgd -> PWM -> DNA a -> Double
 score bg p dna = scoreHelp bg p $! toBS dna
 {-# INLINE score #-}
 
--- | the best possible score for a pwm, assuming equal probability of nuclotides
-optimalScore :: PWM -> Double
-optimalScore (PWM _ pwm) = foldl' (+) 0 . map (\x -> log (V.maximum x / 0.25)) . toRows $ pwm
+-- | the best possible score for a pwm
+optimalScore :: Bkgd -> PWM -> Double
+optimalScore (BG (a, c, g, t)) (PWM _ pwm) = foldl' (+) 0 . map f . toRows $ pwm
+  where f xs = let (i, s) = V.maximumBy (comparing snd) . 
+                                V.zip (V.fromList ([0..3] :: [Int])) $ xs
+               in case i of
+                   0 -> log $ s / a
+                   1 -> log $ s / c
+                   2 -> log $ s / g
+                   3 -> log $ s / t
+                   _ -> undefined
 {-# INLINE optimalScore #-}
 
--- | given a user defined threshold (between 0 and 1), look for TF binding sites on a DNA 
--- sequence. This function doesn't search for binding sites on the reverse strand
-findTFBS :: Monad m => Motif -> DNA a -> Double -> Source m Int
-findTFBS (Motif _ pwm) dna thres = scores' def pwm dna
-                                $= loop 0
-  where
-    loop i = do v <- await
-                case v of
-                    Just v' ->  if v' >= gate
-                                   then yield i >> loop (i+1)
-                                   else loop (i+1)
-                    _ -> return ()
-    gate = thres * optimalScore pwm
-{-# INLINE findTFBS #-}
-
-scoreHelp :: BkgdModel -> PWM -> B.ByteString -> Double
+scoreHelp :: Bkgd -> PWM -> B.ByteString -> Double
 scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = loop 0 0
   where
     loop !acc !x | x >= rows pwm = acc

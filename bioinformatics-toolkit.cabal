@@ -30,6 +30,7 @@ library
     , Bio.ChIPSeq.ChIP
     , Bio.Motif
     , Bio.Motif.Alignment
+    , Bio.Motif.Search
     , Bio.Seq
     , Bio.Seq.Query
     , Bio.Utils.Overlap
@@ -86,6 +87,8 @@ benchmark bench
     , criterion
     , bytestring
     , data-default-generics
+    , conduit
+    , mtl
   default-language:    Haskell2010
 
 test-suite tests
@@ -97,18 +100,13 @@ test-suite tests
   default-language:    Haskell2010
   build-depends: 
       base
-    , shelly
-    , text
     , bytestring
+    , random
     , vector
-    , unordered-containers
-    , containers
-    , concatenative
-    , parallel
-    , statistics
-    , IntervalMap
-    , bytestring-lexing
+    , data-default-generics
     , tasty
     , tasty-golden
     , tasty-hunit
     , bioinformatics-toolkit
+    , conduit
+    , mtl
