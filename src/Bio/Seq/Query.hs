@@ -8,7 +8,7 @@ module Bio.Seq.Query
     , pack
     , getSeqs
     , getSeq
-    , getIndex
+    , readIndex
     , mkIndex
     ) where
 
@@ -22,6 +22,9 @@ import Data.List.Split
 import Bio.Utils.Misc (readInt)
 import Control.Monad
 
+-- | The first 2048 bytes are header. Header consists of a fingerprint string,
+-- followed by chromosome information. Example:
+-- <HASKELLBIOINFORMATICS>\nCHR1 START SIZE
 newtype Genome = G FilePath
 
 newtype GenomeH = GH Handle
@@ -43,13 +46,13 @@ gHOpen (G fl) = do h <- openFile fl ReadMode
 gHClose :: GenomeH -> IO ()
 gHClose (GH h) = hClose h
 
-type IndexTable = M.HashMap B.ByteString Int
+type IndexTable = M.HashMap B.ByteString (Int, Int)
 
 type Query = (B.ByteString, Int, Int) -- (chr, start, end), zero based
 
 getSeqs :: BioSeq s a => Genome -> [Query] -> IO [s a]
 getSeqs g querys = do gH <- gHOpen g
-                      index <- getIndex gH
+                      index <- readIndex gH
                       r <- mapM (getSeq gH index) querys
                       gHClose gH
                       return r
@@ -60,14 +63,14 @@ getSeq (GH h) index (chr, start, end) = do
     liftM fromBS $ B.hGet h (end - start + 1)
   where
     pos = headerSize + chrStart + start
-    chrStart = M.lookupDefault (error $ "Bio.Seq.getSeq: Cannot find " ++ show chr) chr index
-    headerSize = 1024
+    chrStart = fst $ M.lookupDefault (error $ "Bio.Seq.getSeq: Cannot find " ++ show chr) chr index
+    headerSize = 2048
 
-getIndex :: GenomeH -> IO IndexTable
-getIndex (GH h) = do header <- B.hGetLine h >> B.hGetLine h
-                     return $ M.fromList . map f . chunksOf 2 . B.words $ header
+readIndex :: GenomeH -> IO IndexTable
+readIndex (GH h) = do header <- B.hGetLine h >> B.hGetLine h
+                      return $ M.fromList . map f . chunksOf 3 . B.words $ header
   where
-    f [k, v] = (k, readInt v)
+    f [k, v, l] = (k, (readInt v, readInt l))
     f _ = error "error"
 
 -- | indexing a genome.
@@ -76,7 +79,7 @@ mkIndex :: FilePath    -- ^ a directory containing fasta files for each chromoso
         -> IO ()
 mkIndex dir outFl = do 
     outH <- openFile outFl WriteMode
-    hPutStr outH $ fingerprint ++ "\n" ++ replicate 1000 '#'  -- header size: 1024
+    hPutStr outH $ fingerprint ++ "\n" ++ replicate 2024 '#'  -- header size: 1024
     fls <- (fmap.map) T.unpack $ shelly $ lsT (fromText $ T.pack dir)
     chrs <- mapM (write outH) fls
     hSeek outH AbsoluteSeek 24
@@ -98,5 +101,5 @@ mkIndex dir outFl = do
 mkHeader :: [(B.ByteString, Int)] -> B.ByteString
 mkHeader xs = B.unwords.fst $ foldl f ([], 0) xs
   where
-    f (s, i) (s', i') = (s ++ [s', B.pack $ show i], i + i')
+    f (s, i) (s', i') = (s ++ [s', B.pack $ show i, B.pack $ show i'], i + i')
 {-# INLINE mkHeader #-}

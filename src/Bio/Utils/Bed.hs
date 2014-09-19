@@ -57,7 +57,7 @@ readBED fl = do handle <- liftIO $ openFile fl ReadMode
 
 fetchSeq :: BioSeq DNA a => Genome -> Conduit BED IO (DNA a)
 fetchSeq g = do gH <- liftIO $ gHOpen g
-                table <- liftIO $ getIndex gH
+                table <- liftIO $ readIndex gH
                 conduitWith gH table
                 liftIO $ gHClose gH
   where

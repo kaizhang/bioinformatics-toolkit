@@ -2,6 +2,7 @@
 {-# LANGUAGE BangPatterns #-}
 module Bio.Motif 
     ( PWM (..)
+    , size
     , subPWM
     , rcPWM
     , Motif (..)
@@ -39,6 +40,13 @@ data PWM = PWM
     { _nSites :: !(Maybe Int)  -- ^ number of sites used to generate this matrix
     , _mat :: !Matrix
     } deriving (Show)
+
+size :: PWM -> Int
+size (PWM _ (Matrix nrow _ _ _)) = nrow
+
+-- | information content of a poistion in pwm
+ic :: PWM -> Int -> Double
+ic = undefined
 
 -- | extract sub-PWM given starting position and length, zero indexed
 subPWM :: Int -> Int -> PWM -> PWM
