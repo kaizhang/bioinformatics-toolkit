@@ -7,7 +7,7 @@ module Bio.Motif
     , rcPWM
     , Motif(..)
     , Bkgd(..)
-    , readPWM
+    , toPWM
     , scores
     , scores'
     , score
@@ -161,26 +161,27 @@ scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = loop 0 0
         pseudoCount = 0.0001
 {-# INLINE scoreHelp #-}
 
--- | read pwm from a matrix
-readPWM :: B.ByteString -> PWM
-readPWM x = PWM Nothing
-              $ fromLists . map (map readDouble.B.words) . filter (not.B.null) . B.lines $ x
+-- | get pwm from a matrix
+toPWM :: B.ByteString -> PWM
+toPWM x = PWM Nothing $
+    fromLists . map (map readDouble.B.words) . filter (not.B.null) . B.lines $ x
 
-writePWM :: PWM -> B.ByteString
-writePWM = B.unlines . map (B.unwords . map toShortest) . toLists . _mat
+-- | pwm to bytestring
+fromPWM :: PWM -> B.ByteString
+fromPWM = B.unlines . map (B.unwords . map toShortest) . toLists . _mat
 
 writeFasta :: FilePath -> [Motif] -> IO ()
 writeFasta fl motifs = B.writeFile fl contents
   where
-    contents = B.intercalate "" . map f $ motifs
-    f x = B.unlines [">" `B.append` _name x, writePWM $ _pwm x]
+    contents = B.unlines . concatMap f $ motifs
+    f x = [">" `B.append` _name x, fromPWM $ _pwm x]
 
 readFasta :: FilePath -> IO [Motif]
 readFasta fl = do contents <- B.readFile fl
                   return . map f . tail . B.split '>' $ contents
   where
     f x = let (nm, remain) = B.break (=='\n') x
-          in Motif nm (readPWM remain)
+          in Motif nm (toPWM remain)
 
 readMEME :: FilePath -> IO [Motif]
 readMEME = liftM fromMEME . B.readFile
