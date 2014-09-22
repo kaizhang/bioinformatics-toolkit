@@ -15,15 +15,14 @@ module Bio.Motif
     , toIUPAC
     , readMEME
     , writeFasta
-    , readFasta
 
     -- * References
     -- $references
     ) where
 
 import Prelude hiding (sum)
-import Bio.Utils.Misc (readDouble, readInt)
 import Bio.Seq
+import Bio.Utils.Misc (readDouble, readInt)
 import Control.Monad.State.Lazy
 import Data.List (sortBy, foldl')
 import Data.List.Split (chunksOf)
@@ -162,9 +161,8 @@ scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = loop 0 0
 {-# INLINE scoreHelp #-}
 
 -- | get pwm from a matrix
-toPWM :: B.ByteString -> PWM
-toPWM x = PWM Nothing $
-    fromLists . map (map readDouble.B.words) . filter (not.B.null) . B.lines $ x
+toPWM :: [B.ByteString] -> PWM
+toPWM x = PWM Nothing . fromLists . map (map readDouble.B.words) $ x
 
 -- | pwm to bytestring
 fromPWM :: PWM -> B.ByteString
@@ -175,13 +173,6 @@ writeFasta fl motifs = B.writeFile fl contents
   where
     contents = B.unlines . concatMap f $ motifs
     f x = [">" `B.append` _name x, fromPWM $ _pwm x]
-
-readFasta :: FilePath -> IO [Motif]
-readFasta fl = do contents <- B.readFile fl
-                  return . map f . tail . B.split '>' $ contents
-  where
-    f x = let (nm, remain) = B.break (=='\n') x
-          in Motif nm (toPWM remain)
 
 readMEME :: FilePath -> IO [Motif]
 readMEME = liftM fromMEME . B.readFile

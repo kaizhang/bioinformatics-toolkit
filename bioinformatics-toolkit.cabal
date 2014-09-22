@@ -16,10 +16,7 @@ extra-source-files:  README.md
 cabal-version:       >=1.10
 
 data-files:
-    tests/f1.bed
-  , tests/f2.bed
-  , tests/fragment.txt
-  , tests/nucl.txt
+    data/motifs.fasta
 
 library
   hs-source-dirs:   src
@@ -33,9 +30,10 @@ library
     , Bio.Motif.Search
     , Bio.Seq
     , Bio.Seq.IO
-    , Bio.Utils.Overlap
     , Bio.Utils.Bed
+    , Bio.Utils.Fasta
     , Bio.Utils.Misc
+    , Bio.Utils.Overlap
 
   -- other-modules:       
   -- other-extensions:
