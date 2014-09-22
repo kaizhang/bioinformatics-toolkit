@@ -3,6 +3,7 @@
 module Bio.Motif.Search 
     ( findTFBS
     , findTFBS'
+    , maxMatchSc
     ) where
 
 import Bio.Seq
@@ -13,32 +14,54 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.Vector.Unboxed as U
 import Statistics.Matrix hiding (map)
 
--- | given a user defined threshold, look for TF binding sites on a DNA 
--- sequence. This function doesn't search for binding sites on the reverse strand
-findTFBS' :: Monad m => Bkgd -> Motif -> DNA a -> Double -> Source m Int
-findTFBS' bg (Motif _ pwm) dna thres = scores' bg pwm dna $= 
-                                       loop 0
-  where
-    loop i = do v <- await
-                case v of
-                    Just v' ->  if v' >= thres
-                                   then yield i >> loop (i+1)
-                                   else loop (i+1)
-                    _ -> return ()
-{-# INLINE findTFBS' #-}
 
-findTFBS :: Monad m => Bkgd -> Motif -> DNA a -> Double -> Source m Int
-findTFBS bg@(BG (a, c, g, t)) (Motif _ pwm) dna thres = loop 0
+-- | given a user defined threshold, look for TF binding sites on a DNA 
+-- sequence, using look ahead search. This function doesn't search for binding 
+-- sites on the reverse strand
+findTFBS :: Monad m => Bkgd -> PWM -> DNA a -> Double -> Source m Int
+findTFBS bg pwm dna thres = loop 0
   where
     loop !i | i >= l - n + 1 = return ()
             | otherwise = do let (d, _) = lookAheadSearch bg pwm sigma dna i thres
                              if d == n - 1
                                 then yield i >> loop (i+1)
                                 else loop (i+1)
-    sigma = U.fromList . tail . map ((-) (last sigma')) $ sigma'
-    sigma' = scanl f 0 $ toRows $ _mat pwm
+    sigma = optimalScoresSuffix bg pwm
     l = Bio.Seq.length dna
     n = size pwm
+{-# INLINE findTFBS #-}
+
+-- | use naive search
+findTFBS' :: Monad m => Bkgd -> PWM -> DNA a -> Double -> Source m Int
+findTFBS' bg pwm dna thres = scores' bg pwm dna $= 
+                                       loop 0
+  where
+    loop i = do v <- await
+                case v of
+                    Just v' ->  if v' >= thres then yield i >> loop (i+1)
+                                               else loop (i+1)
+                    _ -> return ()
+{-# INLINE findTFBS' #-}
+
+-- | the maxima of match scores starting from every position of a DNA sequence
+maxMatchSc :: Bkgd -> PWM -> DNA a -> Double
+maxMatchSc bg pwm dna = loop (-1/0) 0
+  where
+    loop !max' !i | i >= l - n + 1 = max'
+                  | otherwise = if d == n - 1 then loop sc (i+1)
+                                              else loop max' (i+1)
+      where
+        (d, sc) = lookAheadSearch bg pwm sigma dna i max'
+    sigma = optimalScoresSuffix bg pwm
+    l = Bio.Seq.length dna
+    n = size pwm
+{-# INLINE maxMatchSc #-}
+
+optimalScoresSuffix :: Bkgd -> PWM -> U.Vector Double
+optimalScoresSuffix (BG (a, c, g, t)) (PWM _ pwm) = 
+    U.fromList . tail . map ((-) (last sigma)) $ sigma
+  where
+    sigma = scanl f 0 $ toRows pwm
     f !acc xs = let (i, s) = U.maximumBy (comparing snd) . 
                                 U.zip (U.fromList ([0..3] :: [Int])) $ xs
                 in acc + case i of
@@ -47,9 +70,15 @@ findTFBS bg@(BG (a, c, g, t)) (Motif _ pwm) dna thres = loop 0
                     2 -> log $ s / g
                     3 -> log $ s / t
                     _ -> undefined
-{-# INLINE findTFBS #-}
+{-# INLINE optimalScoresSuffix #-}
 
-lookAheadSearch :: Bkgd -> PWM -> U.Vector Double -> DNA a -> Int -> Double -> (Int, Double)
+lookAheadSearch :: Bkgd              -- ^ background nucleotide distribution
+                -> PWM               -- ^ pwm
+                -> U.Vector Double   -- ^ best possible match score of suffixes
+                -> DNA a             -- ^ DNA sequence
+                -> Int               -- ^ starting location on the DNA
+                -> Double            -- ^ threshold
+                -> (Int, Double)     -- ^ (d, sc_d), the largest d such that sc_d > th_d
 lookAheadSearch (BG (a, c, g, t)) pwm sigma dna start thres = loop (0, -1) 0
   where
     loop (!acc, !th_d) !d 
