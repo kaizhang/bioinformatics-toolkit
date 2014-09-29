@@ -51,7 +51,7 @@ library
     , vector
     , unordered-containers >=0.2 && <0.3
     , parallel >=3.2 && <3.3
-    , statistics
+    , statistics >=0.13.2.2
     , IntervalMap >=0.3 && <0.4
     , double-conversion
     , list-extras

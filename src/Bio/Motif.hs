@@ -25,7 +25,6 @@ import Bio.Seq
 import Bio.Utils.Misc (readDouble, readInt)
 import Control.Monad.State.Lazy
 import Data.List (sortBy, foldl')
-import Data.List.Split (chunksOf)
 import Data.Ord (comparing)
 import Data.Double.Conversion.ByteString
 import Data.Default.Generics
@@ -203,27 +202,6 @@ fromMEME meme = evalState (go $ B.lines meme) (0, [])
         pwm = PWM (Just $ readInt n) $ fromLists . map (map readDouble.B.words) $ xs
     toMotif _ = error "error"
 {-# INLINE fromMEME #-}
-
-------------------------------------------------------------------------------
--- matrix functions
-toRows :: Matrix -> [Vector]
-toRows (Matrix _ ncol _ v) = loop v 
-  where 
-    loop x | V.length x >= ncol = a : loop b
-           | otherwise = []
-      where (a, b) = V.splitAt ncol x
-{-# INLINE toRows #-}
-
-fromLists :: [[Double]] -> Matrix
-fromLists xs = Matrix nrow ncol 0 (V.fromList $ concat xs)
-  where
-    ncol = Prelude.length . head $ xs
-    nrow = Prelude.length xs
-{-# INLINE fromLists #-}
-
-toLists :: Matrix -> [[Double]]
-toLists (Matrix _ ncol _ v) = chunksOf ncol . V.toList $ v
-{-# INLINE toLists #-}
 
 -- $references
 --

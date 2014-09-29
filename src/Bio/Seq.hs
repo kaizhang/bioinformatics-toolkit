@@ -51,22 +51,24 @@ instance Monoid (DNA a) where
 
 class BioSeq' s where
     toBS :: s a -> B.ByteString
-    length :: s a -> Int
+
     slice :: s a -> Int -> Int -> s a
+
+    length :: s a -> Int
+    length = B.length . toBS
+    {-# MINIMAL toBS, slice #-}
+
 
 instance BioSeq' DNA where
     toBS (DNA s) = s
-    length = B.length . toBS
     slice (DNA s) i l = DNA . B.take l . B.drop i $ s
 
 instance BioSeq' RNA where
     toBS (RNA s) = s
-    length = B.length . toBS
     slice (RNA s) i l = RNA . B.take l . B.drop i $ s
 
 instance BioSeq' Peptide where
     toBS (Peptide s) = s
-    length = B.length . toBS
     slice (Peptide s) i l = Peptide . B.take l . B.drop i $ s
 
 class BioSeq' s => BioSeq s a where
