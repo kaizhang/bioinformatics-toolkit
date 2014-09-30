@@ -40,5 +40,5 @@ search terms = do
                          , intercalate "+" terms  -- user defined search terms
                          , "&frame=object"        -- get all object properties
                          ]
-    parser x = do xs <- withObject "xx" (.: "@graph") x
+    parser x = do xs <- withObject "ENCODE_JSON" (.: "@graph") x
                   return $ map (parseEither parseRecord) xs

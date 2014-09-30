@@ -1,10 +1,9 @@
-module Bio.Utils.Overlap (
-      overlapFragment
+module Bio.Utils.Overlap
+    ( overlapFragment
     , overlapNucl
     , coverage
-) where
+    ) where
 
---import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Char8 as B
 import qualified Data.IntervalMap.Strict as IM
 import qualified Data.HashMap.Strict as M
@@ -14,7 +13,6 @@ import Data.List
 import Data.Function
 import Bio.Utils.Bed
 import Control.Monad
-import Control.Lens ((^.))
 import Data.Conduit
 import qualified Data.Conduit.List as CL
 import Control.Monad.Trans.Class (lift)
@@ -22,11 +20,11 @@ import Control.Monad.Trans.Class (lift)
 -- | convert lines of a BED file into a data structure - A hashmap of which the
 -- | chromosomes, and values are interval maps.
 toMap :: [(B.ByteString, (Int, Int))] -> M.HashMap B.ByteString (IM.IntervalMap Int Int)
-{-# INLINE toMap #-}
 toMap input = M.fromList.map create.groupBy ((==) `on` (fst.fst)) $ zip input [0..]
     where
         f ((_, x), i) = (toInterval x, i)
         create xs = (fst.fst.head $ xs, IM.fromDistinctAscList.map f $ xs)
+{-# INLINE toMap #-}
 
 {-
 -- | coverages of bins
@@ -74,9 +72,9 @@ coverage bin tags = liftM getResult $ tags $$ sink
     sink = do
         v <- lift $ VM.replicate (n+1) 0
         CL.mapM_ $ \t -> do
-                let set = M.lookup (t^.chrom) featMap
-                    s = t^.chromStart
-                    e = t^.chromEnd
+                let set = M.lookup (_chrom t) featMap
+                    s = _chromStart t
+                    e = _chromEnd t
                     b = (s, e)
                     l = e - s + 1
                     intervals = case set of
@@ -90,8 +88,8 @@ coverage bin tags = liftM getResult $ tags $$ sink
                 VM.write v n . (+l) =<< VM.read v n
         lift $ V.freeze v
     getResult v = (V.zipWith normalize (V.slice 0 n v) featWidth, v V.! n)
-    featMap = toMap.map (\x -> (x^.chrom, (x^.chromStart, x^.chromEnd))) $ bin
-    featWidth = V.fromList.map (\x -> x^.chromEnd - x^.chromStart) $ bin
+    featMap = toMap.map (\x -> (_chrom x, (_chromStart x, _chromEnd x))) $ bin
+    featWidth = V.fromList.map (\x -> _chromEnd x - _chromStart x) $ bin
     n = length bin
     overlap (l, u) (IM.ClosedInterval l' u') 
         | l' >= l = if u' <= u then u'-l'+1 else u-l'+1
@@ -134,5 +132,5 @@ overlapNucl xs ts = V.create (VM.replicate n 0 >>= go ts)
         overlap _ _ = 0
 
 toInterval :: (a, a) -> IM.Interval a
-{-# INLINE toInterval #-}
 toInterval (l, u) = IM.ClosedInterval l u
+{-# INLINE toInterval #-}

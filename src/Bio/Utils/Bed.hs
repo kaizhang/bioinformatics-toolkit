@@ -1,16 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveGeneric #-}
 
 module Bio.Utils.Bed (
       BED(..)
-    , chrom
-    , chromStart
-    , chromEnd
-    , name
-    , score
-    , strand
     , fetchSeq
     , readBED
     , writeBED 
@@ -22,7 +15,6 @@ import Bio.Seq.IO
 import Bio.Utils.Misc (readInt, readDouble)
 import Data.Maybe
 import Data.Conduit
-import Control.Lens
 import Control.Monad.State.Strict
 import Data.Default.Generics
 import GHC.Generics
@@ -38,7 +30,6 @@ data BED = BED
     , _strand :: !(Maybe Bool)  -- ^ True: "+", False: "-"
     } deriving (Read, Show, Generic)
 
-makeLenses ''BED
 
 instance Default BED
 
@@ -74,11 +65,10 @@ fetchSeq g = do gH <- liftIO $ gHOpen g
 {-# INLINE fetchSeq #-}
 
 writeBED :: FilePath -> [BED] -> IO ()
-{-# INLINE writeBED #-}
 writeBED fl beds = withFile fl WriteMode $ \h -> mapM_ (B.hPutStrLn h.toLine) beds
+{-# INLINE writeBED #-}
 
 fromLine :: B.ByteString -> BED
-{-# INLINE fromLine #-}
 fromLine l = evalState (f (B.split '\t' l)) 1
   where
     f :: [B.ByteString] -> State Int BED
@@ -90,12 +80,12 @@ fromLine l = evalState (f (B.split '\t' l)) 1
         put (i+1)
         bed <- f xs
         case i of
-            1 -> return $ chrom .~ x $ bed
-            2 -> return $ chromStart .~ readInt x $ bed
-            3 -> return $ chromEnd .~ readInt x $ bed
-            4 -> return $ name .~ guard' x $ bed
-            5 -> return $ score .~ getScore x $ bed
-            6 -> return $ strand .~ getStrand x $ bed
+            1 -> return $ bed {_chrom = x}
+            2 -> return $ bed {_chromStart = readInt x}
+            3 -> return $ bed {_chromEnd = readInt x}
+            4 -> return $ bed {_name = guard' x}
+            5 -> return $ bed {_score = getScore x}
+            6 -> return $ bed {_strand = getStrand x}
             _ -> return def
 
     guard' x | x == "." = Nothing
@@ -105,9 +95,9 @@ fromLine l = evalState (f (B.split '\t' l)) 1
     getStrand str | str == "-" = Just False
                   | str == "+" = Just True
                   | otherwise = Nothing
+{-# INLINE fromLine #-}
 
 toLine :: BED -> B.ByteString
-{-# INLINE toLine #-}
 toLine (BED f1 f2 f3 f4 f5 f6) = B.intercalate "\t" [ f1
                                                     , (B.pack.show) f2
                                                     , (B.pack.show) f3
@@ -122,3 +112,4 @@ toLine (BED f1 f2 f3 f4 f5 f6) = B.intercalate "\t" [ f1
     score' = case f5 of
                  Just x -> (B.pack.show) x
                  _ -> "."
+{-# INLINE toLine #-}

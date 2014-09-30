@@ -25,6 +25,7 @@ library
   exposed-modules:     
       Bio.ChIPSeq.ChIP
     , Bio.Data.ENCODE
+    , Bio.Data.ENCODE.Types
     , Bio.Motif
     , Bio.Motif.Alignment
     , Bio.Motif.Search
@@ -52,7 +53,6 @@ library
     , hierarchical-clustering
     , http-conduit
     , list-extras
-    , lens >=4.4
     , mtl
     , nlp-scores >=0.6
     , parallel >=3.2 && <3.3
