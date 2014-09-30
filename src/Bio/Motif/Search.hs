@@ -113,11 +113,3 @@ lookAheadSearch (BG (a, c, g, t)) pwm sigma dna start thres = loop (0, -1) 0
         pseudoCount = 0.0001
     n = size pwm
 {-# INLINE lookAheadSearch #-}
-
-toRows :: Matrix -> [Vector]
-toRows (Matrix _ ncol _ v) = loop v 
-  where 
-    loop x | U.length x >= ncol = a : loop b
-           | otherwise = []
-      where (a, b) = U.splitAt ncol x
-{-# INLINE toRows #-}

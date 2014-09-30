@@ -3,13 +3,13 @@
 
 name:                bioinformatics-toolkit
 version:             0.1.0
--- synopsis:            
--- description:         
+synopsis:            A collection of bioinformatics tools
+description:         A collection of bioinformatics tools
 license:             MIT
 license-file:        LICENSE
 author:              Kai Zhang
 maintainer:          kai@kzhang.org
--- copyright:           
+copyright:           (c) 2014 Kai Zhang
 category:            Bio
 build-type:          Simple
 extra-source-files:  README.md
@@ -20,11 +20,11 @@ data-files:
 
 library
   hs-source-dirs:   src
-  ghc-options: -Wall -O2
+  ghc-options: -Wall
 
   exposed-modules:     
-      Bio.Utils.Transform
-    , Bio.ChIPSeq.ChIP
+      Bio.ChIPSeq.ChIP
+    , Bio.Data.ENCODE
     , Bio.Motif
     , Bio.Motif.Alignment
     , Bio.Motif.Search
@@ -34,35 +34,37 @@ library
     , Bio.Utils.Fasta
     , Bio.Utils.Misc
     , Bio.Utils.Overlap
+    , Bio.Utils.Transform
 
   -- other-modules:       
   -- other-extensions:
   build-depends:
       base >=4.6 && <5.0
-    , text >=0.11
+    , aeson
     , bytestring >=0.10 && <0.11
     , bytestring-lexing >=0.4 && <0.5
-    , containers >=0.5
-    , concatenative >=1.0 && <1.1
     , colour
+    , concatenative >=1.0 && <1.1
     , conduit
+    , containers >=0.5
+    , data-default-generics
+    , double-conversion
     , hierarchical-clustering
     , http-conduit
-    , vector
-    , unordered-containers >=0.2 && <0.3
+    , list-extras
+    , lens >=4.4
+    , mtl
+    , nlp-scores >=0.6
     , parallel >=3.2 && <3.3
     , statistics >=0.13.2.2
-    , IntervalMap >=0.3 && <0.4
-    , double-conversion
-    , list-extras
-    , lens
-    , mtl
-    , data-default-generics
-    , shelly
-    , transformers
     , split
-    , nlp-scores >=0.6
+    , text >=0.11
+    , transformers
+    , shelly
+    , unordered-containers >=0.2 && <0.3
+    , vector
     , word8
+    , IntervalMap >=0.3 && <0.4
 
   default-language:    Haskell2010
 
@@ -108,3 +110,7 @@ test-suite tests
     , bioinformatics-toolkit
     , conduit
     , mtl
+
+source-repository  head
+  type: git
+  location: https://github.com/kaizhang/bioinformatics-toolkit.git
