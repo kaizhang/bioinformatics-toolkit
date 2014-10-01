@@ -35,7 +35,7 @@ library
     , Bio.Utils.Fasta
     , Bio.Utils.Misc
     , Bio.Utils.Overlap
-    , Bio.Utils.Transform
+    , Bio.Utils.Functions
 
   -- other-modules:       
   -- other-extensions:
@@ -54,7 +54,6 @@ library
     , http-conduit
     , list-extras
     , mtl
-    , nlp-scores >=0.6
     , parallel >=3.2 && <3.3
     , statistics >=0.13.2.2
     , split

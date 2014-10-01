@@ -4,35 +4,36 @@
 module Bio.Motif.Alignment where
 
 import Bio.Motif
+import Bio.Utils.Functions
 import Data.Clustering.Hierarchical
-import Data.Function (on)
 import qualified Data.Vector.Generic as G
-import NLP.Scores
+import qualified Data.Vector.Unboxed as U
 import Statistics.Matrix hiding (map)
+import Statistics.Sample
 
 -- | penalty function takes the gaps number as input, return penalty value
 type PenalFn = Int -> Double
 
-type DistanceFn = G.Vector v Double => v Double -> v Double -> Double
+type DistanceFn = (G.Vector v Double, G.Vector v (Double, Double)) => v Double -> v Double -> Double
 
 -- | calculate distance between PWMs
 distanceBy :: DistanceFn -> PWM -> PWM -> Double
-distanceBy f (PWM _ m1) (PWM _ m2) = mean $ zipWith f x y
+distanceBy f (PWM _ m1) (PWM _ m2) = mean . U.fromList $ zipWith f x y
   where (x, y) = (toRows m1, toRows m2)
 {-# INLINE distanceBy #-}
 
 -- Calculate distance by Kullback-Leibler divergence
 deltaKL :: PWM -> PWM -> Double
-deltaKL = distanceBy (kullbackLeibler `on` G.toList)
+deltaKL = distanceBy kld
 {-# INLINE deltaKL #-}
 
 -- Calculate distance by Jensen-Shannon divergence
 deltaJS :: PWM -> PWM -> Double
-deltaJS = distanceBy (jensenShannon `on` G.toList)
+deltaJS = distanceBy jsd
 {-# INLINE deltaJS #-}
 
 alignment :: PWM -> PWM -> (Double, (PWM, PWM, Int))
-alignment = alignmentBy (jensenShannon `on` G.toList) quadPenal
+alignment = alignmentBy jsd quadPenal
 
 -- | linear penalty
 linPenal :: PenalFn
@@ -59,8 +60,8 @@ alignmentBy fn pFn m1 m2 | fst forwardAlign <= fst reverseAlign = (fst forwardAl
                           ++ zip (map (f s1 . flip drop s2) [1 .. n2-1]) [-1, -2 .. -n2+1]
     reverseAlign = minimum $ zip (map (f s2' . flip drop s1) [0 .. n1-1]) [0 .. n1-1]
                           ++ zip (map (f s1 . flip drop s2') [1 .. n2-1]) [-1, -2 .. -n2+1]
-    f a b = let xs = zipWith fn a b
-                nGaps = n1 + n2 - 2 * length xs
+    f a b = let xs = U.fromList $ zipWith fn a b
+                nGaps = n1 + n2 - 2 * U.length xs
             in mean xs + pFn nGaps
     s1 = toRows . _mat $ m1
     s2 = toRows . _mat $ m2
