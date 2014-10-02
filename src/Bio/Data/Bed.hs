@@ -1,11 +1,24 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveGeneric #-}
+--------------------------------------------------------------------------------
+-- |
+-- Module      :  $Header$
+-- Copyright   :  (c) 2014 Kai Zhang
+-- License     :  MIT
 
-module Bio.Utils.Bed (
+-- Maintainer  :  kai@kzhang.org
+-- Stability   :  experimental
+-- Portability :  portable
+
+-- functions for processing BED files
+--------------------------------------------------------------------------------
+
+module Bio.Data.Bed (
       BED(..)
     , fetchSeq
     , readBED
+    , readBED'
     , writeBED 
 ) where
 
@@ -13,8 +26,9 @@ import qualified Data.ByteString.Char8 as B
 import Bio.Seq
 import Bio.Seq.IO
 import Bio.Utils.Misc (readInt, readDouble)
-import Data.Maybe
 import Data.Conduit
+import qualified Data.Conduit.List as CL
+import Data.Maybe
 import Control.Monad.State.Strict
 import Data.Default.Generics
 import GHC.Generics
@@ -45,6 +59,10 @@ readBED fl = do handle <- liftIO $ openFile fl ReadMode
                        yield $ fromLine line
                        loop h
 {-# INLINE readBED #-}
+
+-- | non-streaming version
+readBED' :: FilePath -> IO [BED]
+readBED' fl = readBED fl $$ CL.consume
 
 fetchSeq :: BioSeq DNA a => Genome -> Conduit BED IO (DNA a)
 fetchSeq g = do gH <- liftIO $ gHOpen g

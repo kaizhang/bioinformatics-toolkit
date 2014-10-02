@@ -1,7 +1,19 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+--------------------------------------------------------------------------------
+-- |
+-- Module      :  $Header$
+-- Copyright   :  (c) 2014 Kai Zhang
+-- License     :  MIT
 
-module Bio.Utils.Fasta
+-- Maintainer  :  kai@kzhang.org
+-- Stability   :  experimental
+-- Portability :  portable
+
+-- Functions for processing Fasta files
+--------------------------------------------------------------------------------
+
+module Bio.Data.Fasta
     ( FastaFormat(..)
     , fastaReader
     ) where
@@ -9,8 +21,9 @@ module Bio.Utils.Fasta
 import Bio.Motif
 import Bio.Seq
 import Control.Monad.State.Lazy
-import Data.Conduit
 import qualified Data.ByteString.Char8 as B
+import Data.Conduit
+import qualified Data.Conduit.List as CL
 import System.IO
 
 class FastaFormat f where
@@ -18,8 +31,13 @@ class FastaFormat f where
                        , [B.ByteString]  -- ^ record body
                        )
                     -> f
+
     readFasta :: FilePath -> Source IO f
     readFasta fl = mapOutput fromFastaRecord . fastaReader $ fl
+
+    -- | non-stream version, read whole file in memory
+    readFasta' :: FilePath -> IO [f]
+    readFasta' fl = readFasta fl $$ CL.consume
 --    writeFasta :: FilePath -> [f] -> IO ()
     {-# MINIMAL fromFastaRecord #-}
 

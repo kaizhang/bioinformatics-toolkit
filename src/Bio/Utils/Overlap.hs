@@ -11,7 +11,7 @@ import qualified Data.Vector.Unboxed as V
 import qualified Data.Vector.Unboxed.Mutable as VM
 import Data.List
 import Data.Function
-import Bio.Utils.Bed
+import Bio.Data.Bed
 import Control.Monad
 import Data.Conduit
 import qualified Data.Conduit.List as CL

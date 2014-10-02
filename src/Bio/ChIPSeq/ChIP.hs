@@ -10,7 +10,7 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Strict as M
 import Data.List
-import Bio.Utils.Bed
+import Bio.Data.Bed
 import Control.Parallel.Strategies
 
 fromBED :: [BED] -> [(B.ByteString, (S.HashSet Int, S.HashSet Int))]
