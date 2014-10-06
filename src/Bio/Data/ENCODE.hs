@@ -13,7 +13,9 @@
 -- Search and download data from ENCODE project
 --------------------------------------------------------------------------------
 
-module Bio.Data.ENCODE where
+module Bio.Data.ENCODE
+    ( search
+    ) where
 
 import Bio.Data.ENCODE.Types
 import Data.Aeson
@@ -24,8 +26,8 @@ import Network.HTTP.Conduit
 base :: String
 base = "https://www.encodeproject.org/"
 
-search :: [String] -> IO [Either String Record]
-search terms = do 
+search :: [String] -> [String] -> IO [Either String Record]
+search terms constraints = do 
     initReq <- parseUrl url
     let request = initReq { method = "GET" 
                           , requestHeaders = [("accept", "application/json")]
@@ -36,9 +38,18 @@ search terms = do
         Right x -> return x
   where
     url = intercalate "" [ base                   -- base url
-                         , "search/?searchTerm="
-                         , intercalate "+" terms  -- user defined search terms
+                         , "search/?"
+                         , mkSearchTerm terms
+                         , "&"
+                         , mkConstraint constraints
                          , "&frame=object"        -- get all object properties
                          ]
+
+    mkSearchTerm [] = ""
+    mkSearchTerm xs = "searchTerm=" ++ intercalate "+" xs
+
+    mkConstraint [] = ""
+    mkConstraint xs = intercalate "&" xs
+
     parser x = do xs <- withObject "ENCODE_JSON" (.: "@graph") x
                   return $ map (parseEither parseRecord) xs
