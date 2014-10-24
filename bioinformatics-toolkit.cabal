@@ -23,7 +23,7 @@ library
   ghc-options: -Wall
 
   exposed-modules:     
-      Bio.ChIPSeq.ChIP
+      Bio.ChIPSeq.FragLen
     , Bio.Data.Bed
     , Bio.Data.ENCODE
     , Bio.Data.ENCODE.Types
@@ -55,6 +55,7 @@ library
     , list-extras
     , mtl
     , parallel >=3.2 && <3.3
+    , primitive
     , statistics >=0.13.2.2
     , split
     , text >=0.11
@@ -62,6 +63,7 @@ library
     , shelly
     , unordered-containers >=0.2 && <0.3
     , vector
+    , vector-algorithms
     , word8
     , IntervalMap >=0.3 && <0.4
 
@@ -95,7 +97,9 @@ test-suite tests
   hs-source-dirs: tests
   main-is: test.hs
   other-modules:       
-    Tests.Motif
+      Tests.Motif
+    , Tests.Bed
+
   default-language:    Haskell2010
   build-depends: 
       base

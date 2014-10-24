@@ -19,6 +19,7 @@ instance ToNum B.ByteString where
     readInt x = fst . fromMaybe raiseError . B.readInt $ x
       where raiseError = error $ "Fail to cast ByteString to Int:" ++ show x
     {-# INLINE readInt #-}
+
     readDouble x = fst . fromMaybe raiseError. L.readDouble $ x
       where raiseError = error $ "Fail to cast ByteString to Double:" ++ show x
     {-# INLINE readDouble #-}
@@ -27,6 +28,7 @@ instance ToNum BL.ByteString where
     readInt x = fst. fromMaybe raiseError. BL.readInt $ x
       where raiseError = error $ "Fail to cast ByteString to Int:" ++ show x
     {-# INLINE readInt #-}
+
     readDouble x = fst . fromMaybe raiseError . LL.readDouble $ x
       where raiseError = error $ "Fail to cast ByteString to Double:" ++ show x
     {-# INLINE readDouble #-}

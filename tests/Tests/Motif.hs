@@ -5,7 +5,7 @@ module Tests.Motif (tests) where
 import Bio.Seq
 import Bio.Motif
 import Bio.Motif.Search
-import Bio.Utils.Fasta
+import Bio.Data.Fasta
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.Golden
@@ -13,8 +13,6 @@ import System.Random
 import qualified Data.Conduit.List as CL
 import qualified Data.ByteString.Char8 as B
 import Data.Conduit
-import Control.Monad.Identity
-import Data.Default.Generics
 
 dna :: DNA Basic
 dna = fromBS $ B.pack $ map f $ take 5000 $ randomRs (0, 3) (mkStdGen 2)

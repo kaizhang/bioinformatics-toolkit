@@ -18,8 +18,12 @@ module Bio.Utils.Functions (
     , ihs'
     , kld
     , jsd
+    , binarySearch
+    , binarySearchBy
+    , binarySearchByBounds
 ) where
 
+import Data.Bits (shiftR)
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
@@ -30,6 +34,7 @@ ihs :: Double  -- ^ θ, determine the shape of the function
     -> Double
 ihs !θ !x | θ == 0 = x
           | otherwise = log (θ * x + sqrt (θ * θ * x * x + 1)) / θ
+{-# INLINE ihs #-}
 
 -- | inverse hyperbolic sine transformation with θ = 1
 ihs' :: Double -> Double
@@ -52,6 +57,29 @@ jsd xs ys = 0.5 * kld xs zs + 0.5 * kld ys zs
   where zs = G.zipWith (\x y -> (x + y) / 2) xs ys
 {-# SPECIALIZE jsd :: U.Vector Double -> U.Vector Double -> Double #-}
 {-# SPECIALIZE jsd :: V.Vector Double -> V.Vector Double -> Double #-}
+
+binarySearch :: (G.Vector v e, Ord e)
+             => v e -> e -> Int
+binarySearch vec e = binarySearchByBounds compare vec e 0 $ G.length vec - 1
+{-# INLINE binarySearch #-}
+
+binarySearchBy :: G.Vector v e
+               => (e -> a -> Ordering) -> v e -> a -> Int
+binarySearchBy cmp vec e = binarySearchByBounds cmp vec e 0 $ G.length vec - 1
+{-# INLINE binarySearchBy #-}
+
+binarySearchByBounds :: G.Vector v e
+                     => (e -> a -> Ordering) -> v e -> a -> Int -> Int -> Int
+binarySearchByBounds cmp vec e = loop
+  where
+    loop !l !u
+        | u < l = l
+        | otherwise = case cmp (vec G.! k) e of
+                        LT -> loop (k+1) u
+                        EQ -> k
+                        GT -> loop l (k-1)
+      where k = u + l `shiftR` 1
+{-# INLINE binarySearchByBounds #-}
 
 {-
 empiricalCDF :: G.Vector v Double => v Double -> v Double
