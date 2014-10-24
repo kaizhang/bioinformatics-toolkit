@@ -50,26 +50,33 @@ class BEDFormat b where
     size :: b -> Int
     size bed = chromEnd bed - chromStart bed 
 
-    readBED :: FilePath -> Source IO b
-    readBED fl = do handle <- liftIO $ openFile fl ReadMode
-                    loop handle
-      where
-        loop h = do eof <- liftIO $ hIsEOF h
-                    if eof 
-                       then liftIO $ hClose h
-                       else do
-                           line <- liftIO $ B.hGetLine h
-                           yield $ fromLine line
-                           loop h
-    {-# INLINE readBED #-}
+    hReadBed :: Handle -> Source IO b
+    hReadBed h = do eof <- liftIO $ hIsEOF h
+                    unless eof $ do
+                        line <- liftIO $ B.hGetLine h
+                        yield $ fromLine line
+                        hReadBed h
+    {-# INLINE hReadBed #-}
 
     -- | non-streaming version
-    readBED' :: FilePath -> IO [b]
-    readBED' fl = readBED fl $$ CL.consume
+    hReadBed' :: Handle -> IO [b]
+    hReadBed' h = hReadBed h $$ CL.consume
+    {-# INLINE hReadBed' #-}
 
-    writeBED :: FilePath -> [b] -> IO ()
-    writeBED fl beds = withFile fl WriteMode $ \h -> mapM_ (B.hPutStrLn h.toLine) beds
-    {-# INLINE writeBED #-}
+    readBed :: FilePath -> Source IO b
+    readBed fl = do handle <- liftIO $ openFile fl ReadMode
+                    hReadBed handle
+                    liftIO $ hClose handle
+    {-# INLINE readBed #-}
+
+    -- | non-streaming version
+    readBed' :: FilePath -> IO [b]
+    readBed' fl = readBed fl $$ CL.consume
+    {-# INLINE readBed' #-}
+
+    writeBed :: FilePath -> [b] -> IO ()
+    writeBed fl beds = withFile fl WriteMode $ \h -> mapM_ (B.hPutStrLn h.toLine) beds
+    {-# INLINE writeBed #-}
 
     {-# MINIMAL fromLine, toLine, chrom, chromStart, chromEnd #-}
 

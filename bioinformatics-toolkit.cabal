@@ -23,7 +23,8 @@ library
   ghc-options: -Wall
 
   exposed-modules:     
-      Bio.ChIPSeq.FragLen
+      Bio.ChIPSeq
+    , Bio.ChIPSeq.FragLen
     , Bio.Data.Bed
     , Bio.Data.ENCODE
     , Bio.Data.ENCODE.Types
