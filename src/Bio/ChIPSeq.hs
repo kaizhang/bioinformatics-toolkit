@@ -38,10 +38,10 @@ rpkm' (Sorted regions) = do
             Nothing -> lift $ do
                 let f i bed = do
                         x <- GM.unsafeRead v i
-                        GM.unsafeWrite v i $ x / ((fromIntegral . size) bed / 1000)
-                                               / r
+                        GM.unsafeWrite v i $ x * 1e9
+                                               / (fromIntegral . size) bed
+                                               / fromIntegral nTags
                         return $ i + 1
-                    r = fromIntegral nTags / 1000000
                 G.foldM'_ f 0 regions
                 G.unsafeFreeze v
             Just tag -> do
@@ -50,7 +50,7 @@ rpkm' (Sorted regions) = do
                       | _strand tag == Just False = chromEnd tag
                       | otherwise = error "Unkown strand"
                     xs = snd . unzip $
-                        IM.containing (M.lookupDefault errMsg chr intervalMap) p
+                        IM.containing (M.lookupDefault IM.empty chr intervalMap) p
                 lift $ addOne v xs
                 sink v (nTags+1)
     intervalMap = M.fromList . fst $ G.foldr f ([],([],"dummy",0)) regions
@@ -63,5 +63,4 @@ rpkm' (Sorted regions) = do
             chr' = chrom b
     addOne v' = mapM_ $ \x -> GM.unsafeRead v' x >>= GM.unsafeWrite v' x . (+1)
     n = G.length regions
-    errMsg = undefined
 {-# INLINE rpkm' #-}

@@ -147,7 +147,7 @@ instance Default BED3
 
 instance BEDFormat BED3 where
     fromLine l = case B.split '\t' l of
-                    [a,b,c] -> BED3 a (readInt b) $ readInt c
+                    (a:b:c:_) -> BED3 a (readInt b) $ readInt c
                     _ -> error "Read BED fail: Incorrect number of fields"
     {-# INLINE fromLine #-}
     

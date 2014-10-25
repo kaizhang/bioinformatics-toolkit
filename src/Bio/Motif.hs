@@ -8,8 +8,10 @@ module Bio.Motif
     , Motif(..)
     , Bkgd(..)
     , toPWM
+    , ic
     , scores
     , scores'
+    , maxScore
     , score
     , optimalScore
     , toIUPAC
@@ -109,6 +111,12 @@ scores' bg p@(PWM _ pwm) dna = go 0
     n = B.length s
     len = rows pwm
 {-# INLINE scores' #-}
+
+-- | calculate the maximum of motif scores on a DNA sequence.
+-- maxScore = maximum scores.
+maxScore :: Bkgd -> PWM -> DNA a -> Double
+maxScore bg p = maximum . scores bg p
+{-# INLINE maxScore #-}
 
 score :: Bkgd -> PWM -> DNA a -> Double
 score bg p dna = scoreHelp bg p $! toBS dna
