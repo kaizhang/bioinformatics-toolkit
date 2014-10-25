@@ -14,15 +14,15 @@
 -- functions for processing BED files
 --------------------------------------------------------------------------------
 
-module Bio.Data.Bed (
-      BEDFormat(..)
+module Bio.Data.Bed
+    ( BEDFormat(..)
     , BED(..)
     , BED3(..)
     , fetchSeq
     , Sorted(..)
     , compareBed
     , sortBed
-) where
+    ) where
 
 import Bio.Seq
 import Bio.Seq.IO

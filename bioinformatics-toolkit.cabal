@@ -25,6 +25,7 @@ library
   exposed-modules:     
       Bio.ChIPSeq
     , Bio.ChIPSeq.FragLen
+    , Bio.Data.Bam
     , Bio.Data.Bed
     , Bio.Data.ENCODE
     , Bio.Data.ENCODE.Types
@@ -41,12 +42,12 @@ library
   -- other-modules:       
   -- other-extensions:
   build-depends:
-      base >=4.6 && <5.0
+      base >=4.0 && <5.0
     , aeson
-    , bytestring >=0.10 && <0.11
-    , bytestring-lexing >=0.4 && <0.5
+    , bytestring >=0.10
+    , bytestring-lexing >=0.4
     , colour
-    , concatenative >=1.0 && <1.1
+    , concatenative >=1.0
     , conduit
     , containers >=0.5
     , data-default-generics
@@ -55,18 +56,19 @@ library
     , http-conduit
     , list-extras
     , mtl
-    , parallel >=3.2 && <3.3
+    , parallel >=3.2
     , primitive
+    , samtools
     , statistics >=0.13.2.2
     , split
     , text >=0.11
     , transformers
     , shelly
-    , unordered-containers >=0.2 && <0.3
+    , unordered-containers >=0.2
     , vector
     , vector-algorithms
     , word8
-    , IntervalMap >=0.3 && <0.4
+    , IntervalMap >=0.3
 
   default-language:    Haskell2010
 
