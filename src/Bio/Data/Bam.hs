@@ -14,11 +14,14 @@
 module Bio.Data.Bam
     ( readBam
     , bamToBed
+    , viewBam
     ) where
 
 import Bio.Data.Bed
 import Bio.SamTools.Bam
+import Bio.SamTools.BamIndex
 import Control.Monad.Trans.Class
+import qualified Data.ByteString.Char8 as B
 import Data.Conduit
 import Data.Maybe
 
@@ -48,3 +51,15 @@ bamToBed = do
                 bamToBed
 {-# INLINE bamToBed #-}
 
+viewBam :: IdxHandle -> (B.ByteString, Int, Int) -> Source IO Bam1
+viewBam handle (chr, s, e) = case lookupTarget (idxHeader handle) chr of
+    Nothing -> return ()
+    Just chrId -> do 
+        q <- lift $ query handle chrId (fromIntegral s,fromIntegral e)
+        go q
+  where
+    go q' = do r <- lift $ next q'
+               case r of
+                   Nothing -> return ()
+                   Just bam -> yield bam >> go q'
+{-# INLINE viewBam #-}

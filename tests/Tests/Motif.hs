@@ -26,7 +26,7 @@ dna = fromBS $ B.pack $ map f $ take 5000 $ randomRs (0, 3) (mkStdGen 2)
         _ -> undefined
 
 motifs :: IO [Motif]
-motifs = readFasta "data/motifs.fasta" $$ CL.consume
+motifs = readFasta "tests/data/motifs.fasta" $$ CL.consume
 
 f :: IO ()
 f = do m <- motifs
@@ -36,7 +36,7 @@ tests :: TestTree
 tests = testGroup "Test: Bio.Motif"
     [ --testCase "IUPAC converting" toIUPACTest
     --, testCase "Motif scanning" findTFBSTest
-     goldenVsFile "Motif IO" "data/motifs.fasta" "out.fasta" f
+     goldenVsFile "Motif IO" "tests/data/motifs.fasta" "out.fasta" f
     ]
 
 {-

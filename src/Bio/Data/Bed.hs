@@ -48,7 +48,7 @@ class BEDFormat b where
     chromEnd :: b -> Int
 
     size :: b -> Int
-    size bed = chromEnd bed - chromStart bed 
+    size bed = chromEnd bed - chromStart bed + 1
 
     hReadBed :: Handle -> Source IO b
     hReadBed h = do eof <- liftIO $ hIsEOF h

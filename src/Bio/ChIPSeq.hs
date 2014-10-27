@@ -4,15 +4,25 @@
 module Bio.ChIPSeq
     ( rpkm
     , rpkm'
+    , rpkmFromBam
     ) where
 
+import Bio.Data.Bam
 import Bio.Data.Bed
+import Bio.SamTools.Bam
+import qualified Bio.SamTools.BamIndex as BI
+import Control.Monad (forM)
 import Control.Monad.Primitive
 import Control.Monad.Trans.Class (lift)
 import Data.Conduit
+import qualified Data.Conduit.List as CL
+import Data.Function (on)
 import qualified Data.HashMap.Strict as M
 import qualified Data.IntervalMap as IM
+import Data.Maybe
 import qualified Data.Vector as V
+import qualified Data.Vector.Unboxed as U
+import qualified Data.Vector.Algorithms.Intro as I
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable as GM
 
@@ -20,8 +30,20 @@ import qualified Data.Vector.Generic.Mutable as GM
 -- RPKM: Readcounts per kilobase per million reads. Only counts the starts of tags
 rpkm :: (PrimMonad m, BEDFormat b, G.Vector v Double)
      => [b] -> Sink BED m (v Double)
-rpkm regions = rpkm' sortedRegions
-  where sortedRegions = sortBed . V.fromList $ regions
+rpkm regions = do v <- lift . V.unsafeThaw . V.fromList . zip [0..] $ regions
+                  lift $ I.sortBy (compareBed `on` snd) v
+                  v' <- lift $ V.unsafeFreeze v
+                  let (idx, sortedRegions) = V.unzip v'
+                      n = G.length idx
+                  rc <- rpkm' $ Sorted sortedRegions
+                  return $ G.create $ GM.new n >>= go n (rc::U.Vector Double) idx 0
+  where
+    go n' rc' idx' !i vec | i >= n' = return vec
+                          | otherwise = do
+                              let i' = idx' G.! i
+                                  x = rc' G.! i
+                              GM.unsafeWrite vec i' x
+                              go n' rc' idx' (i+1) vec
 {-# INLINE rpkm #-}
 
 -- | calculate RPKM on a set of regions. Regions must be sorted. The Sorted data
@@ -39,8 +61,8 @@ rpkm' (Sorted regions) = do
                 let f i bed = do
                         x <- GM.unsafeRead v i
                         GM.unsafeWrite v i $ x * 1e9
-                                               / (fromIntegral . size) bed
                                                / fromIntegral nTags
+                                               / (fromIntegral . size) bed
                         return $ i + 1
                 G.foldM'_ f 0 regions
                 G.unsafeFreeze v
@@ -53,14 +75,41 @@ rpkm' (Sorted regions) = do
                         IM.containing (M.lookupDefault IM.empty chr intervalMap) p
                 lift $ addOne v xs
                 sink v (nTags+1)
-    intervalMap = M.fromList . fst $ G.foldr f ([],([],"dummy",0)) regions
+    intervalMap = M.fromList $ (c, IM.fromAscList x) : xs
       where
+        (xs, (x, c, _)) = G.foldr f ([],([],"dummy",n-1)) regions
         f b (acc1, (acc2, !chr, !i))
-            | chr == chr' = (acc1, (record : acc2, chr, i+1))
-            | otherwise = ((chr, IM.fromAscList acc2) : acc1, ([record], chr', i+1))
+            | chr == chr' = (acc1, (record : acc2, chr, i-1))
+            | otherwise = ((chr, IM.fromAscList acc2) : acc1, ([record], chr', i-1))
           where
             record = (IM.ClosedInterval (chromStart b) (chromEnd b), i)
             chr' = chrom b
     addOne v' = mapM_ $ \x -> GM.unsafeRead v' x >>= GM.unsafeWrite v' x . (+1)
     n = G.length regions
 {-# INLINE rpkm' #-}
+
+-- | calculate RPKM using BAM file (*.bam) and its index file (*.bam.bai)
+rpkmFromBam :: BEDFormat b => [b] -> FilePath -> IO [Double]
+rpkmFromBam beds fl = do nTags <- readBam fl $$ CL.foldM (\acc bam -> return $
+                                  if isUnmap bam then acc else acc + 1) 0.0
+                         h <- BI.open fl
+                         xs <- forM beds $ \b -> do
+                             let chr = chrom b
+                                 s = chromStart b
+                                 e = chromEnd b
+                             rc <- viewBam h (chr, s, e) $$ readCount s e
+                             return $ rc * 1e9 / nTags / fromIntegral (e-s+1)
+                         BI.close h
+                         return xs
+  where
+    readCount l u = CL.foldM f 0.0
+      where
+        f acc bam = do let p1 = fromIntegral . fromJust . position $ bam
+                           rl = fromIntegral . fromJust . queryLength $ bam
+                           p2 = p1 + rl - 1
+                       return $ if isReverse bam
+                                   then if l <= p2 && p2 <= u then acc + 1
+                                                              else acc
+                                   else if l <= p1 && p1 <= u then acc + 1
+                                                              else acc
+{-# INLINE rpkmFromBam #-}

@@ -15,9 +15,6 @@ build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
 
-data-files:
-    data/motifs.fasta
-
 library
   hs-source-dirs:   src
   ghc-options: -Wall
@@ -101,7 +98,7 @@ test-suite tests
   main-is: test.hs
   other-modules:       
       Tests.Motif
-    , Tests.Bed
+    , Tests.ChIPSeq
 
   default-language:    Haskell2010
   build-depends: 
