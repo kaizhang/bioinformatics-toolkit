@@ -15,18 +15,22 @@
 --------------------------------------------------------------------------------
 
 module Bio.Data.Bed
-    ( BEDFormat(..)
+    ( BEDLike(..)
+    , splitBed
+    , splitBedBySize
+    , Sorted(..)
+    , sortBed
+    -- * BED6 format
     , BED(..)
+    -- * BED3 format
     , BED3(..)
     , fetchSeq
-    , Sorted(..)
     , compareBed
-    , sortBed
     ) where
 
 import Bio.Seq
 import Bio.Seq.IO
-import Bio.Utils.Misc (readInt, readDouble)
+import Bio.Utils.Misc
 import Control.Monad.State.Strict
 import Control.Monad.ST
 import qualified Data.ByteString.Char8 as B
@@ -39,14 +43,24 @@ import qualified Data.Vector.Algorithms.Intro as I
 import GHC.Generics
 import System.IO
 
-class BEDFormat b where
+-- | a class representing BED-like data, e.g., BED3, BED6 and BED12. BED format
+-- uses 0-based index.
+class BEDLike b where
+    -- | construct bed record from chromsomoe, start location and end location
+    asBed :: B.ByteString -> Int -> Int -> b
+
+    -- | convert bytestring to bed format
     fromLine :: B.ByteString -> b
+
+    -- | convert bed to bytestring
     toLine :: b -> B.ByteString
+    
     -- | field accessor
     chrom :: b -> B.ByteString
     chromStart :: b -> Int
     chromEnd :: b -> Int
 
+    -- | return the size of a bed region
     size :: b -> Int
     size bed = chromEnd bed - chromStart bed + 1
 
@@ -74,11 +88,60 @@ class BEDFormat b where
     readBed' fl = readBed fl $$ CL.consume
     {-# INLINE readBed' #-}
 
-    writeBed :: FilePath -> [b] -> IO ()
-    writeBed fl beds = withFile fl WriteMode $ \h -> mapM_ (B.hPutStrLn h.toLine) beds
+    writeBed :: FilePath -> Sink b IO ()
+    writeBed fl = do handle <- lift $ openFile fl WriteMode
+                     go handle
+      where
+        go h = do x <- await
+                  case x of
+                      Nothing -> lift $ hClose h
+                      Just bed -> (lift . B.hPutStrLn h . toLine) bed >> go h
     {-# INLINE writeBed #-}
 
-    {-# MINIMAL fromLine, toLine, chrom, chromStart, chromEnd #-}
+    writeBed' :: FilePath -> [b] -> IO ()
+    writeBed' fl beds = withFile fl WriteMode $ \h -> mapM_ (B.hPutStrLn h.toLine) beds
+    {-# INLINE writeBed' #-}
+
+    {-# MINIMAL asBed, fromLine, toLine, chrom, chromStart, chromEnd #-}
+
+-- | split a bed region into k consecutive subregions
+splitBed :: BEDLike b => Int -> b -> [BED3]
+splitBed k bed = map (uncurry (asBed chr)) . bins k $ (s, e)
+  where
+    chr = chrom bed
+    s = chromStart bed
+    e = chromEnd bed
+{-# INLINE splitBed #-}
+
+-- | split a bed region into consecutive fixed size subregions
+splitBedBySize :: BEDLike b => Int -> b -> [BED3]
+splitBedBySize k bed = map (uncurry (asBed chr)) . binBySize k $ (s, e)
+  where
+    chr = chrom bed
+    s = chromStart bed
+    e = chromEnd bed
+{-# INLINE splitBedBySize #-}
+
+-- | a type to imply that underlying data is sorted
+newtype Sorted b = Sorted b
+
+compareBed :: (BEDLike b1, BEDLike b2) => b1 -> b2 -> Ordering
+compareBed x y = compare x' y'
+  where
+    x' = (chrom x, chromStart x, chromEnd x)
+    y' = (chrom y, chromStart y, chromEnd y)
+{-# INLINE compareBed #-}
+
+-- | sort BED, first by chromosome (alphabetical order), then by chromStart, last by chromEnd
+sortBed :: BEDLike b => V.Vector b -> Sorted (V.Vector b)
+sortBed beds = Sorted $ runST $ do
+    v <- V.unsafeThaw beds
+    I.sortBy compareBed v
+    V.unsafeFreeze v
+{-# INLINE sortBed #-}
+
+
+-- * BED6 format
 
 -- | BED6 format, as described in http://genome.ucsc.edu/FAQ/FAQformat.html#format1.7
 data BED = BED
@@ -92,7 +155,9 @@ data BED = BED
 
 instance Default BED
 
-instance BEDFormat BED where
+instance BEDLike BED where
+    asBed chr s e = BED chr s e Nothing Nothing Nothing
+
     fromLine l = evalState (f (B.split '\t' l)) 1
       where
         f :: [B.ByteString] -> State Int BED
@@ -141,23 +206,7 @@ instance BEDFormat BED where
     chromStart = _chromStart
     chromEnd = _chromEnd
 
-data BED3 = BED3 !B.ByteString !Int !Int deriving (Show, Generic)
-
-instance Default BED3 
-
-instance BEDFormat BED3 where
-    fromLine l = case B.split '\t' l of
-                    (a:b:c:_) -> BED3 a (readInt b) $ readInt c
-                    _ -> error "Read BED fail: Incorrect number of fields"
-    {-# INLINE fromLine #-}
-    
-    toLine (BED3 f1 f2 f3) = B.intercalate "\t" [f1, (B.pack.show) f2, (B.pack.show) f3]
-    {-# INLINE toLine #-}
-
-    chrom (BED3 f1 _ _) = f1
-    chromStart (BED3 _ f2 _) = f2
-    chromEnd (BED3 _ _ f3) = f3
-
+-- | retreive sequences
 fetchSeq :: BioSeq DNA a => Genome -> Conduit BED IO (DNA a)
 fetchSeq g = do gH <- liftIO $ gHOpen g
                 table <- liftIO $ readIndex gH
@@ -176,20 +225,25 @@ fetchSeq g = do gH <- liftIO $ gHOpen g
             _ -> return ()
 {-# INLINE fetchSeq #-}
 
--- | a type to imply that underlying data is sorted
-newtype Sorted b = Sorted b
 
-compareBed :: (BEDFormat b1, BEDFormat b2) => b1 -> b2 -> Ordering
-compareBed x y = compare x' y'
-  where
-    x' = (chrom x, chromStart x, chromEnd x)
-    y' = (chrom y, chromStart y, chromEnd y)
-{-# INLINE compareBed #-}
+-- * BED3 format
 
--- | sort BED, first by chromosome (alphabetical order), then by chromStart, last by chromEnd
-sortBed :: BEDFormat b => V.Vector b -> Sorted (V.Vector b)
-sortBed beds = Sorted $ runST $ do
-    v <- V.unsafeThaw beds
-    I.sortBy compareBed v
-    V.unsafeFreeze v
-{-# INLINE sortBed #-}
+data BED3 = BED3 !B.ByteString !Int !Int deriving (Show, Generic)
+
+instance Default BED3 
+
+instance BEDLike BED3 where
+    asBed = BED3
+
+    fromLine l = case B.split '\t' l of
+                    (a:b:c:_) -> BED3 a (readInt b) $ readInt c
+                    _ -> error "Read BED fail: Incorrect number of fields"
+    {-# INLINE fromLine #-}
+    
+    toLine (BED3 f1 f2 f3) = B.intercalate "\t" [f1, (B.pack.show) f2, (B.pack.show) f3]
+    {-# INLINE toLine #-}
+
+    chrom (BED3 f1 _ _) = f1
+    chromStart (BED3 _ f2 _) = f2
+    chromEnd (BED3 _ _ f3) = f3
+

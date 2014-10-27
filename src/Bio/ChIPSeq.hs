@@ -28,7 +28,7 @@ import qualified Data.Vector.Generic.Mutable as GM
 
 -- | calculate RPKM on a set of regions.
 -- RPKM: Readcounts per kilobase per million reads. Only counts the starts of tags
-rpkm :: (PrimMonad m, BEDFormat b, G.Vector v Double)
+rpkm :: (PrimMonad m, BEDLike b, G.Vector v Double)
      => [b] -> Sink BED m (v Double)
 rpkm regions = do v <- lift . V.unsafeThaw . V.fromList . zip [0..] $ regions
                   lift $ I.sortBy (compareBed `on` snd) v
@@ -48,7 +48,7 @@ rpkm regions = do v <- lift . V.unsafeThaw . V.fromList . zip [0..] $ regions
 
 -- | calculate RPKM on a set of regions. Regions must be sorted. The Sorted data
 -- type is used to remind users to sort their data.
-rpkm' :: (PrimMonad m, BEDFormat b, G.Vector v Double)
+rpkm' :: (PrimMonad m, BEDLike b, G.Vector v Double)
       => Sorted (V.Vector b) -> Sink BED m (v Double)
 rpkm' (Sorted regions) = do
     vec <- lift $ GM.replicate n 0
@@ -89,7 +89,7 @@ rpkm' (Sorted regions) = do
 {-# INLINE rpkm' #-}
 
 -- | calculate RPKM using BAM file (*.bam) and its index file (*.bam.bai)
-rpkmFromBam :: BEDFormat b => [b] -> FilePath -> IO [Double]
+rpkmFromBam :: BEDLike b => [b] -> FilePath -> IO [Double]
 rpkmFromBam beds fl = do nTags <- readBam fl $$ CL.foldM (\acc bam -> return $
                                   if isUnmap bam then acc else acc + 1) 0.0
                          h <- BI.open fl

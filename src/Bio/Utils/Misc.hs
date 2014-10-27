@@ -34,13 +34,13 @@ instance ToNum BL.ByteString where
     {-# INLINE readDouble #-}
 
 -- | divide a given region into fixed size fragments
-binBySize :: (Int, Int) -> Int -> [(Int, Int)]
-binBySize (start, end) step =
+binBySize :: Int -> (Int, Int) -> [(Int, Int)]
+binBySize step (start, end) =
     let binNum = ceiling $ fromIntegral (end - start + 1) / (fromIntegral step :: Double)
     in take binNum $ zip [start,start+step..] [start+step-1,start+2*step-1..]
 
 -- | divide a given region into k equal size sub-regions
-bins :: (Int, Int) -> Int -> [(Int, Int)]
-bins (start, end) binNum = 
+bins :: Int -> (Int, Int) -> [(Int, Int)]
+bins binNum (start, end) = 
     let step = ceiling $ fromIntegral (end - start + 1) / (fromIntegral binNum :: Double)
     in take binNum $ zip [start,start+step..] [start+step-1,start+2*step-1..]
