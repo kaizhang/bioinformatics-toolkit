@@ -14,14 +14,12 @@ module Bio.Seq.IO
     ) where
 
 import Bio.Seq
-import qualified Data.ByteString.Char8 as B
-import qualified Data.Text as T
-import Shelly hiding (FilePath)
-import qualified Data.HashMap.Lazy as M
-import System.IO
-import Data.List.Split
 import Bio.Utils.Misc (readInt)
 import Control.Monad
+import qualified Data.ByteString.Char8 as B
+import qualified Data.HashMap.Lazy as M
+import Data.List.Split
+import System.IO
 
 -- | The first 2048 bytes are header. Header consists of a fingerprint string,
 -- followed by chromosome information. Example:
@@ -81,13 +79,12 @@ readIndex (GH h) = do header <- B.hGetLine h >> B.hGetLine h
     f _ = error "error"
 
 -- | indexing a genome.
-mkIndex :: FilePath    -- ^ a directory containing fasta files for each chromosome
-        -> FilePath    -- ^ output file
+mkIndex :: [FilePath]    -- ^ fasta files representing individual chromosomes
+        -> FilePath      -- ^ output file
         -> IO ()
-mkIndex dir outFl = do 
+mkIndex fls outFl = do 
     outH <- openFile outFl WriteMode
     hPutStr outH $ fingerprint ++ "\n" ++ replicate 2024 '#'  -- header size: 1024
-    fls <- (fmap.map) T.unpack $ shelly $ lsT (fromText $ T.pack dir)
     chrs <- mapM (write outH) fls
     hSeek outH AbsoluteSeek 24
     B.hPutStrLn outH $ mkHeader chrs

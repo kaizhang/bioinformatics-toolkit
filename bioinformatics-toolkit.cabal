@@ -43,24 +43,20 @@ library
     , aeson
     , bytestring >=0.10
     , bytestring-lexing >=0.4
-    , colour
-    , concatenative >=1.0
     , conduit
     , containers >=0.5
     , data-default-generics
     , double-conversion
     , hierarchical-clustering
     , http-conduit
-    , list-extras
     , mtl
     , parallel >=3.2
     , primitive
     , samtools
-    , statistics >=0.13.2.2
     , split
+    , statistics >=0.13.2.2
     , text >=0.11
     , transformers
-    , shelly
     , unordered-containers >=0.2
     , vector
     , vector-algorithms
@@ -75,6 +71,9 @@ executable mkindex
   build-depends:
       base >=4.6 && <5.0
     , bioinformatics-toolkit
+    , shelly
+    , text
+
   default-language:    Haskell2010
 
 benchmark bench
@@ -97,8 +96,9 @@ test-suite tests
   hs-source-dirs: tests
   main-is: test.hs
   other-modules:       
-      Tests.Motif
+      Tests.Bed
     , Tests.ChIPSeq
+    , Tests.Motif
 
   default-language:    Haskell2010
   build-depends: 

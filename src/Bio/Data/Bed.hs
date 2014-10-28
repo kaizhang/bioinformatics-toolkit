@@ -178,7 +178,7 @@ data BED = BED
     , _name :: !(Maybe B.ByteString)
     , _score :: !(Maybe Double)
     , _strand :: !(Maybe Bool)  -- ^ True: "+", False: "-"
-    } deriving (Show, Generic)
+    } deriving (Eq, Show, Generic)
 
 instance Default BED
 
@@ -255,7 +255,7 @@ fetchSeq g = do gH <- liftIO $ gHOpen g
 
 -- * BED3 format
 
-data BED3 = BED3 !B.ByteString !Int !Int deriving (Show, Generic)
+data BED3 = BED3 !B.ByteString !Int !Int deriving (Eq, Show, Generic)
 
 instance Default BED3 
 
