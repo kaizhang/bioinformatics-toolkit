@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE BangPatterns #-}
 --------------------------------------------------------------------------------
 -- |
 -- Module      :  $Header$
@@ -20,6 +21,8 @@ module Bio.Data.Bed
     , splitBedBySize
     , Sorted(..)
     , sortBed
+    , mergeBed
+    , mergeBed'
     -- * BED6 format
     , BED(..)
     -- * BED3 format
@@ -105,7 +108,7 @@ class BEDLike b where
     {-# MINIMAL asBed, fromLine, toLine, chrom, chromStart, chromEnd #-}
 
 -- | split a bed region into k consecutive subregions
-splitBed :: BEDLike b => Int -> b -> [BED3]
+splitBed :: BEDLike b => Int -> b -> [b]
 splitBed k bed = map (uncurry (asBed chr)) . bins k $ (s, e)
   where
     chr = chrom bed
@@ -114,7 +117,7 @@ splitBed k bed = map (uncurry (asBed chr)) . bins k $ (s, e)
 {-# INLINE splitBed #-}
 
 -- | split a bed region into consecutive fixed size subregions
-splitBedBySize :: BEDLike b => Int -> b -> [BED3]
+splitBedBySize :: BEDLike b => Int -> b -> [b]
 splitBedBySize k bed = map (uncurry (asBed chr)) . binBySize k $ (s, e)
   where
     chr = chrom bed
@@ -122,7 +125,7 @@ splitBedBySize k bed = map (uncurry (asBed chr)) . binBySize k $ (s, e)
     e = chromEnd bed
 {-# INLINE splitBedBySize #-}
 
--- | a type to imply that underlying data is sorted
+-- | a type to imply that underlying data structure is sorted
 newtype Sorted b = Sorted b
 
 compareBed :: (BEDLike b1, BEDLike b2) => b1 -> b2 -> Ordering
@@ -135,10 +138,34 @@ compareBed x y = compare x' y'
 -- | sort BED, first by chromosome (alphabetical order), then by chromStart, last by chromEnd
 sortBed :: BEDLike b => V.Vector b -> Sorted (V.Vector b)
 sortBed beds = Sorted $ runST $ do
-    v <- V.unsafeThaw beds
+    v <- V.thaw beds
     I.sortBy compareBed v
     V.unsafeFreeze v
 {-# INLINE sortBed #-}
+
+mergeBed :: (BEDLike b, Monad m) => V.Vector b -> Source m b
+mergeBed = mergeBed' . sortBed
+{-# INLINE mergeBed #-}
+
+mergeBed' :: (BEDLike b, Monad m) => Sorted (V.Vector b) -> Source m b
+mergeBed' (Sorted beds) = source (V.head beds) 1
+  where
+    source !c !i
+        | i >= n = yield c
+        | otherwise = do
+            let chr = chrom c
+                s = chromStart c
+                e = chromEnd c
+                bed = beds V.! i
+                chr' = chrom bed
+                s' = chromStart bed
+                e' = chromEnd bed
+            case () of
+                _ | chr /= chr' || s' > e+1 -> yield c >> source bed (i+1)
+                  | e' <= e -> source c (i+1)
+                  | otherwise -> source (asBed chr s e') (i+1)
+    n = V.length beds
+{-# INLINE mergeBed' #-}
 
 
 -- * BED6 format
@@ -246,4 +273,3 @@ instance BEDLike BED3 where
     chrom (BED3 f1 _ _) = f1
     chromStart (BED3 _ f2 _) = f2
     chromEnd (BED3 _ _ f3) = f3
-

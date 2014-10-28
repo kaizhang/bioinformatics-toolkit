@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Tests.ChIPSeq (tests) where
 
 import Bio.Data.Bed
@@ -8,7 +6,6 @@ import Data.Conduit
 import Test.Tasty
 import Test.Tasty.HUnit
 import qualified Data.Vector as V
-import System.IO.Unsafe (unsafePerformIO)
 
 peaks :: IO [BED3]
 peaks = readBed' "tests/data/peaks.bed"
@@ -22,10 +19,7 @@ tests = testGroup "Test: Bio.ChIPSeq"
     ]
 
 testRPKM :: Assertion
-testRPKM = a @=? b
-  where
-    (a, b) = unsafePerformIO $ do
-        regions <- peaks
-        r1 <- tags $$ rpkm regions
-        r2 <- rpkmFromBam regions "tests/data/example.bam"
-        return (V.toList r1, r2)
+testRPKM = do regions <- peaks
+              r1 <- tags $$ rpkm regions
+              r2 <- rpkmFromBam regions "tests/data/example.bam"
+              V.toList r1 @=? r2

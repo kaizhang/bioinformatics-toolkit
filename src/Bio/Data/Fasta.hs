@@ -14,7 +14,7 @@
 --------------------------------------------------------------------------------
 
 module Bio.Data.Fasta
-    ( FastaFormat(..)
+    ( FastaLike(..)
     , fastaReader
     ) where
 
@@ -26,7 +26,7 @@ import Data.Conduit
 import qualified Data.Conduit.List as CL
 import System.IO
 
-class FastaFormat f where
+class FastaLike f where
     fromFastaRecord :: ( B.ByteString    -- ^ record header
                        , [B.ByteString]  -- ^ record body
                        )
@@ -41,11 +41,11 @@ class FastaFormat f where
 --    writeFasta :: FilePath -> [f] -> IO ()
     {-# MINIMAL fromFastaRecord #-}
 
-instance BioSeq s a => FastaFormat (s a) where
+instance BioSeq s a => FastaLike (s a) where
     fromFastaRecord (_, xs) = fromBS . B.concat $ xs
     {-# INLINE fromFastaRecord #-}
 
-instance FastaFormat Motif where
+instance FastaLike Motif where
     fromFastaRecord (name, mat) = Motif name (toPWM mat)
     {-# INLINE fromFastaRecord #-}
 

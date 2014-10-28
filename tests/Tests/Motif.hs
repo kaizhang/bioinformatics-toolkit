@@ -8,8 +8,8 @@ import Bio.Motif.Search
 import Bio.Data.Fasta
 import Test.Tasty
 import Test.Tasty.HUnit
-import Test.Tasty.Golden
 import System.Random
+import Data.Default.Generics
 import qualified Data.Conduit.List as CL
 import qualified Data.ByteString.Char8 as B
 import Data.Conduit
@@ -26,18 +26,14 @@ dna = fromBS $ B.pack $ map f $ take 5000 $ randomRs (0, 3) (mkStdGen 2)
         _ -> undefined
 
 motifs :: IO [Motif]
-motifs = readFasta "tests/data/motifs.fasta" $$ CL.consume
-
-f :: IO ()
-f = do m <- motifs
-       writeFasta "out.fasta" m
+motifs = readFasta' "tests/data/motifs.fasta"
 
 tests :: TestTree
 tests = testGroup "Test: Bio.Motif"
     [ --testCase "IUPAC converting" toIUPACTest
-    --, testCase "Motif scanning" findTFBSTest
-     goldenVsFile "Motif IO" "tests/data/motifs.fasta" "out.fasta" f
+     testCase "TFBS scanning" findTFBSTest
     ]
+
 
 {-
 toIUPACTest :: Assertion
@@ -45,10 +41,12 @@ toIUPACTest = assertEqual "toIUPAC check" expect actual
   where
     expect = "SAA"
     actual = show . toIUPAC $ pwm
+    -}
 
 findTFBSTest :: Assertion
-findTFBSTest = assertEqual "TFBS scan check" expect actual
-  where
-    expect = runIdentity $ findTFBS def motif dna (0.6 * optimalScore def pwm) $$ CL.consume
-    actual = runIdentity $ findTFBS' def motif dna (0.6 * optimalScore def pwm) $$ CL.consume
-    -}
+findTFBSTest = do
+    ms <- motifs
+    let (Motif _ pwm) = head ms
+    expect <- findTFBS def pwm dna (0.6 * optimalScore def pwm) $$ CL.consume
+    actual <- findTFBS' def pwm dna (0.6 * optimalScore def pwm) $$ CL.consume
+    assertEqual "findTFBS" expect actual
