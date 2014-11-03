@@ -54,7 +54,7 @@ library
     , primitive
     , samtools
     , split
-    , statistics >=0.13.2.2
+    , statistics >=0.13.2.1
     , text >=0.11
     , transformers
     , unordered-containers >=0.2

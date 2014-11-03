@@ -11,7 +11,6 @@ import Bio.Data.Bam
 import Bio.Data.Bed
 import Bio.SamTools.Bam
 import qualified Bio.SamTools.BamIndex as BI
-import Control.Monad (forM)
 import Control.Monad.Primitive
 import Control.Monad.Trans.Class (lift)
 import Data.Conduit
@@ -89,19 +88,23 @@ rpkm' (Sorted regions) = do
 {-# INLINE rpkm' #-}
 
 -- | calculate RPKM using BAM file (*.bam) and its index file (*.bam.bai)
-rpkmFromBam :: BEDLike b => [b] -> FilePath -> IO [Double]
-rpkmFromBam beds fl = do nTags <- readBam fl $$ CL.foldM (\acc bam -> return $
+rpkmFromBam :: BEDLike b => FilePath -> Conduit b IO Double
+rpkmFromBam fl = do
+    nTags <- lift $ readBam fl $$ CL.foldM (\acc bam -> return $
                                   if isUnmap bam then acc else acc + 1) 0.0
-                         h <- BI.open fl
-                         xs <- forM beds $ \b -> do
-                             let chr = chrom b
-                                 s = chromStart b
-                                 e = chromEnd b
-                             rc <- viewBam h (chr, s, e) $$ readCount s e
-                             return $ rc * 1e9 / nTags / fromIntegral (e-s+1)
-                         BI.close h
-                         return xs
+    handle <- lift $ BI.open fl
+    conduit nTags handle
   where
+    conduit n h = do
+        x <- await
+        case x of
+            Nothing -> lift $ BI.close h
+            Just bed -> do let chr = chrom bed
+                               s = chromStart bed
+                               e = chromEnd bed
+                           rc <- lift $ viewBam h (chr, s, e) $$ readCount s e
+                           yield $ rc * 1e9 / n / fromIntegral (e-s+1)
+                           conduit n h
     readCount l u = CL.foldM f 0.0
       where
         f acc bam = do let p1 = fromIntegral . fromJust . position $ bam

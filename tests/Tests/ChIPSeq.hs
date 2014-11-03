@@ -3,6 +3,7 @@ module Tests.ChIPSeq (tests) where
 import Bio.Data.Bed
 import Bio.ChIPSeq
 import Data.Conduit
+import qualified Data.Conduit.List as CL
 import Test.Tasty
 import Test.Tasty.HUnit
 import qualified Data.Vector as V
@@ -21,5 +22,5 @@ tests = testGroup "Test: Bio.ChIPSeq"
 testRPKM :: Assertion
 testRPKM = do regions <- peaks
               r1 <- tags $$ rpkm regions
-              r2 <- rpkmFromBam regions "tests/data/example.bam"
+              r2 <- CL.sourceList regions $= rpkmFromBam "tests/data/example.bam" $$ CL.consume
               V.toList r1 @=? r2
