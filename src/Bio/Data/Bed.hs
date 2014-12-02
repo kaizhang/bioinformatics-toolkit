@@ -68,9 +68,9 @@ class BEDLike b where
     size bed = chromEnd bed - chromStart bed + 1
 
     hReadBed :: Handle -> Source IO b
-    hReadBed h = do eof <- liftIO $ hIsEOF h
+    hReadBed h = do eof <- lift $ hIsEOF h
                     unless eof $ do
-                        line <- liftIO $ B.hGetLine h
+                        line <- lift $ B.hGetLine h
                         yield $ fromLine line
                         hReadBed h
     {-# INLINE hReadBed #-}
@@ -81,9 +81,9 @@ class BEDLike b where
     {-# INLINE hReadBed' #-}
 
     readBed :: FilePath -> Source IO b
-    readBed fl = do handle <- liftIO $ openFile fl ReadMode
+    readBed fl = do handle <- lift $ openFile fl ReadMode
                     hReadBed handle
-                    liftIO $ hClose handle
+                    lift $ hClose handle
     {-# INLINE readBed #-}
 
     -- | non-streaming version
@@ -235,16 +235,16 @@ instance BEDLike BED where
 
 -- | retreive sequences
 fetchSeq :: BioSeq DNA a => Genome -> Conduit BED IO (DNA a)
-fetchSeq g = do gH <- liftIO $ gHOpen g
-                table <- liftIO $ readIndex gH
+fetchSeq g = do gH <- lift $ gHOpen g
+                table <- lift $ readIndex gH
                 conduitWith gH table
-                liftIO $ gHClose gH
+                lift $ gHClose gH
   where
     conduitWith h index' = do 
         bed <- await
         case bed of
             Just (BED chr start end _ _ isForward) -> do 
-                dna <- liftIO $ getSeq h index' (chr, start, end)
+                dna <- lift $ getSeq h index' (chr, start, end)
                 case isForward of
                     Just False -> yield $ rc dna
                     _ -> yield dna

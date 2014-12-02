@@ -2,9 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
 module Bio.ChIPSeq
-    ( rpkm
-    , rpkm'
-    , rpkmFromBam
+    ( rpkmBed
+    , rpkmSortedBed
+    , rpkmBam
     ) where
 
 import Bio.Data.Bam
@@ -25,17 +25,19 @@ import qualified Data.Vector.Algorithms.Intro as I
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable as GM
 
--- | calculate RPKM on a set of regions.
+-- | calculate RPKM on a set of regions. Regions (in bed format) would be kept in
+-- memory but not tag file.
 -- RPKM: Readcounts per kilobase per million reads. Only counts the starts of tags
-rpkm :: (PrimMonad m, BEDLike b, G.Vector v Double)
+rpkmBed :: (PrimMonad m, BEDLike b, G.Vector v Double)
      => [b] -> Sink BED m (v Double)
-rpkm regions = do v <- lift . V.unsafeThaw . V.fromList . zip [0..] $ regions
-                  lift $ I.sortBy (compareBed `on` snd) v
-                  v' <- lift $ V.unsafeFreeze v
-                  let (idx, sortedRegions) = V.unzip v'
-                      n = G.length idx
-                  rc <- rpkm' $ Sorted sortedRegions
-                  return $ G.create $ GM.new n >>= go n (rc::U.Vector Double) idx 0
+rpkmBed regions = do
+    v <- lift . V.unsafeThaw . V.fromList . zip [0..] $ regions
+    lift $ I.sortBy (compareBed `on` snd) v
+    v' <- lift $ V.unsafeFreeze v
+    let (idx, sortedRegions) = V.unzip v'
+        n = G.length idx
+    rc <- rpkmSortedBed $ Sorted sortedRegions
+    return $ G.create $ GM.new n >>= go n (rc::U.Vector Double) idx 0
   where
     go n' rc' idx' !i vec | i >= n' = return vec
                           | otherwise = do
@@ -43,17 +45,15 @@ rpkm regions = do v <- lift . V.unsafeThaw . V.fromList . zip [0..] $ regions
                                   x = rc' G.! i
                               GM.unsafeWrite vec i' x
                               go n' rc' idx' (i+1) vec
-{-# INLINE rpkm #-}
+{-# INLINE rpkmBed #-}
 
 -- | calculate RPKM on a set of regions. Regions must be sorted. The Sorted data
 -- type is used to remind users to sort their data.
-rpkm' :: (PrimMonad m, BEDLike b, G.Vector v Double)
-      => Sorted (V.Vector b) -> Sink BED m (v Double)
-rpkm' (Sorted regions) = do
-    vec <- lift $ GM.replicate n 0
-    sink vec (0::Int)
+rpkmSortedBed :: (PrimMonad m, BEDLike b, G.Vector v Double)
+              => Sorted (V.Vector b) -> Sink BED m (v Double)
+rpkmSortedBed (Sorted regions) = lift (GM.replicate n 0) >>= sink (0::Int)
   where
-    sink v !nTags = do
+    sink !nTags v = do
         s <- await
         case s of
             Nothing -> lift $ do
@@ -73,7 +73,7 @@ rpkm' (Sorted regions) = do
                     xs = snd . unzip $
                         IM.containing (M.lookupDefault IM.empty chr intervalMap) p
                 lift $ addOne v xs
-                sink v (nTags+1)
+                sink (nTags+1) v
     intervalMap = M.fromList $ (c, IM.fromAscList x) : xs
       where
         (xs, (x, c, _)) = G.foldr f ([],([],"dummy",n-1)) regions
@@ -85,11 +85,12 @@ rpkm' (Sorted regions) = do
             chr' = chrom b
     addOne v' = mapM_ $ \x -> GM.unsafeRead v' x >>= GM.unsafeWrite v' x . (+1)
     n = G.length regions
-{-# INLINE rpkm' #-}
+{-# INLINE rpkmSortedBed #-}
 
--- | calculate RPKM using BAM file (*.bam) and its index file (*.bam.bai)
-rpkmFromBam :: BEDLike b => FilePath -> Conduit b IO Double
-rpkmFromBam fl = do
+-- | calculate RPKM using BAM file (*.bam) and its index file (*.bam.bai), using 
+-- constant space
+rpkmBam :: BEDLike b => FilePath -> Conduit b IO Double
+rpkmBam fl = do
     nTags <- lift $ readBam fl $$ CL.foldM (\acc bam -> return $
                                   if isUnmap bam then acc else acc + 1) 0.0
     handle <- lift $ BI.open fl
@@ -115,4 +116,4 @@ rpkmFromBam fl = do
                                                               else acc
                                    else if l <= p1 && p1 <= u then acc + 1
                                                               else acc
-{-# INLINE rpkmFromBam #-}
+{-# INLINE rpkmBam #-}

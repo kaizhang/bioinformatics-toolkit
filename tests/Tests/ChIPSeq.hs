@@ -21,6 +21,6 @@ tests = testGroup "Test: Bio.ChIPSeq"
 
 testRPKM :: Assertion
 testRPKM = do regions <- peaks
-              r1 <- tags $$ rpkm regions
-              r2 <- CL.sourceList regions $= rpkmFromBam "tests/data/example.bam" $$ CL.consume
+              r1 <- tags $$ rpkmBed regions
+              r2 <- CL.sourceList regions $= rpkmBam "tests/data/example.bam" $$ CL.consume
               V.toList r1 @=? r2
