@@ -126,7 +126,7 @@ splitBedBySize k bed = map (uncurry (asBed chr)) . binBySize k $ (s, e)
 {-# INLINE splitBedBySize #-}
 
 -- | a type to imply that underlying data structure is sorted
-newtype Sorted b = Sorted b
+newtype Sorted b = Sorted {fromSorted :: b}
 
 compareBed :: (BEDLike b1, BEDLike b2) => b1 -> b2 -> Ordering
 compareBed x y = compare x' y'

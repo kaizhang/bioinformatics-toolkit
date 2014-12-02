@@ -18,6 +18,7 @@ import qualified Data.Conduit.List as CL
 import Data.Function (on)
 import qualified Data.HashMap.Strict as M
 import qualified Data.IntervalMap as IM
+import Data.List (groupBy)
 import Data.Maybe
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
@@ -74,15 +75,12 @@ rpkmSortedBed (Sorted regions) = lift (GM.replicate n 0) >>= sink (0::Int)
                         IM.containing (M.lookupDefault IM.empty chr intervalMap) p
                 lift $ addOne v xs
                 sink (nTags+1) v
-    intervalMap = M.fromList $ (c, IM.fromAscList x) : xs
+    intervalMap = M.fromList . map build . groupBy ((==) `on` fst) . G.toList .
+                    G.zipWith f regions . G.enumFromN 0 $ n
       where
-        (xs, (x, c, _)) = G.foldr f ([],([],"dummy",n-1)) regions
-        f b (acc1, (acc2, !chr, !i))
-            | chr == chr' = (acc1, (record : acc2, chr, i-1))
-            | otherwise = ((chr, IM.fromAscList acc2) : acc1, ([record], chr', i-1))
-          where
-            record = (IM.ClosedInterval (chromStart b) (chromEnd b), i)
-            chr' = chrom b
+        build x = let (chr:_, xs) = unzip x
+                  in (chr, IM.fromAscList xs)
+        f bed i = (chrom bed, (IM.ClosedInterval (chromStart bed) (chromEnd bed), i))
     addOne v' = mapM_ $ \x -> GM.unsafeRead v' x >>= GM.unsafeWrite v' x . (+1)
     n = G.length regions
 {-# INLINE rpkmSortedBed #-}
