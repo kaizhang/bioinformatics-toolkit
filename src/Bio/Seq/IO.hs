@@ -9,6 +9,7 @@ module Bio.Seq.IO
     , getSeqs
     , getSeq
     , readIndex
+    , getChrom
     , getChrSizes
     , mkIndex
     ) where
@@ -27,6 +28,9 @@ import System.IO
 newtype Genome = G FilePath
 
 newtype GenomeH = GH Handle
+
+headerSize :: Int
+headerSize = 2048
 
 fingerprint :: String
 fingerprint = "<HASKELLBIOINFORMATICS>"
@@ -58,12 +62,19 @@ getSeqs g querys = do gH <- gHOpen g
 
 getSeq :: BioSeq s a => GenomeH -> IndexTable -> Query -> IO (s a)
 getSeq (GH h) index (chr, start, end) = do 
+    when (end >= chrSize) $ error "Bio.Seq.getSeq: out of index"
     hSeek h AbsoluteSeek (fromIntegral pos)
     liftM fromBS $ B.hGet h (end - start + 1)
   where
     pos = headerSize + chrStart + start
-    chrStart = fst $ M.lookupDefault (error $ "Bio.Seq.getSeq: Cannot find " ++ show chr) chr index
-    headerSize = 2048
+    (chrStart, chrSize) = M.lookupDefault (error $ "Bio.Seq.getSeq: Cannot find " ++ show chr) chr index
+
+getChrom :: Genome -> B.ByteString -> IO (Maybe (DNA IUPAC))
+getChrom g chr = do chrSize <- getChrSizes g
+                    case lookup chr chrSize of
+                        Just s -> do [dna] <- getSeqs g [(chr, 0, s - 1)]
+                                     return $ Just dna
+                        _ -> return Nothing
 
 getChrSizes :: Genome -> IO [(B.ByteString, Int)]
 getChrSizes g = do gh <- gHOpen g

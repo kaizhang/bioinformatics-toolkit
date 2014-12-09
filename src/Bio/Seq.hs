@@ -52,7 +52,7 @@ instance Monoid (DNA a) where
 class BioSeq' s where
     toBS :: s a -> B.ByteString
 
-    slice :: s a -> Int -> Int -> s a
+    slice :: Int -> Int -> s a -> s a
 
     length :: s a -> Int
     length = B.length . toBS
@@ -61,15 +61,15 @@ class BioSeq' s where
 
 instance BioSeq' DNA where
     toBS (DNA s) = s
-    slice (DNA s) i l = DNA . B.take l . B.drop i $ s
+    slice i l (DNA s) = DNA . B.take l . B.drop i $ s
 
 instance BioSeq' RNA where
     toBS (RNA s) = s
-    slice (RNA s) i l = RNA . B.take l . B.drop i $ s
+    slice i l (RNA s) = RNA . B.take l . B.drop i $ s
 
 instance BioSeq' Peptide where
     toBS (Peptide s) = s
-    slice (Peptide s) i l = Peptide . B.take l . B.drop i $ s
+    slice i l (Peptide s) = Peptide . B.take l . B.drop i $ s
 
 class BioSeq' s => BioSeq s a where
     fromBS :: B.ByteString -> s a 
