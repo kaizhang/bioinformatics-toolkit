@@ -11,7 +11,6 @@ module Bio.Motif
     , ic
     , scores
     , scores'
-    , maxScore
     , score
     , optimalScore
     , pValueToScore
@@ -31,7 +30,7 @@ import Control.Monad.State.Lazy
 import Data.List (sortBy, foldl')
 import Data.Ord (comparing)
 import Data.Double.Conversion.ByteString
-import Data.Default.Generics
+import Data.Default.Class
 import Data.Conduit
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Vector.Unboxed as V
@@ -114,12 +113,6 @@ scores' bg p@(PWM _ pwm) dna = go 0
     n = B.length s
     len = rows pwm
 {-# INLINE scores' #-}
-
--- | calculate the maximum of motif scores on a DNA sequence.
--- maxScore = maximum scores.
-maxScore :: Bkgd -> PWM -> DNA a -> Double
-maxScore bg p = maximum . scores bg p
-{-# INLINE maxScore #-}
 
 score :: Bkgd -> PWM -> DNA a -> Double
 score bg p dna = scoreHelp bg p $! toBS dna

@@ -39,7 +39,7 @@ import Control.Monad.ST
 import qualified Data.ByteString.Char8 as B
 import Data.Conduit
 import qualified Data.Conduit.List as CL
-import Data.Default.Generics
+import Data.Default.Class
 import Data.Maybe
 import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Intro as I
@@ -180,7 +180,15 @@ data BED = BED
     , _strand :: !(Maybe Bool)  -- ^ True: "+", False: "-"
     } deriving (Eq, Show, Generic)
 
-instance Default BED
+instance Default BED where
+    def = BED
+        { _chrom = ""
+        , _chromStart = 0
+        , _chromEnd = 0
+        , _name = Nothing
+        , _score = Nothing
+        , _strand = Nothing
+        }
 
 instance BEDLike BED where
     asBed chr s e = BED chr s e Nothing Nothing Nothing
@@ -257,7 +265,8 @@ fetchSeq g = do gH <- lift $ gHOpen g
 
 data BED3 = BED3 !B.ByteString !Int !Int deriving (Eq, Show, Generic)
 
-instance Default BED3 
+instance Default BED3 where
+    def = BED3 "" 0 0
 
 instance BEDLike BED3 where
     asBed = BED3

@@ -9,12 +9,14 @@ import qualified Data.HashSet as S
 import qualified Data.HashMap.Strict as M
 import Data.List
 import Bio.Data.Bed
-import Control.Parallel.Strategies
+import Control.Parallel.Strategies (parMap, rpar)
 
 -- | estimate fragment length for a ChIP-seq experiment
-fragLength :: [BED] -> Int
-fragLength beds = naiveCCWithSmooth 4 beds [50, 52 .. 400]
+fragLength :: (Int, Int) -> [BED] -> Int
+fragLength (start, end) beds = naiveCCWithSmooth 4 beds [start, start+2 .. end]
 {-# INLINE fragLength #-}
+
+-- sizeDistribution :: (Int, Int) -> [BED] -> (Int, Int)
 
 fromBED :: [BED] -> [(B.ByteString, (S.HashSet Int, S.HashSet Int))]
 fromBED = map toSet . M.toList . M.fromListWith f . map parseLine
