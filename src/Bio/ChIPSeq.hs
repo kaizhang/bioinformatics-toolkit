@@ -4,6 +4,7 @@
 module Bio.ChIPSeq
     ( rpkmBed
     , rpkmSortedBed
+    , profiling
     , rpkmBam
     ) where
 
@@ -11,6 +12,8 @@ import Bio.Data.Bam
 import Bio.Data.Bed
 import Bio.SamTools.Bam
 import qualified Bio.SamTools.BamIndex as BI
+import Control.Arrow ((***))
+import Control.Monad
 import Control.Monad.Primitive
 import Control.Monad.Trans.Class (lift)
 import Data.Conduit
@@ -26,7 +29,7 @@ import qualified Data.Vector.Algorithms.Intro as I
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable as GM
 
--- | calculate RPKM on a set of regions. Regions (in bed format) would be kept in
+-- | calculate RPKM on a set of unique regions. Regions (in bed format) would be kept in
 -- memory but not tag file.
 -- RPKM: Readcounts per kilobase per million reads. Only counts the starts of tags
 rpkmBed :: (PrimMonad m, BEDLike b, G.Vector v Double)
@@ -79,11 +82,54 @@ rpkmSortedBed (Sorted regions) = lift (GM.replicate n 0) >>= sink (0::Int)
                     G.zipWith f regions . G.enumFromN 0 $ n
       where
         build x = let (chr:_, xs) = unzip x
-                  in (chr, IM.fromAscList xs)
+                  in (chr, IM.fromAscListWith (error "rpkmSortedBed: non-unique regions")  xs)
         f bed i = (chrom bed, (IM.ClosedInterval (chromStart bed) (chromEnd bed), i))
     addOne v' = mapM_ $ \x -> GM.unsafeRead v' x >>= GM.unsafeWrite v' x . (+1)
     n = G.length regions
 {-# INLINE rpkmSortedBed #-}
+
+-- | divide regions into bins, and count tags for each bin
+profiling :: (PrimMonad m, G.Vector v Int, BEDLike b)
+          => Int
+          -> Sorted (V.Vector b)
+          -> Sink BED m [v Int]
+profiling k (Sorted beds) = do
+    vectors <- lift $ G.forM beds $ \bed -> do
+        let start = chromStart bed
+            end = chromEnd bed
+            num = (end - start) `div` k + 1
+            index i = (i - start) `div` k
+        v <- GM.replicate num 0
+        return (v, index)
+
+    sink vectors
+  where
+    sink vs = do
+        tag <- await
+        case tag of
+            Just (BED chr start end _ _ strand) -> do
+                let p | strand == Just True = start
+                      | strand == Just False = end
+                      | otherwise = error "unkown strand"
+                    overlaps = snd . unzip $
+                        IM.containing (M.lookupDefault IM.empty chr intervalMap) p
+                lift $ forM_ overlaps $ \x -> do
+                    let (v, f) = vs `G.unsafeIndex` x
+                        i = f p
+                    GM.unsafeRead v i >>= GM.unsafeWrite v i . (+1)
+                sink vs
+
+            _ -> lift $ mapM (G.unsafeFreeze . fst) $ G.toList vs
+                                                            
+    intervalMap = M.fromList
+           . map ((head *** IM.fromAscListWith (error "profiling: non-unique regions")) . unzip)
+           . groupBy ((==) `on` fst)
+           . map (\(b, i) -> (chrom b, (IM.ClosedInterval (chromStart b) (chromEnd b), i)))
+           . G.toList . G.zip beds
+           $ G.enumFromN 0 n
+
+    n = G.length beds
+{-# INLINE profiling #-}
 
 -- | calculate RPKM using BAM file (*.bam) and its index file (*.bam.bai), using 
 -- constant space
