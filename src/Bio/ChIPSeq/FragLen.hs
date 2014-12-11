@@ -7,7 +7,7 @@ module Bio.ChIPSeq.FragLen
 import qualified Data.ByteString.Char8 as B
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Strict as M
-import Data.List
+import Data.List (foldl')
 import Bio.Data.Bed
 import Control.Parallel.Strategies (parMap, rpar)
 

@@ -13,8 +13,8 @@ import Bio.Data.Bed
 import Bio.SamTools.Bam
 import qualified Bio.SamTools.BamIndex as BI
 import Control.Arrow ((***))
-import Control.Monad
-import Control.Monad.Primitive
+import Control.Monad (forM_)
+import Control.Monad.Primitive (PrimMonad)
 import Control.Monad.Trans.Class (lift)
 import Data.Conduit
 import qualified Data.Conduit.List as CL
@@ -22,7 +22,7 @@ import Data.Function (on)
 import qualified Data.HashMap.Strict as M
 import qualified Data.IntervalMap as IM
 import Data.List (groupBy)
-import Data.Maybe
+import Data.Maybe (fromJust)
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Algorithms.Intro as I

@@ -15,13 +15,11 @@ import Control.Monad.Identity (runIdentity)
 import Data.Conduit
 import qualified Data.Conduit.List as CL
 import qualified Data.HashSet as S
-import Data.List
-import Data.Ord
+import Data.List (foldl', sortBy)
+import Data.Ord (comparing)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Vector.Unboxed as U
 import Statistics.Matrix hiding (map)
-import Statistics.Distribution
-import Statistics.Distribution.Poisson
 
 
 -- | given a user defined threshold, look for TF binding sites on a DNA 
@@ -164,10 +162,12 @@ spacingConstraint pwm1 pwm2 bg p w k dna = (take 10 $ sortBy (flip (comparing (s
         f acc x | any (`S.member` ys) [x + i - w' .. x + i + w'] = acc + 1
                 | otherwise = acc
 
+{-
     pValue :: Int -> Int -> Int -> Int -> Double
     pValue overlap n1 n2 n = let prob = fromIntegral ((2*w+1)*n1) / fromIntegral n
                                  d = poisson $ prob * fromIntegral n2
                              in complCumulative d (fromIntegral overlap)
+                                -}
 
     n1 = length forward1 + length reverse1
     n2 = S.size forward2 + S.size reverse2

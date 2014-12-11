@@ -40,7 +40,7 @@ import qualified Data.ByteString.Char8 as B
 import Data.Conduit
 import qualified Data.Conduit.List as CL
 import Data.Default.Class
-import Data.Maybe
+import Data.Maybe (fromMaybe)
 import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Intro as I
 import GHC.Generics

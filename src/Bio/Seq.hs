@@ -19,8 +19,8 @@ module Bio.Seq
 import Prelude hiding (length)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.HashSet as S
-import Data.Char8
-import Data.Monoid
+import Data.Char8 (toUpper)
+import Data.Monoid (Monoid(..))
 
 -- | Alphabet defined by http://www.chem.qmul.ac.uk/iupac/
 -- | Standard unambiguous alphabet
@@ -46,7 +46,7 @@ instance Show (DNA a) where
 
 instance Monoid (DNA a) where
     mempty = DNA B.empty
-    mappend (DNA x) (DNA y) = DNA (x <> y)
+    mappend (DNA x) (DNA y) = DNA (x `mappend` y)
     mconcat dnas = DNA . B.concat . map toBS $ dnas
 
 class BioSeq' s where
@@ -75,14 +75,14 @@ class BioSeq' s => BioSeq s a where
     fromBS :: B.ByteString -> s a 
 
 instance BioSeq DNA Basic where
-    fromBS = DNA . B.map (f.toUpper)
+    fromBS = DNA . B.map (f . toUpper)
       where
         f x | x `S.member` alphabet = x
             | otherwise = error "error"
         alphabet = S.fromList "ACGT"
 
 instance BioSeq DNA IUPAC where
-    fromBS = DNA . B.map (f.toUpper)
+    fromBS = DNA . B.map (f . toUpper)
       where
         f x | x `S.member` alphabet = x
             | otherwise = error "error"
@@ -92,7 +92,7 @@ instance BioSeq DNA Ext where
     fromBS = undefined
 
 instance BioSeq RNA Basic where
-    fromBS = RNA . B.map (f.toUpper)
+    fromBS = RNA . B.map (f . toUpper)
       where
         f x | x `S.member` alphabet = x
             | otherwise = error "error"

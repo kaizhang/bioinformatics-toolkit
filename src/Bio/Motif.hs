@@ -29,7 +29,7 @@ import Control.Arrow ((&&&))
 import Control.Monad.State.Lazy
 import Data.List (sortBy, foldl')
 import Data.Ord (comparing)
-import Data.Double.Conversion.ByteString
+import Data.Double.Conversion.ByteString (toShortest)
 import Data.Default.Class
 import Data.Conduit
 import qualified Data.ByteString.Char8 as B
