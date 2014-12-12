@@ -17,12 +17,13 @@
 
 module Bio.Data.Bed
     ( BEDLike(..)
+    , sortedBedToTree
     , splitBed
     , splitBedBySize
     , Sorted(..)
     , sortBed
     , mergeBed
-    , mergeBed'
+    , mergeSortedBed
     -- * BED6 format
     , BED(..)
     -- * BED3 format
@@ -34,12 +35,17 @@ module Bio.Data.Bed
 import Bio.Seq
 import Bio.Seq.IO
 import Bio.Utils.Misc
+import Control.Arrow ((***))
 import Control.Monad.State.Strict
 import Control.Monad.ST
 import qualified Data.ByteString.Char8 as B
 import Data.Conduit
 import qualified Data.Conduit.List as CL
 import Data.Default.Class
+import Data.Function (on)
+import qualified Data.HashMap.Strict as M
+import qualified Data.IntervalMap.Strict as IM
+import Data.List (groupBy)
 import Data.Maybe (fromMaybe)
 import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Intro as I
@@ -107,6 +113,22 @@ class BEDLike b where
 
     {-# MINIMAL asBed, fromLine, toLine, chrom, chromStart, chromEnd #-}
 
+type BEDTree a = M.HashMap B.ByteString (IM.IntervalMap Int a)
+
+-- | convert a set of bed records to interval tree
+sortedBedToTree :: BEDLike b
+                => Sorted [(b, a)]
+                -> BEDTree a
+sortedBedToTree (Sorted xs) =
+      M.fromList
+    . map ((head *** (IM.fromAscListWith errorMsg)) . unzip)
+    . groupBy ((==) `on` fst)
+    . map (\(bed, x) -> (chrom bed, (IM.ClosedInterval (chromStart bed) (chromEnd bed), x)))
+    $ xs
+  where
+    errorMsg = error "Bio.Data.Bed.sortedBedToTree: redundant records"
+{-# INLINE sortedBedToTree #-}
+
 -- | split a bed region into k consecutive subregions
 splitBed :: BEDLike b => Int -> b -> [b]
 splitBed k bed = map (uncurry (asBed chr)) . bins k $ (s, e)
@@ -143,12 +165,22 @@ sortBed beds = Sorted $ runST $ do
     V.unsafeFreeze v
 {-# INLINE sortBed #-}
 
+-- | return records in A that are overlapped with records in B
+intersectSortedBed :: BEDLike b => [b] -> Sorted [b] -> [b]
+intersectSortedBed a (Sorted b) = filter (not . null . f) a
+  where
+    f bed = let chr = chrom bed
+                interval = IM.ClosedInterval (chromStart bed) $ chromEnd bed
+            in IM.intersecting (M.lookupDefault IM.empty chr tree) interval
+    tree = sortedBedToTree . Sorted . zip b . repeat $ undefined
+{-# INLINE intersectSortedBed #-}
+
 mergeBed :: (BEDLike b, Monad m) => V.Vector b -> Source m b
-mergeBed = mergeBed' . sortBed
+mergeBed = mergeSortedBed . sortBed
 {-# INLINE mergeBed #-}
 
-mergeBed' :: (BEDLike b, Monad m) => Sorted (V.Vector b) -> Source m b
-mergeBed' (Sorted beds) = source (V.head beds) 1
+mergeSortedBed :: (BEDLike b, Monad m) => Sorted (V.Vector b) -> Source m b
+mergeSortedBed (Sorted beds) = source (V.head beds) 1
   where
     source !c !i
         | i >= n = yield c
@@ -165,7 +197,7 @@ mergeBed' (Sorted beds) = source (V.head beds) 1
                   | e' <= e -> source c (i+1)
                   | otherwise -> source (asBed chr s e') (i+1)
     n = V.length beds
-{-# INLINE mergeBed' #-}
+{-# INLINE mergeSortedBed #-}
 
 
 -- * BED6 format
