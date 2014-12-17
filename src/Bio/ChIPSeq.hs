@@ -90,8 +90,8 @@ rpkmSortedBed (Sorted regions) = lift (GM.replicate n 0) >>= sink (0::Int)
 
 -- | divide regions into bins, and count tags for each bin
 profiling :: (PrimMonad m, G.Vector v Int, BEDLike b)
-          => Int
-          -> Sorted (V.Vector b)
+          => Int                   -- ^ bin size
+          -> Sorted (V.Vector b)   -- ^ regions
           -> Sink BED m [v Int]
 profiling k (Sorted beds) = do
     vectors <- lift $ G.forM beds $ \bed -> do

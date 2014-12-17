@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE BangPatterns #-}
 --------------------------------------------------------------------------------
 -- |
@@ -22,6 +21,7 @@ module Bio.Data.Bed
     , splitBedBySize
     , Sorted(..)
     , sortBed
+    , intersectSortedBed
     , mergeBed
     , mergeSortedBed
     -- * BED6 format
@@ -49,7 +49,6 @@ import Data.List (groupBy)
 import Data.Maybe (fromMaybe)
 import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Intro as I
-import GHC.Generics
 import System.IO
 
 -- | a class representing BED-like data, e.g., BED3, BED6 and BED12. BED format
@@ -68,6 +67,9 @@ class BEDLike b where
     chrom :: b -> B.ByteString
     chromStart :: b -> Int
     chromEnd :: b -> Int
+
+    toBed3 :: b -> BED3
+    toBed3 bed = BED3 (chrom bed) (chromStart bed) (chromEnd bed)
 
     -- | return the size of a bed region
     size :: b -> Int
@@ -115,13 +117,13 @@ class BEDLike b where
 
 type BEDTree a = M.HashMap B.ByteString (IM.IntervalMap Int a)
 
--- | convert a set of bed records to interval tree
+-- | convert a set of unique bed records to interval tree
 sortedBedToTree :: BEDLike b
                 => Sorted [(b, a)]
                 -> BEDTree a
 sortedBedToTree (Sorted xs) =
       M.fromList
-    . map ((head *** (IM.fromAscListWith errorMsg)) . unzip)
+    . map ((head *** IM.fromAscListWith errorMsg) . unzip)
     . groupBy ((==) `on` fst)
     . map (\(bed, x) -> (chrom bed, (IM.ClosedInterval (chromStart bed) (chromEnd bed), x)))
     $ xs
@@ -210,7 +212,7 @@ data BED = BED
     , _name :: !(Maybe B.ByteString)
     , _score :: !(Maybe Double)
     , _strand :: !(Maybe Bool)  -- ^ True: "+", False: "-"
-    } deriving (Eq, Show, Generic)
+    } deriving (Eq, Show)
 
 instance Default BED where
     def = BED
@@ -295,7 +297,7 @@ fetchSeq g = do gH <- lift $ gHOpen g
 
 -- * BED3 format
 
-data BED3 = BED3 !B.ByteString !Int !Int deriving (Eq, Show, Generic)
+data BED3 = BED3 !B.ByteString !Int !Int deriving (Eq, Show)
 
 instance Default BED3 where
     def = BED3 "" 0 0
