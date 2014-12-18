@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE BangPatterns #-}
 --------------------------------------------------------------------------------
 -- |
 -- Module      :  $Header$
@@ -52,7 +51,7 @@ import qualified Data.Vector.Algorithms.Intro as I
 import System.IO
 
 -- | a class representing BED-like data, e.g., BED3, BED6 and BED12. BED format
--- uses 0-based index.
+-- uses 0-based index (see documentation).
 class BEDLike b where
     -- | construct bed record from chromsomoe, start location and end location
     asBed :: B.ByteString -> Int -> Int -> b
@@ -73,7 +72,7 @@ class BEDLike b where
 
     -- | return the size of a bed region
     size :: b -> Int
-    size bed = chromEnd bed - chromStart bed + 1
+    size bed = chromEnd bed - chromStart bed
 
     hReadBed :: Handle -> Source IO b
     hReadBed h = do eof <- lift $ hIsEOF h
@@ -125,13 +124,13 @@ sortedBedToTree (Sorted xs) =
       M.fromList
     . map ((head *** IM.fromAscListWith errorMsg) . unzip)
     . groupBy ((==) `on` fst)
-    . map (\(bed, x) -> (chrom bed, (IM.ClosedInterval (chromStart bed) (chromEnd bed), x)))
+    . map (\(bed, x) -> (chrom bed, (IM.IntervalCO (chromStart bed) (chromEnd bed), x)))
     $ xs
   where
     errorMsg = error "Bio.Data.Bed.sortedBedToTree: redundant records"
 {-# INLINE sortedBedToTree #-}
 
--- | split a bed region into k consecutive subregions
+-- | split a bed region into k consecutive subregions, discarding leftovers
 splitBed :: BEDLike b => Int -> b -> [b]
 splitBed k bed = map (uncurry (asBed chr)) . bins k $ (s, e)
   where
@@ -140,7 +139,7 @@ splitBed k bed = map (uncurry (asBed chr)) . bins k $ (s, e)
     e = chromEnd bed
 {-# INLINE splitBed #-}
 
--- | split a bed region into consecutive fixed size subregions
+-- | split a bed region into consecutive fixed size subregions, discarding leftovers
 splitBedBySize :: BEDLike b => Int -> b -> [b]
 splitBedBySize k bed = map (uncurry (asBed chr)) . binBySize k $ (s, e)
   where
@@ -172,7 +171,7 @@ intersectSortedBed :: BEDLike b => [b] -> Sorted [b] -> [b]
 intersectSortedBed a (Sorted b) = filter (not . null . f) a
   where
     f bed = let chr = chrom bed
-                interval = IM.ClosedInterval (chromStart bed) $ chromEnd bed
+                interval = IM.IntervalCO (chromStart bed) $ chromEnd bed
             in IM.intersecting (M.lookupDefault IM.empty chr tree) interval
     tree = sortedBedToTree . Sorted . zip b . repeat $ undefined
 {-# INLINE intersectSortedBed #-}
@@ -182,23 +181,18 @@ mergeBed = mergeSortedBed . sortBed
 {-# INLINE mergeBed #-}
 
 mergeSortedBed :: (BEDLike b, Monad m) => Sorted (V.Vector b) -> Source m b
-mergeSortedBed (Sorted beds) = source (V.head beds) 1
+mergeSortedBed (Sorted beds) = V.fold1M'_ f beds
   where
-    source !c !i
-        | i >= n = yield c
-        | otherwise = do
-            let chr = chrom c
-                s = chromStart c
-                e = chromEnd c
-                bed = beds V.! i
-                chr' = chrom bed
-                s' = chromStart bed
-                e' = chromEnd bed
-            case () of
-                _ | chr /= chr' || s' > e+1 -> yield c >> source bed (i+1)
-                  | e' <= e -> source c (i+1)
-                  | otherwise -> source (asBed chr s e') (i+1)
-    n = V.length beds
+    f c bed = do let chr = chrom c
+                     s = chromStart c
+                     e = chromEnd c
+                     chr' = chrom bed
+                     s' = chromStart bed
+                     e' = chromEnd bed
+                 case () of
+                    _ | chr /= chr' || s' > e -> yield c >> return bed
+                      | e' <= e -> return c
+                      | otherwise -> return $ asBed chr s e'
 {-# INLINE mergeSortedBed #-}
 
 

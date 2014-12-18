@@ -9,7 +9,7 @@ import Bio.Data.Fasta
 import Test.Tasty
 import Test.Tasty.HUnit
 import System.Random
-import Data.Default.Generics
+import Data.Default.Class
 import qualified Data.Conduit.List as CL
 import qualified Data.ByteString.Char8 as B
 import Data.Conduit
@@ -48,5 +48,5 @@ findTFBSTest = do
     ms <- motifs
     let (Motif _ pwm) = head ms
     expect <- findTFBS def pwm dna (0.6 * optimalScore def pwm) $$ CL.consume
-    actual <- findTFBS' def pwm dna (0.6 * optimalScore def pwm) $$ CL.consume
+    actual <- findTFBSSlow def pwm dna (0.6 * optimalScore def pwm) $$ CL.consume
     assertEqual "findTFBS" expect actual

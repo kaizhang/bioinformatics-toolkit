@@ -7,6 +7,7 @@ import qualified Data.Conduit.List as CL
 import Test.Tasty
 import Test.Tasty.HUnit
 import qualified Data.Vector as V
+import Text.Printf
 
 peaks :: IO [BED3]
 peaks = readBed' "tests/data/peaks.bed"
@@ -23,4 +24,6 @@ testRPKM :: Assertion
 testRPKM = do regions <- peaks
               r1 <- tags $$ rpkmBed regions
               r2 <- CL.sourceList regions $= rpkmBam "tests/data/example.bam" $$ CL.consume
-              V.toList r1 @=? r2
+              let r1' = map (printf "%0.6f") . V.toList $ r1 :: [String]
+                  r2' = map (printf "%0.6f") r2
+              r1' @=? r2'

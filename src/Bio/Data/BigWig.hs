@@ -25,7 +25,7 @@ normalizedScores bwF = CL.mapM $ \bed -> do
 helper :: BEDLike b => BWFile -> b -> IO Double
 helper bwF bed = queryBWFile bwF (chr, start, end) $$ CL.fold f 0.0
   where
-    f acc (_, s, e, v) = acc + fromIntegral (e - s + 1) * v
+    f acc (_, s, e, v) = acc + fromIntegral (e - s) * v
     chr = chrom bed
     start = chromStart bed
     end = chromEnd bed

@@ -22,7 +22,7 @@ import qualified Data.HashMap.Lazy as M
 import Data.List.Split
 import System.IO
 
--- | The first 2048 bytes are header. Header consists of a fingerprint string,
+-- | The first 2048 bytes are header. Header consists of a magic string,
 -- followed by chromosome information. Example:
 -- <HASKELLBIOINFORMATICS>\nCHR1 START SIZE
 newtype Genome = G FilePath
@@ -32,13 +32,13 @@ newtype GenomeH = GH Handle
 headerSize :: Int
 headerSize = 2048
 
-fingerprint :: String
-fingerprint = "<HASKELLBIOINFORMATICS>"
+magic :: String
+magic = "<HASKELLBIOINFORMATICS>"
 
 pack :: FilePath -> IO Genome
 pack fl = withFile fl ReadMode f
   where f h = do l <- hGetLine h
-                 if l == fingerprint
+                 if l == magic
                     then return $ G fl
                     else error "Bio.Seq.Query.pack: Incorrect format"
 
@@ -51,7 +51,7 @@ gHClose (GH h) = hClose h
 
 type IndexTable = M.HashMap B.ByteString (Int, Int)
 
-type Query = (B.ByteString, Int, Int) -- (chr, start, end), zero based
+type Query = (B.ByteString, Int, Int) -- (chr, start, end), zero-based index, half-close-half-open
 
 getSeqs :: BioSeq s a => Genome -> [Query] -> IO [s a]
 getSeqs g querys = do gH <- gHOpen g
@@ -64,7 +64,7 @@ getSeq :: BioSeq s a => GenomeH -> IndexTable -> Query -> IO (s a)
 getSeq (GH h) index (chr, start, end) = do 
     when (end >= chrSize) $ error "Bio.Seq.getSeq: out of index"
     hSeek h AbsoluteSeek (fromIntegral pos)
-    liftM fromBS $ B.hGet h (end - start + 1)
+    liftM fromBS $ B.hGet h $ end - start
   where
     pos = headerSize + chrStart + start
     (chrStart, chrSize) = M.lookupDefault (error $ "Bio.Seq.getSeq: Cannot find " ++ show chr) chr index
@@ -72,7 +72,7 @@ getSeq (GH h) index (chr, start, end) = do
 getChrom :: Genome -> B.ByteString -> IO (Maybe (DNA IUPAC))
 getChrom g chr = do chrSize <- getChrSizes g
                     case lookup chr chrSize of
-                        Just s -> do [dna] <- getSeqs g [(chr, 0, s - 1)]
+                        Just s -> do [dna] <- getSeqs g [(chr, 0, s)]
                                      return $ Just dna
                         _ -> return Nothing
 
@@ -95,7 +95,7 @@ mkIndex :: [FilePath]    -- ^ fasta files representing individual chromosomes
         -> IO ()
 mkIndex fls outFl = do 
     outH <- openFile outFl WriteMode
-    hPutStr outH $ fingerprint ++ "\n" ++ replicate 2024 '#'  -- header size: 1024
+    hPutStr outH $ magic ++ "\n" ++ replicate 2024 '#'  -- header size: 1024
     chrs <- mapM (write outH) fls
     hSeek outH AbsoluteSeek 24
     B.hPutStrLn outH $ mkHeader chrs

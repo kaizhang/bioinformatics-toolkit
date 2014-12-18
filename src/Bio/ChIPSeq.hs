@@ -1,6 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE BangPatterns #-}
 module Bio.ChIPSeq
     ( rpkmBed
     , rpkmSortedBed
@@ -13,7 +12,7 @@ import Bio.Data.Bed
 import Bio.SamTools.Bam
 import qualified Bio.SamTools.BamIndex as BI
 import Control.Arrow ((***))
-import Control.Monad (forM_)
+import Control.Monad (forM_, liftM)
 import Control.Monad.Primitive (PrimMonad)
 import Control.Monad.Trans.Class (lift)
 import Data.Conduit
@@ -35,57 +34,43 @@ import qualified Data.Vector.Generic.Mutable as GM
 rpkmBed :: (PrimMonad m, BEDLike b, G.Vector v Double)
      => [b] -> Sink BED m (v Double)
 rpkmBed regions = do
-    v <- lift . V.unsafeThaw . V.fromList . zip [0..] $ regions
-    lift $ I.sortBy (compareBed `on` snd) v
-    v' <- lift $ V.unsafeFreeze v
-    let (idx, sortedRegions) = V.unzip v'
+    v <- lift $ do v' <- V.unsafeThaw . V.fromList . zip [0..] $ regions
+                   I.sortBy (compareBed `on` snd) v'
+                   V.unsafeFreeze v'
+    let (idx, sortedRegions) = V.unzip v
         n = G.length idx
     rc <- rpkmSortedBed $ Sorted sortedRegions
-    return $ G.create $ GM.new n >>= go n (rc::U.Vector Double) idx 0
-  where
-    go n' rc' idx' !i vec | i >= n' = return vec
-                          | otherwise = do
-                              let i' = idx' G.! i
-                                  x = rc' G.! i
-                              GM.unsafeWrite vec i' x
-                              go n' rc' idx' (i+1) vec
+
+    lift $ do
+        result <- GM.new n
+        G.sequence_ . G.imap (\x i -> GM.unsafeWrite result i (rc U.! x)) $ idx
+        G.unsafeFreeze result
 {-# INLINE rpkmBed #-}
 
 -- | calculate RPKM on a set of regions. Regions must be sorted. The Sorted data
 -- type is used to remind users to sort their data.
 rpkmSortedBed :: (PrimMonad m, BEDLike b, G.Vector v Double)
               => Sorted (V.Vector b) -> Sink BED m (v Double)
-rpkmSortedBed (Sorted regions) = lift (GM.replicate n 0) >>= sink (0::Int)
+rpkmSortedBed (Sorted regions) = do
+    vec <- lift $ GM.replicate l 0
+    n <- CL.foldM (f vec) (0 :: Int)
+    let factor = fromIntegral n / 1e9
+    lift $ liftM (G.imap (\i x -> x / factor / (fromIntegral . size) (regions V.! i)))
+         $ G.unsafeFreeze vec
   where
-    sink !nTags v = do
-        s <- await
-        case s of
-            Nothing -> lift $ do
-                let f i bed = do
-                        x <- GM.unsafeRead v i
-                        GM.unsafeWrite v i $ x * 1e9
-                                               / fromIntegral nTags
-                                               / (fromIntegral . size) bed
-                        return $ i + 1
-                G.foldM'_ f 0 regions
-                G.unsafeFreeze v
-            Just tag -> do
-                let chr = chrom tag
-                    p | _strand tag == Just True = chromStart tag
-                      | _strand tag == Just False = chromEnd tag
-                      | otherwise = error "Unkown strand"
-                    xs = snd . unzip $
-                        IM.containing (M.lookupDefault IM.empty chr intervalMap) p
-                lift $ addOne v xs
-                sink (nTags+1) v
-    intervalMap = M.fromList . map build . groupBy ((==) `on` fst) . G.toList .
-                    G.zipWith f regions . G.enumFromN 0 $ n
-      where
-        build x = let (chr:_, xs) = unzip x
-                  in (chr, IM.fromAscListWith (error "rpkmSortedBed: non-unique regions")  xs)
-        f bed i = (chrom bed, (IM.ClosedInterval (chromStart bed) (chromEnd bed), i))
+    f v nTags tag = do
+        let chr = chrom tag
+            p | _strand tag == Just True = chromStart tag
+              | _strand tag == Just False = chromEnd tag - 1
+              | otherwise = error "Unkown strand"
+            xs = snd . unzip $
+                IM.containing (M.lookupDefault IM.empty chr intervalMap) p
+        addOne v xs
+        return $ succ nTags
+
+    intervalMap = sortedBedToTree . Sorted . G.toList . G.zip regions . G.enumFromN 0 $ l
     addOne v' = mapM_ $ \x -> GM.unsafeRead v' x >>= GM.unsafeWrite v' x . (+1)
-    n = G.length regions
+    l = G.length regions
 {-# INLINE rpkmSortedBed #-}
 
 -- | divide regions into bins, and count tags for each bin
@@ -148,7 +133,7 @@ rpkmBam fl = do
                                s = chromStart bed
                                e = chromEnd bed
                            rc <- lift $ viewBam h (chr, s, e) $$ readCount s e
-                           yield $ rc * 1e9 / n / fromIntegral (e-s+1)
+                           yield $ rc * 1e9 / n / fromIntegral (e-s)
                            conduit n h
     readCount l u = CL.foldM f 0.0
       where
@@ -156,8 +141,8 @@ rpkmBam fl = do
                            rl = fromIntegral . fromJust . queryLength $ bam
                            p2 = p1 + rl - 1
                        return $ if isReverse bam
-                                   then if l <= p2 && p2 <= u then acc + 1
-                                                              else acc
-                                   else if l <= p1 && p1 <= u then acc + 1
-                                                              else acc
+                                   then if l <= p2 && p2 < u then acc + 1
+                                                             else acc
+                                   else if l <= p1 && p1 < u then acc + 1
+                                                             else acc
 {-# INLINE rpkmBam #-}

@@ -33,14 +33,15 @@ instance ToNum BL.ByteString where
       where raiseError = error $ "Fail to cast ByteString to Double:" ++ show x
     {-# INLINE readDouble #-}
 
--- | divide a given region into fixed size fragments
+-- | divide a given half-close-half-open region into fixed size 
+-- half-close-half-open intervals, discarding leftovers
 binBySize :: Int -> (Int, Int) -> [(Int, Int)]
-binBySize step (start, end) =
-    let binNum = ceiling $ fromIntegral (end - start + 1) / (fromIntegral step :: Double)
-    in take binNum $ zip [start,start+step..] [start+step-1,start+2*step-1..]
+binBySize step (start, end) = let xs = [start, start + step .. end]
+                              in zip xs . tail $ xs
+{-# INLINE binBySize #-}
 
--- | divide a given region into k equal size sub-regions
+-- | divide a given region into k equal size sub-regions, discarding leftovers
 bins :: Int -> (Int, Int) -> [(Int, Int)]
-bins binNum (start, end) = 
-    let step = ceiling $ fromIntegral (end - start + 1) / (fromIntegral binNum :: Double)
-    in take binNum $ zip [start,start+step..] [start+step-1,start+2*step-1..]
+bins binNum (start, end) = let k = (end - start) `div` binNum
+                           in take binNum . binBySize k $ (start, end)
+{-# INLINE bins #-}
