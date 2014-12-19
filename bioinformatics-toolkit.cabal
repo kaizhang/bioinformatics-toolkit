@@ -78,6 +78,16 @@ executable mkindex
 
   default-language:    Haskell2010
 
+executable viewSeq
+  hs-source-dirs:   exe
+  main-is: viewSeq.hs
+  build-depends:
+      base >=4.6 && <5.0
+    , bioinformatics-toolkit
+    , bytestring
+
+  default-language:    Haskell2010
+
 benchmark bench
   type: exitcode-stdio-1.0
   main-is: benchmarks/bench.hs

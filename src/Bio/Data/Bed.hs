@@ -20,6 +20,7 @@ module Bio.Data.Bed
     , splitBedBySize
     , Sorted(..)
     , sortBed
+    , intersectBed
     , intersectSortedBed
     , mergeBed
     , mergeSortedBed
@@ -159,24 +160,30 @@ compareBed x y = compare x' y'
 {-# INLINE compareBed #-}
 
 -- | sort BED, first by chromosome (alphabetical order), then by chromStart, last by chromEnd
-sortBed :: BEDLike b => V.Vector b -> Sorted (V.Vector b)
+sortBed :: BEDLike b => [b] -> Sorted (V.Vector b)
 sortBed beds = Sorted $ runST $ do
-    v <- V.thaw beds
+    v <- V.unsafeThaw . V.fromList $ beds
     I.sortBy compareBed v
     V.unsafeFreeze v
 {-# INLINE sortBed #-}
 
+intersectBed :: BEDLike b => [b] -> [b] -> [b]
+intersectBed a b = intersectSortedBed a b'
+  where
+    b' = sortBed b
+{-# INLINE intersectBed #-}
+
 -- | return records in A that are overlapped with records in B
-intersectSortedBed :: BEDLike b => [b] -> Sorted [b] -> [b]
+intersectSortedBed :: BEDLike b => [b] -> Sorted (V.Vector b) -> [b]
 intersectSortedBed a (Sorted b) = filter (not . null . f) a
   where
     f bed = let chr = chrom bed
                 interval = IM.IntervalCO (chromStart bed) $ chromEnd bed
             in IM.intersecting (M.lookupDefault IM.empty chr tree) interval
-    tree = sortedBedToTree . Sorted . zip b . repeat $ undefined
+    tree = sortedBedToTree . Sorted . zip (V.toList b) . repeat $ undefined
 {-# INLINE intersectSortedBed #-}
 
-mergeBed :: (BEDLike b, Monad m) => V.Vector b -> Source m b
+mergeBed :: (BEDLike b, Monad m) => [b] -> Source m b
 mergeBed = mergeSortedBed . sortBed
 {-# INLINE mergeBed #-}
 
