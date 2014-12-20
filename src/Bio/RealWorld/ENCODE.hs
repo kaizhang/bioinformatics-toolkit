@@ -20,6 +20,10 @@ module Bio.RealWorld.ENCODE
     , (|!)
     , as
     , (&)
+    , terms
+    , cellIs
+    , organismIs
+    , assayIs
     ) where
 
 import Data.Aeson

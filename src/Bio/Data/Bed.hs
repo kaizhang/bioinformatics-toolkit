@@ -167,14 +167,15 @@ sortBed beds = Sorted $ runST $ do
     V.unsafeFreeze v
 {-# INLINE sortBed #-}
 
-intersectBed :: BEDLike b => [b] -> [b] -> [b]
+intersectBed :: (BEDLike b1, BEDLike b2) => [b1] -> [b2] -> [b1]
 intersectBed a b = intersectSortedBed a b'
   where
     b' = sortBed b
 {-# INLINE intersectBed #-}
 
 -- | return records in A that are overlapped with records in B
-intersectSortedBed :: BEDLike b => [b] -> Sorted (V.Vector b) -> [b]
+intersectSortedBed :: (BEDLike b1, BEDLike b2)
+                   => [b1] -> Sorted (V.Vector b2) -> [b1]
 intersectSortedBed a (Sorted b) = filter (not . null . f) a
   where
     f bed = let chr = chrom bed
