@@ -25,12 +25,11 @@ library
     , Bio.Data.Bam
     , Bio.Data.Bed
     , Bio.Data.BigWig
-    , Bio.Data.ENCODE
-    , Bio.Data.ENCODE.Types
     , Bio.Data.Fasta
     , Bio.Motif
     , Bio.Motif.Alignment
     , Bio.Motif.Search
+    , Bio.RealWorld.ENCODE
     , Bio.Seq
     , Bio.Seq.IO
     , Bio.Utils.Misc
@@ -42,6 +41,7 @@ library
   build-depends:
       base >=4.0 && <5.0
     , aeson
+    , aeson-pretty
     , bbi
     , bytestring >=0.10
     , bytestring-lexing >=0.4

@@ -1,13 +1,19 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
-module Bio.Utils.Types where
+module Bio.Utils.Types
+    ( Sorted
+    , ordering
+    , fromSorted
+    , toSorted
+    , unsafeToSorted
+    ) where
 
 import qualified Data.Foldable as F
 import Data.Ord ()
 
 data Sorted f a where
-    Sorted :: F.Foldable f
+    Sorted :: (F.Foldable f, Ord a)
            => { ordering :: !Ordering
               , fromSorted :: !(f a)
               }
@@ -15,7 +21,7 @@ data Sorted f a where
 
 deriving instance Show (f a) => Show (Sorted f a)
 
--- | check and mark sorted data
+-- | if the data has been sorted, wrap it into Sorted type
 toSorted :: (F.Foldable f, Ord a) => f a -> Sorted f a
 toSorted xs = Sorted o xs
   where
@@ -26,3 +32,6 @@ toSorted xs = Sorted o xs
         | otherwise = error "data is not sorted"
       where
         ord' = func x
+
+unsafeToSorted :: (F.Foldable f, Ord a) => Ordering -> f a -> Sorted f a
+unsafeToSorted = Sorted

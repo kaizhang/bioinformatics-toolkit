@@ -117,18 +117,18 @@ class BEDLike b where
 
 type BEDTree a = M.HashMap B.ByteString (IM.IntervalMap Int a)
 
--- | convert a set of unique bed records to interval tree
+-- | convert a set of bed records to interval tree, with combining function for
+-- equal keys
 sortedBedToTree :: BEDLike b
-                => Sorted [(b, a)]
+                => (a -> a -> a)
+                -> Sorted [(b, a)]
                 -> BEDTree a
-sortedBedToTree (Sorted xs) =
+sortedBedToTree f (Sorted xs) =
       M.fromList
-    . map ((head *** IM.fromAscListWith errorMsg) . unzip)
+    . map ((head *** IM.fromAscListWith f) . unzip)
     . groupBy ((==) `on` fst)
     . map (\(bed, x) -> (chrom bed, (IM.IntervalCO (chromStart bed) (chromEnd bed), x)))
     $ xs
-  where
-    errorMsg = error "Bio.Data.Bed.sortedBedToTree: redundant records"
 {-# INLINE sortedBedToTree #-}
 
 -- | split a bed region into k consecutive subregions, discarding leftovers
@@ -180,7 +180,7 @@ intersectSortedBed a (Sorted b) = filter (not . null . f) a
     f bed = let chr = chrom bed
                 interval = IM.IntervalCO (chromStart bed) $ chromEnd bed
             in IM.intersecting (M.lookupDefault IM.empty chr tree) interval
-    tree = sortedBedToTree . Sorted . zip (V.toList b) . repeat $ undefined
+    tree = sortedBedToTree (\_ _ -> False) . Sorted . zip (V.toList b) . repeat $ False
 {-# INLINE intersectSortedBed #-}
 
 mergeBed :: (BEDLike b, Monad m) => [b] -> Source m b

@@ -68,9 +68,10 @@ rpkmSortedBed (Sorted regions) = do
         addOne v xs
         return $ succ nTags
 
-    intervalMap = sortedBedToTree . Sorted . G.toList . G.zip regions . G.enumFromN 0 $ l
+    intervalMap = sortedBedToTree errMsg. Sorted . G.toList . G.zip regions . G.enumFromN 0 $ l
     addOne v' = mapM_ $ \x -> GM.unsafeRead v' x >>= GM.unsafeWrite v' x . (+1)
     l = G.length regions
+    errMsg = error "rpkmSortedBed: redundant records"
 {-# INLINE rpkmSortedBed #-}
 
 -- | divide regions into bins, and count tags for each bin
