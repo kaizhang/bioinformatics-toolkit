@@ -1,4 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Bio.Seq 
     ( 
@@ -14,6 +15,7 @@ module Bio.Seq
     , BioSeq(..)
     -- * DNA related functions
     , rc
+    , gcContent
     ) where
 
 import Prelude hiding (length)
@@ -72,33 +74,35 @@ instance BioSeq' Peptide where
     slice i l (Peptide s) = Peptide . B.take l . B.drop i $ s
 
 class BioSeq' s => BioSeq s a where
+    alphabet :: s a -> S.HashSet Char
     fromBS :: B.ByteString -> s a 
 
 instance BioSeq DNA Basic where
+    alphabet _ = S.fromList "ACGT"
     fromBS = DNA . B.map (f . toUpper)
       where
-        f x | x `S.member` alphabet = x
-            | otherwise = error "error"
-        alphabet = S.fromList "ACGT"
+        f x | x `S.member` alphabet (undefined :: DNA Basic) = x
+            | otherwise = error $ "Bio.Seq.fromBS: unknown character: " ++ [x]
 
 instance BioSeq DNA IUPAC where
+    alphabet _ = S.fromList "ACGTNVHDBMKWSYR"
     fromBS = DNA . B.map (f . toUpper)
       where
-        f x | x `S.member` alphabet = x
-            | otherwise = error "error"
-        alphabet = S.fromList "ACGTNVHDBMKWSYR"
+        f x | x `S.member` alphabet (undefined :: DNA IUPAC) = x
+            | otherwise = error $ "Bio.Seq.fromBS: unknown character: " ++ [x]
 
 instance BioSeq DNA Ext where
+    alphabet = undefined
     fromBS = undefined
 
 instance BioSeq RNA Basic where
+    alphabet _ = S.fromList "ACGU"
     fromBS = RNA . B.map (f . toUpper)
       where
-        f x | x `S.member` alphabet = x
-            | otherwise = error "error"
-        alphabet = S.fromList "ACGU"
+        f x | x `S.member` alphabet (undefined :: RNA Basic) = x
+            | otherwise = error $ "Bio.Seq.fromBS: unknown character: " ++ [x]
 
--- | reverse complementary of DNA sequence
+-- | O(n). reverse complementary of DNA sequence
 rc :: DNA alphabet -> DNA alphabet
 rc (DNA s) = DNA . B.map f . B.reverse $ s
   where
@@ -108,3 +112,22 @@ rc (DNA s) = DNA . B.map f . B.reverse $ s
         'G' -> 'C'
         'T' -> 'A'
         _ -> x
+
+-- | O(n). compute GC content
+gcContent :: DNA alphabet -> Double
+gcContent = (\(a,b) -> a / fromIntegral b) . B.foldl f (0.0,0::Int) . toBS
+  where
+    f (!x,!n) c =
+        let x' = case c of
+                'A' -> x
+                'C' -> x + 1
+                'G' -> x + 1
+                'T' -> x
+                'H' -> x + 0.25
+                'D' -> x + 0.25
+                'V' -> x + 0.75
+                'B' -> x + 0.75
+                'S' -> x + 1
+                'W' -> x
+                _ -> x + 0.5     -- "NMKYR"
+        in (x', n+1)
