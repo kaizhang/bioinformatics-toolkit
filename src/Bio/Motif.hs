@@ -5,6 +5,7 @@ module Bio.Motif
     , size
     , subPWM
     , rcPWM
+    , gcContentPWM
     , Motif(..)
     , Bkgd(..)
     , toPWM
@@ -61,6 +62,16 @@ subPWM i l (PWM n (Matrix _ _ _ v)) = PWM n (fromVector l 4 v')
 rcPWM :: PWM -> PWM
 rcPWM (PWM n (Matrix nrow ncol p v)) = PWM n (Matrix nrow ncol p $ V.reverse v)
 {-# INLINE rcPWM #-}
+
+-- | GC content of PWM
+gcContentPWM :: PWM -> Double
+gcContentPWM (PWM _ mat) = loop 0 0 / fromIntegral m
+  where
+    m = rows mat
+    loop !acc !i | i >= m = acc
+                 | otherwise = 
+                     let acc' = acc + unsafeIndex mat i 1 + unsafeIndex mat i 2
+                     in loop acc' (i+1)
 
 data Motif = Motif
     { _name :: !B.ByteString
