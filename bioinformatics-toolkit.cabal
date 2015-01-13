@@ -26,10 +26,12 @@ library
     , Bio.Data.Bed
     , Bio.Data.BigWig
     , Bio.Data.Fasta
+    , Bio.HiC
     , Bio.Motif
     , Bio.Motif.Alignment
     , Bio.Motif.Search
     , Bio.RealWorld.ENCODE
+    , Bio.RealWorld.UCSC
     , Bio.Seq
     , Bio.Seq.IO
     , Bio.Utils.Misc
