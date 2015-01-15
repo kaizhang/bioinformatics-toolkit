@@ -58,6 +58,7 @@ jsd xs ys = 0.5 * kld xs zs + 0.5 * kld ys zs
 {-# SPECIALIZE jsd :: U.Vector Double -> U.Vector Double -> Double #-}
 {-# SPECIALIZE jsd :: V.Vector Double -> V.Vector Double -> Double #-}
 
+-- | O(log n). return the position of the first element that is greater than query
 binarySearch :: (G.Vector v e, Ord e)
              => v e -> e -> Int
 binarySearch vec e = binarySearchByBounds compare vec e 0 $ G.length vec - 1
