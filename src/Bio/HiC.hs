@@ -87,8 +87,7 @@ mkContactMap' (BED3 chr s e) w extend = do
                         loop v
                     _ -> loop v
             _ -> return ()
-    idx i j | i == 0 = j
-            | otherwise = i * (2 * n - i + 1) `div` 2 + j - i
+    idx i j = i * (2 * n - i + 1) `div` 2 + j - i
 
 -- | get starting location of bam and its mate
 getStarts :: Bam1 -> (Int, Int)
