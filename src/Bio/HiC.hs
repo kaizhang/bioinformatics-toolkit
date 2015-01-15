@@ -51,7 +51,9 @@ mkContactMap bamFl (BED3 chr s e) w extend = do
                 s2 = s + j * w
                 c2 = s2 + w'
             r <- lift $ readCount handle (w'+extend) ((chr, c1), (chr, c2))
-            yield ((s1, s2), r)
+            if i == j
+               then yield ((s1, s2), r `div` 2)
+               else yield ((s1, s2), r)
   where
     n = (e - s) `div` w
     w' = w `div` 2
@@ -64,6 +66,7 @@ mkContactMap' (BED3 chr s e) w extend = do
     lift . liftM (G.map (`div` 2)) . G.unsafeFreeze $ vec
   where
     n = (e - s) `div` w
+    e' = n * w
     vecLen = n * (n+1) `div` 2
     loop v = do
         x <- await
@@ -79,7 +82,7 @@ mkContactMap' (BED3 chr s e) w extend = do
                             b = (pMate - s) `div` w
                             i | a < b = idx a b
                               | otherwise = idx b a
-                        when (p >= s && pMate >= s && p < e && pMate < e) $ 
+                        when (p >= s && pMate >= s && p < e' && pMate < e') $ 
                             lift $ GM.read v i >>= GM.write v i . (+1)
                         loop v
                     _ -> loop v
