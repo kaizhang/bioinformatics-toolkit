@@ -34,9 +34,10 @@ library
     , Bio.RealWorld.UCSC
     , Bio.Seq
     , Bio.Seq.IO
+    , Bio.Utils.Functions
     , Bio.Utils.Misc
     , Bio.Utils.Overlap
-    , Bio.Utils.Functions
+    , Bio.Utils.Types
 
   -- other-modules:       
   -- other-extensions:

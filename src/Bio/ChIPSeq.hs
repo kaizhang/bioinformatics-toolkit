@@ -74,7 +74,7 @@ rpkmSortedBed (Sorted regions) = do
     errMsg = error "rpkmSortedBed: redundant records"
 {-# INLINE rpkmSortedBed #-}
 
--- | divide regions into bins, and count tags for each bin
+-- | divide each region into consecutive bins, and count tags for each bin
 profiling :: (PrimMonad m, G.Vector v Int, BEDLike b)
           => Int                   -- ^ bin size
           -> Sorted (V.Vector b)   -- ^ regions
@@ -83,7 +83,7 @@ profiling k (Sorted beds) = do
     vectors <- lift $ G.forM beds $ \bed -> do
         let start = chromStart bed
             end = chromEnd bed
-            num = (end - start) `div` k + 1
+            num = (end - start) `div` k
             index i = (i - start) `div` k
         v <- GM.replicate num 0
         return (v, index)
@@ -95,7 +95,7 @@ profiling k (Sorted beds) = do
         case tag of
             Just (BED chr start end _ _ strand) -> do
                 let p | strand == Just True = start
-                      | strand == Just False = end
+                      | strand == Just False = end - 1
                       | otherwise = error "unkown strand"
                     overlaps = snd . unzip $
                         IM.containing (M.lookupDefault IM.empty chr intervalMap) p

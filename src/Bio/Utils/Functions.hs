@@ -16,6 +16,7 @@
 module Bio.Utils.Functions (
       ihs
     , ihs'
+    , scale
     , kld
     , jsd
     , binarySearch
@@ -27,6 +28,7 @@ import Data.Bits (shiftR)
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
+import Statistics.Sample (meanVarianceUnb)
 
 -- | inverse hyperbolic sine transformation
 ihs :: Double  -- ^ θ, determine the shape of the function
@@ -39,6 +41,13 @@ ihs !θ !x | θ == 0 = x
 -- | inverse hyperbolic sine transformation with θ = 1
 ihs' :: Double -> Double
 ihs' = ihs 1
+
+-- | scale data to zero mean and 1 variance
+scale :: G.Vector v Double => v Double -> v Double
+scale xs = G.map (\x -> (x - m) / sqrt s) xs
+  where
+    (m,s) = meanVarianceUnb xs
+{-# INLINE scale #-}
 
 -- | compute the Kullback-Leibler divergence between two valid (not check) probability distributions.
 -- kl(X,Y) = \sum_i P(x_i) log_2(P(x_i)\/P(y_i)). 
