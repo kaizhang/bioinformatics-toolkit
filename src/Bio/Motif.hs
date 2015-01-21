@@ -78,7 +78,8 @@ data Motif = Motif
     , _pwm :: !PWM
     } deriving (Show)
 
--- | background nucletide frequencies (A, C, G, T)
+-- | background model which consists of single nucletide frequencies, and di-nucletide
+-- frequencies
 newtype Bkgd = BG (Double, Double, Double, Double)
 
 instance Default Bkgd where

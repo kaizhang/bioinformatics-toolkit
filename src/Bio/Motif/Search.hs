@@ -5,6 +5,7 @@ module Bio.Motif.Search
     , findTFBS'
     , findTFBSSlow
     , maxMatchSc
+    , MotifCompo(..)
     , spacingConstraint
     ) where
 
@@ -15,7 +16,7 @@ import Control.Monad.Identity (runIdentity)
 import Data.Conduit
 import qualified Data.Conduit.List as CL
 import qualified Data.HashSet as S
-import Data.List (foldl', sortBy)
+import Data.List (foldl')
 import Data.Ord (comparing)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Vector.Unboxed as U
@@ -126,50 +127,73 @@ lookAheadSearch (BG (a, c, g, t)) pwm sigma dna start thres = loop (0, -1) 0
     n = size pwm
 {-# INLINE lookAheadSearch #-}
 
+data MotifCompo = MotifCompo
+    { _motif1 :: Motif
+    , _motif2 :: Motif
+    , _sameDirection :: Bool
+    , _spacing :: Int
+    , _score :: Double
+    }
+
+instance Show MotifCompo where
+    show (MotifCompo m1 m2 isSame sp sc)
+        | sp >= 0 = m1' ++ show sp ++ " bp" ++ m2' ++ " | score=" ++ show sc
+        | otherwise = m2' ++ show (-sp) ++ " bp" ++ m1' ++ " | score=" ++ show sc
+      where
+        m1' = "-> " ++ (B.unpack . _name) m1 ++ " ->"
+        m2' | isSame = "-> " ++ (B.unpack . _name) m2 ++ " ->"
+            | otherwise = "<- " ++ (B.unpack . _name) m2 ++ " <-"
+
 -- | search for spacing constraint between two TFs
-spacingConstraint :: PWM
-                  -> PWM
-                  -> Bkgd
+spacingConstraint :: Motif   -- ^ motif 1
+                  -> Motif   -- ^ motif 2
+                  -> Bkgd    -- ^ backgroud nucleotide distribution
                   -> Double  -- ^ p-Value for motif finding
-                  -> Int  -- ^ bin size
-                  -> Int
-                  -> DNA a -> ([(Bool, (Int, Int))], Int, Int, Int)
-spacingConstraint pwm1 pwm2 bg p w k dna = (take 10 $ sortBy (flip (comparing (snd . snd))) $ same ++ oppose, n1, n2, n)
+                  -> Int     -- ^ half window size
+                  -> Int     -- ^ max distance to search
+                  -> DNA a -> [MotifCompo]
+spacingConstraint m1@(Motif _ pwm1) m2@(Motif _ pwm2) bg th w k dna = same ++ oppose
   where
     rs = let rs' = [-k, -k+2*w+1 .. 0]
          in rs' ++ map (*(-1)) (reverse rs')
     -- on the same orientation
-    same = zip (repeat True) $ zip rs $ zipWith (+) nFF nRR
+    same = zipWith f rs $ zipWith (+) nFF nRR
       where
         nFF = map (nOverlap forward1 forward2 w) rs
         nRR = map (nOverlap reverse1 reverse2 w) $ reverse rs
-    oppose = zip (repeat False) $ zip rs $ zipWith (+) nFR nRF
+        f r c = MotifCompo m1 m2 True r $ fromIntegral (c*c) / (fromIntegral n1 * fromIntegral n2)
+    oppose = zipWith f rs $ zipWith (+) nFR nRF
       where
         nFR = map (nOverlap forward1 reverse2 w) rs
         nRF = map (nOverlap reverse1 forward2 w) $ reverse rs
+        f r c = MotifCompo m1 m2 False r $ fromIntegral (c*c) / (fromIntegral n1 * fromIntegral n2)
     forward1 = findTFBS' bg pwm1 dna th1
     forward2 = S.fromList $ findTFBS' bg pwm2 dna th2
-    reverse1 = map (+ (m1 - 1)) $ findTFBS' bg (rcPWM pwm1) dna th1
-    reverse2 = S.fromList $ map (+ (m2 - 1)) $ findTFBS' bg (rcPWM pwm2) dna th2
-    th1 = pValueToScore p bg pwm1
-    th2 = pValueToScore p bg pwm2
-    m1 = size pwm1
-    m2 = size pwm2
+    reverse1 = map (+ (s1 - 1)) $ findTFBS' bg (rcPWM pwm1) dna th1
+    reverse2 = S.fromList $ map (+ (s2 - 1)) $ findTFBS' bg (rcPWM pwm2) dna th2
+    th1 = pValueToScore th bg pwm1
+    th2 = pValueToScore th bg pwm2
+    s1 = size pwm1
+    s2 = size pwm2
+    n1 = length forward1 + length reverse1
+    n2 = S.size forward2 + S.size reverse2
 
     nOverlap :: [Int] -> S.HashSet Int -> Int -> Int -> Int
     nOverlap xs ys w' i = foldl' f 0 xs
       where
         f acc x | any (`S.member` ys) [x + i - w' .. x + i + w'] = acc + 1
                 | otherwise = acc
+{-# INLINE spacingConstraint #-}
 
 {-
-    pValue :: Int -> Int -> Int -> Int -> Double
-    pValue overlap n1 n2 n = let prob = fromIntegral ((2*w+1)*n1) / fromIntegral n
-                                 d = poisson $ prob * fromIntegral n2
-                             in complCumulative d (fromIntegral overlap)
-                                -}
+computePValue :: Double -> [Int] -> [(Int, Double)]
+computePValue p xs = zip xs $ map (pValue n p) xs
+  where
+    n = foldl' (+) 0 xs
+{-# INLINE computePValue #-}
 
-    n1 = length forward1 + length reverse1
-    n2 = S.size forward2 + S.size reverse2
-    n = Seq.length dna
-{-# INLINE spacingConstraint #-}
+pValue :: Int -> Double -> Int -> Double
+pValue n p x | n > 2000 = complCumulative (poisson (fromIntegral n* p)) $ fromIntegral x
+             | otherwise = complCumulative (binomial n p) $ fromIntegral x
+{-# INLINE pValue #-}
+-}

@@ -62,7 +62,7 @@ getSeqs g querys = do gH <- gHOpen g
 
 getSeq :: BioSeq s a => GenomeH -> IndexTable -> Query -> IO (s a)
 getSeq (GH h) index (chr, start, end) = do 
-    when (end > chrSize) $ error "Bio.Seq.getSeq: out of index"
+    when (end > chrSize) $ error $ "Bio.Seq.getSeq: out of index: " ++ show end ++ ">" ++ show chrSize
     hSeek h AbsoluteSeek (fromIntegral pos)
     liftM fromBS $ B.hGet h $ end - start
   where
