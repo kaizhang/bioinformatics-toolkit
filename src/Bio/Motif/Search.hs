@@ -161,12 +161,12 @@ spacingConstraint m1@(Motif _ pwm1) m2@(Motif _ pwm2) bg th w k dna = same ++ op
       where
         nFF = map (nOverlap forward1 forward2 w) rs
         nRR = map (nOverlap reverse1 reverse2 w) $ reverse rs
-        f r c = MotifCompo m1 m2 True r $ fromIntegral (c*c) / (fromIntegral n1 * fromIntegral n2)
+        f r c = MotifCompo m1 m2 True r $ fromIntegral c / n
     oppose = zipWith f rs $ zipWith (+) nFR nRF
       where
         nFR = map (nOverlap forward1 reverse2 w) rs
         nRF = map (nOverlap reverse1 forward2 w) $ reverse rs
-        f r c = MotifCompo m1 m2 False r $ fromIntegral (c*c) / (fromIntegral n1 * fromIntegral n2)
+        f r c = MotifCompo m1 m2 False r $ fromIntegral c / n
     forward1 = findTFBS' bg pwm1 dna th1
     forward2 = S.fromList $ findTFBS' bg pwm2 dna th2
     reverse1 = map (+ (s1 - 1)) $ findTFBS' bg (rcPWM pwm1) dna th1
@@ -175,8 +175,7 @@ spacingConstraint m1@(Motif _ pwm1) m2@(Motif _ pwm2) bg th w k dna = same ++ op
     th2 = pValueToScore th bg pwm2
     s1 = size pwm1
     s2 = size pwm2
-    n1 = length forward1 + length reverse1
-    n2 = S.size forward2 + S.size reverse2
+    n = sqrt $ fromIntegral $ (length forward1 + length reverse1) * (S.size forward2 + S.size reverse2)
 
     nOverlap :: [Int] -> S.HashSet Int -> Int -> Int -> Int
     nOverlap xs ys w' i = foldl' f 0 xs
