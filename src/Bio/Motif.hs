@@ -17,6 +17,7 @@ module Bio.Motif
     , pValueToScore
     , toIUPAC
     , readMEME
+    , writeMEME
     , writeFasta
 
     -- * References
@@ -28,15 +29,17 @@ import Bio.Seq
 import Bio.Utils.Misc (readDouble, readInt)
 import Control.Arrow ((&&&))
 import Control.Monad.State.Lazy
-import Data.List (sortBy, foldl')
-import Data.Ord (comparing)
+import qualified Data.ByteString.Char8 as B
+import Data.Conduit
 import Data.Double.Conversion.ByteString (toShortest)
 import Data.Default.Class
-import Data.Conduit
-import qualified Data.ByteString.Char8 as B
+import Data.List (sortBy, foldl')
+import Data.Maybe (fromJust, isNothing)
+import Data.Ord (comparing)
 import qualified Data.Vector.Unboxed as V
 import qualified Data.Vector.Algorithms.Intro as I
 import Statistics.Matrix hiding (map)
+import Text.Printf (printf)
 
 -- | k x 4 position weight matrix for motifs
 data PWM = PWM 
@@ -220,6 +223,22 @@ writeFasta fl motifs = B.writeFile fl contents
 
 readMEME :: FilePath -> IO [Motif]
 readMEME = liftM fromMEME . B.readFile
+
+writeMEME :: FilePath -> [Motif] -> Bkgd -> IO ()
+writeMEME fl xs bg = B.writeFile fl $ toMEME xs bg
+
+toMEME :: [Motif] -> Bkgd -> B.ByteString
+toMEME xs (BG (a,c,g,t)) = B.unlines $ header : map f xs
+  where
+    header = B.pack $ printf "MEME version 4\n\nALPHABET= ACGT\n\nstrands: + -\n\nBackground letter frequencies\nA %f C %f G %f T %f\n" a c g t
+    f (Motif nm pwm) =
+        let x = "MOTIF " `B.append` nm
+            y = B.pack $ printf "letter-probability matrix: alength= 4 w= %d nsites= %d E= 0" (size pwm) sites
+            z = B.unlines . map (B.unwords . ("":) . map toShortest) . toLists . _mat $ pwm
+            sites | isNothing (_nSites pwm) = 0
+                  | otherwise = fromJust $ _nSites pwm
+        in B.unlines [x,y,z]
+{-# INLINE toMEME #-}
 
 fromMEME :: B.ByteString -> [Motif]
 fromMEME meme = evalState (go $ B.lines meme) (0, [])
