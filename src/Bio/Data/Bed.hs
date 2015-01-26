@@ -29,6 +29,7 @@ module Bio.Data.Bed
     -- * BED3 format
     , BED3(..)
     , fetchSeq
+    , fetchSeq'
     , compareBed
     ) where
 
@@ -296,6 +297,9 @@ fetchSeq g = do gH <- lift $ gHOpen g
             _ -> return ()
 {-# INLINE fetchSeq #-}
 
+fetchSeq' :: BioSeq DNA a => Genome -> [BED] -> IO [DNA a]
+fetchSeq' g beds = CL.sourceList beds $= fetchSeq g $$ CL.consume
+{-# INLINE fetchSeq' #-}
 
 -- * BED3 format
 
