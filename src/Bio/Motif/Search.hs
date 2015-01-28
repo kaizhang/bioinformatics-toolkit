@@ -13,6 +13,7 @@ import Bio.Seq (DNA, toBS)
 import qualified Bio.Seq as Seq (length)
 import Bio.Motif
 import Control.Monad.Identity (runIdentity)
+import Control.Parallel.Strategies (parMap, rdeepseq)
 import Data.Conduit
 import qualified Data.Conduit.List as CL
 import qualified Data.HashSet as S
@@ -39,9 +40,21 @@ findTFBS bg pwm dna thres = loop 0
     n = size pwm
 {-# INLINE findTFBS #-}
 
--- TODO: evaluation in parallel
+-- | a parallel version of findTFBS
 findTFBS' :: Bkgd -> PWM -> DNA a -> Double -> [Int]
-findTFBS' bg pwm dna th = runIdentity $ findTFBS bg pwm dna th $$ CL.consume
+findTFBS' bg pwm dna th = concat $ parMap rdeepseq f [0,step..l-n+1]
+  where
+    f x = loop x
+      where
+        loop i | i >= x+step || i >= l-n+1 = []
+               | otherwise = let d = fst $ lookAheadSearch bg pwm sigma dna i th
+                             in if d == n-1
+                                   then i : loop (i+1)
+                                   else loop (i+1)
+    sigma = optimalScoresSuffix bg pwm
+    l = Seq.length dna
+    n = size pwm
+    step = 500000
 {-# INLINE findTFBS' #-}
 
 -- | use naive search
