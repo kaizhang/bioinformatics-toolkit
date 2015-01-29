@@ -12,10 +12,8 @@ module Bio.Motif.Search
 import Bio.Seq (DNA, toBS)
 import qualified Bio.Seq as Seq (length)
 import Bio.Motif
-import Control.Monad.Identity (runIdentity)
 import Control.Parallel.Strategies (parMap, rdeepseq)
 import Data.Conduit
-import qualified Data.Conduit.List as CL
 import qualified Data.HashSet as S
 import Data.List (foldl')
 import Data.Ord (comparing)

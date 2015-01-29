@@ -15,6 +15,7 @@
 
 module Bio.Data.Bed
     ( BEDLike(..)
+    , bedToTree
     , sortedBedToTree
     , splitBed
     , splitBedBySize
@@ -38,12 +39,12 @@ import Bio.Seq.IO
 import Bio.Utils.Misc
 import Control.Arrow ((***))
 import Control.Monad.State.Strict
-import Control.Monad.ST
 import qualified Data.ByteString.Char8 as B
 import Data.Conduit
 import qualified Data.Conduit.List as CL
 import Data.Default.Class
 import Data.Function (on)
+import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as M
 import qualified Data.IntervalMap.Strict as IM
 import Data.List (groupBy)
@@ -120,17 +121,36 @@ type BEDTree a = M.HashMap B.ByteString (IM.IntervalMap Int a)
 
 -- | convert a set of bed records to interval tree, with combining function for
 -- equal keys
-sortedBedToTree :: BEDLike b
+sortedBedToTree :: (BEDLike b, F.Foldable f)
                 => (a -> a -> a)
-                -> Sorted [(b, a)]
+                -> Sorted (f (b, a))
                 -> BEDTree a
 sortedBedToTree f (Sorted xs) =
       M.fromList
     . map ((head *** IM.fromAscListWith f) . unzip)
     . groupBy ((==) `on` fst)
     . map (\(bed, x) -> (chrom bed, (IM.IntervalCO (chromStart bed) (chromEnd bed), x)))
+    . F.toList
     $ xs
 {-# INLINE sortedBedToTree #-}
+
+bedToTree :: BEDLike b
+          => (a -> a -> a)
+          -> [(b, a)]
+          -> BEDTree a
+bedToTree f xs = 
+      M.fromList
+    . map ((head *** IM.fromAscListWith f) . unzip)
+    . groupBy ((==) `on` fst)
+    . map (\(bed, x) -> (chrom bed, (IM.IntervalCO (chromStart bed) (chromEnd bed), x)))
+    . V.toList
+    $ xs'
+  where
+    xs' = V.create $ do
+        v <- V.unsafeThaw . V.fromList $ xs
+        I.sortBy (compareBed `on` fst) v
+        return v
+{-# INLINE bedToTree #-}
 
 -- | split a bed region into k consecutive subregions, discarding leftovers
 splitBed :: BEDLike b => Int -> b -> [b]
@@ -162,10 +182,10 @@ compareBed x y = compare x' y'
 
 -- | sort BED, first by chromosome (alphabetical order), then by chromStart, last by chromEnd
 sortBed :: BEDLike b => [b] -> Sorted (V.Vector b)
-sortBed beds = Sorted $ runST $ do
+sortBed beds = Sorted $ V.create $ do
     v <- V.unsafeThaw . V.fromList $ beds
     I.sortBy compareBed v
-    V.unsafeFreeze v
+    return v
 {-# INLINE sortBed #-}
 
 intersectBed :: (BEDLike b1, BEDLike b2) => [b1] -> [b2] -> [b1]
