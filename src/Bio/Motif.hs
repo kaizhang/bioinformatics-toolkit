@@ -150,18 +150,6 @@ optimalScore (BG (a, c, g, t)) (PWM _ pwm) = foldl' (+) 0 . map f . toRows $ pwm
                    _ -> undefined
 {-# INLINE optimalScore #-}
 
-minScore :: Bkgd -> PWM -> Double
-minScore (BG (a, c, g, t)) (PWM _ pwm) = foldl' (+) 0 . map f . toRows $ pwm
-  where f xs = let (i, s) = V.minimumBy (comparing snd) . 
-                                V.zip (V.fromList ([0..3] :: [Int])) $ xs
-               in case i of
-                   0 -> log $ s / a
-                   1 -> log $ s / c
-                   2 -> log $ s / g
-                   3 -> log $ s / t
-                   _ -> undefined
-{-# INLINE minScore #-}
-
 scoreHelp :: Bkgd -> PWM -> B.ByteString -> Double
 scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = fst . B.foldl f (0,0) $ dna
   where
@@ -224,8 +212,9 @@ pValueToScore p bg pwm = go 0 0 . sort' . map ((scoreHelp bg pwm &&& pBkgd bg) .
     l = size pwm
 
 pValueToScore' :: Double -> Bkgd -> PWM -> Double
-pValueToScore' p bg pwm = go 0 (999 :: Int)
+pValueToScore' p bg pwm = go 0 $ n - 1
   where
+    n = VV.length cdf
     (cdf, scFn) = scoreCDF bg pwm
     go !acc !i | i >= 0 = let acc' = acc + cdf VV.! i
                           in if acc' >= p
@@ -234,15 +223,16 @@ pValueToScore' p bg pwm = go 0 (999 :: Int)
                | otherwise = error ""
 
 scoreCDF :: Bkgd -> PWM -> (VV.Vector Double, Int -> Double)
-scoreCDF (BG (a,c,g,t)) pwm = loop (VV.generate nBin $ \i -> if i == 0 then 1 else 0, const 0) 0
+scoreCDF (BG (a,c,g,t)) pwm = loop (VV.fromList [1], const 0) 0
   where
     loop (old,scFn) i
         | i < n = let (lo,hi) = go old (1/0,-1/0) 0
-                      step = (hi - lo) / fromIntegral nBin
+                      nBin' = ceiling $ (hi - lo) / precision
+                      step = (hi - lo) / fromIntegral nBin'
                       idx x = let j = truncate $ (x - lo) / step
-                              in if j >= 1000 then 999 else j
+                              in if j >= nBin' then nBin' - 1 else j
                       v = VV.create $ do
-                          new <- VVM.replicate nBin 0
+                          new <- VVM.replicate nBin' 0
                           VV.sequence_ $ flip VV.imap old $ \x p ->
                               when (p /= 0) $ do
                                   let idx_a = idx $ sc + log' (unsafeIndex (_mat pwm) i 0) - log a
@@ -258,7 +248,8 @@ scoreCDF (BG (a,c,g,t)) pwm = loop (VV.generate nBin $ \i -> if i == 0 then 1 el
                   in loop (v, \x -> (fromIntegral x + 0.5) * step + lo) (i+1)
         | otherwise = (old,scFn)
       where
-        go v (l,h) x | x >= 1000 = (l,h)
+        nBin = VV.length old
+        go v (l,h) x | x >= nBin = (l,h)
                      | old VV.! x /= 0 = let sc = scFn x
                                              s1 = sc + log' (unsafeIndex (_mat pwm) i 0) - log a
                                              s2 = sc + log' (unsafeIndex (_mat pwm) i 1) - log c
@@ -266,7 +257,7 @@ scoreCDF (BG (a,c,g,t)) pwm = loop (VV.generate nBin $ \i -> if i == 0 then 1 el
                                              s4 = sc + log' (unsafeIndex (_mat pwm) i 3) - log t
                                          in go v (foldr min l [s1,s2,s3,s4],foldr max h [s1,s2,s3,s4]) (x+1)
                      | otherwise = go v (l,h) (x+1)
-    nBin = 1000 :: Int
+    precision = 0.002
     n = size pwm
     log' x | x == 0 = log 0.001
            | otherwise = log x
