@@ -15,6 +15,7 @@ module Bio.Motif
     , score
     , optimalScore
     , pValueToScore
+    , pValueToScore'
     , toIUPAC
     , readMEME
     , writeMEME
@@ -36,7 +37,10 @@ import Data.Default.Class
 import Data.List (sortBy, foldl')
 import Data.Maybe (fromJust, isNothing)
 import Data.Ord (comparing)
+import qualified Data.Vector as VV
+import qualified Data.Vector.Mutable as VVM
 import qualified Data.Vector.Unboxed as V
+import qualified Data.Vector.Unboxed.Mutable as VM
 import qualified Data.Vector.Algorithms.Intro as I
 import Statistics.Matrix hiding (map)
 import Text.Printf (printf)
@@ -146,6 +150,18 @@ optimalScore (BG (a, c, g, t)) (PWM _ pwm) = foldl' (+) 0 . map f . toRows $ pwm
                    _ -> undefined
 {-# INLINE optimalScore #-}
 
+minScore :: Bkgd -> PWM -> Double
+minScore (BG (a, c, g, t)) (PWM _ pwm) = foldl' (+) 0 . map f . toRows $ pwm
+  where f xs = let (i, s) = V.minimumBy (comparing snd) . 
+                                V.zip (V.fromList ([0..3] :: [Int])) $ xs
+               in case i of
+                   0 -> log $ s / a
+                   1 -> log $ s / c
+                   2 -> log $ s / g
+                   3 -> log $ s / t
+                   _ -> undefined
+{-# INLINE minScore #-}
+
 scoreHelp :: Bkgd -> PWM -> B.ByteString -> Double
 scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = fst . B.foldl f (0,0) $ dna
   where
@@ -206,6 +222,55 @@ pValueToScore p bg pwm = go 0 0 . sort' . map ((scoreHelp bg pwm &&& pBkgd bg) .
     go !acc !i vec | acc > p = fst $ vec V.! (i - 1)
                    | otherwise = go (acc + snd (vec V.! i)) (i+1) vec
     l = size pwm
+
+pValueToScore' :: Double -> Bkgd -> PWM -> Double
+pValueToScore' p bg pwm = go 0 (999 :: Int)
+  where
+    (cdf, scFn) = scoreCDF bg pwm
+    go !acc !i | i >= 0 = let acc' = acc + cdf VV.! i
+                          in if acc' >= p
+                                then scFn i
+                                else go acc' (i-1)
+               | otherwise = error ""
+
+scoreCDF :: Bkgd -> PWM -> (VV.Vector Double, Int -> Double)
+scoreCDF (BG (a,c,g,t)) pwm = loop (VV.generate nBin $ \i -> if i == 0 then 1 else 0, const 0) 0
+  where
+    loop (old,scFn) i
+        | i < n = let (lo,hi) = go old (1/0,-1/0) 0
+                      step = (hi - lo) / fromIntegral nBin
+                      idx x = let j = truncate $ (x - lo) / step
+                              in if j >= 1000 then 999 else j
+                      v = VV.create $ do
+                          new <- VVM.replicate nBin 0
+                          VV.sequence_ $ flip VV.imap old $ \x p ->
+                              when (p /= 0) $ do
+                                  let idx_a = idx $ sc + log' (unsafeIndex (_mat pwm) i 0) - log a
+                                      idx_c = idx $ sc + log' (unsafeIndex (_mat pwm) i 1) - log c
+                                      idx_g = idx $ sc + log' (unsafeIndex (_mat pwm) i 2) - log g
+                                      idx_t = idx $ sc + log' (unsafeIndex (_mat pwm) i 3) - log t
+                                      sc = scFn x
+                                  new `VVM.read` idx_a >>= VVM.write new idx_a . (a * p + ) 
+                                  new `VVM.read` idx_c >>= VVM.write new idx_c . (c * p + ) 
+                                  new `VVM.read` idx_g >>= VVM.write new idx_g . (g * p + ) 
+                                  new `VVM.read` idx_t >>= VVM.write new idx_t . (t * p + ) 
+                          return new
+                  in loop (v, \x -> (fromIntegral x + 0.5) * step + lo) (i+1)
+        | otherwise = (old,scFn)
+      where
+        go v (l,h) x | x >= 1000 = (l,h)
+                     | old VV.! x /= 0 = let sc = scFn x
+                                             s1 = sc + log' (unsafeIndex (_mat pwm) i 0) - log a
+                                             s2 = sc + log' (unsafeIndex (_mat pwm) i 1) - log c
+                                             s3 = sc + log' (unsafeIndex (_mat pwm) i 2) - log g
+                                             s4 = sc + log' (unsafeIndex (_mat pwm) i 3) - log t
+                                         in go v (foldr min l [s1,s2,s3,s4],foldr max h [s1,s2,s3,s4]) (x+1)
+                     | otherwise = go v (l,h) (x+1)
+    nBin = 1000 :: Int
+    n = size pwm
+    log' x | x == 0 = log 0.001
+           | otherwise = log x
+{-# INLINE scoreCDF #-}
 
 -- | get pwm from a matrix
 toPWM :: [B.ByteString] -> PWM
