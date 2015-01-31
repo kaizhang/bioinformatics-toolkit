@@ -7,17 +7,16 @@ module Bio.ChIPSeq
     , rpkmBam
     ) where
 
-import Bio.Data.Bam
-import Bio.Data.Bed
 import Bio.SamTools.Bam
 import qualified Bio.SamTools.BamIndex as BI
 import Control.Arrow ((***))
-import Control.Monad (forM_, liftM)
+import Control.Monad (liftM)
 import Control.Monad.Primitive (PrimMonad)
 import Control.Monad.Trans.Class (lift)
 import Data.Conduit
 import qualified Data.Conduit.List as CL
 import Data.Function (on)
+import Data.Foldable (forM_)
 import qualified Data.HashMap.Strict as M
 import qualified Data.IntervalMap as IM
 import Data.List (groupBy)
@@ -27,6 +26,9 @@ import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Algorithms.Intro as I
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable as GM
+
+import Bio.Data.Bam
+import Bio.Data.Bed
 
 -- | calculate RPKM on a set of unique regions. Regions (in bed format) would be kept in
 -- memory but not tag file.
@@ -147,3 +149,40 @@ rpkmBam fl = do
                                    else if l <= p1 && p1 < u then acc + 1
                                                              else acc
 {-# INLINE rpkmBam #-}
+
+{-
+-- | the distribution of the number of tags per position
+tagDistr :: Sink BED IO (U.Vector Int)
+tagDistr = do
+    go M.empty
+  where
+    go m = do
+        x <- await
+        case x of
+            Just (BED chr s e _ _ (Just str)) ->
+                let x | str = s
+                      | otherwise = -e + 1
+                in case M.lookup chr m of
+                    Just ja -> do
+                        lift $ do
+                            isMember <- J.member x ja
+                            if isMember
+                                then J.adjust (+1) x ja
+                                else J.insert x 1 ja
+                        go m
+                    _ -> do
+                        m' <- lift $ do
+                            ar <- J.new
+                            J.insert x 1 ar
+                            return $ M.insert chr ar m
+                        go m'
+            _ -> do
+                v <- GM.replicate 100 0
+                forM_ m $ \ja -> do
+                    items <- J.elems ja
+                    forM_ items $ \i -> do
+                        let i' | i > 100 = 99
+                               | otherwise = i - 1
+                        GM.unsafeRead v i' >>= GM.unsafeWrite v i' . (+1)
+                U.unsafeFreeze v
+                -}

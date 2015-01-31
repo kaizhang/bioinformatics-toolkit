@@ -227,7 +227,7 @@ scoreCDF (BG (a,c,g,t)) pwm = loop (VV.fromList [1], const 0) 0
   where
     loop (old,scFn) i
         | i < n = let (lo,hi) = go old (1/0,-1/0) 0
-                      nBin' = ceiling $ (hi - lo) / precision
+                      nBin' = min 100000 $ ceiling $ (hi - lo) / precision
                       step = (hi - lo) / fromIntegral nBin'
                       idx x = let j = truncate $ (x - lo) / step
                               in if j >= nBin' then nBin' - 1 else j

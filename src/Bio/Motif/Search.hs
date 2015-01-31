@@ -15,7 +15,7 @@ import Bio.Motif
 import Control.Parallel.Strategies (parMap, rdeepseq)
 import Data.Conduit
 import qualified Data.HashSet as S
-import Data.List (foldl')
+import Data.List (foldl', intercalate)
 import Data.Ord (comparing)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Vector.Unboxed as U
@@ -147,13 +147,8 @@ data MotifCompo = MotifCompo
     }
 
 instance Show MotifCompo where
-    show (MotifCompo m1 m2 isSame sp sc)
-        | sp >= 0 = m1' ++ show sp ++ " bp" ++ m2' ++ " | score=" ++ show sc
-        | otherwise = m2' ++ show (-sp) ++ " bp" ++ m1' ++ " | score=" ++ show sc
-      where
-        m1' = "-> " ++ (B.unpack . _name) m1 ++ " ->"
-        m2' | isSame = "-> " ++ (B.unpack . _name) m2 ++ " ->"
-            | otherwise = "<- " ++ (B.unpack . _name) m2 ++ " <-"
+    show (MotifCompo m1 m2 isSame sp sc) = intercalate "\t"
+        [B.unpack $ _name m1, B.unpack $ _name m2, show isSame, show sp, show sc]
 
 -- | search for spacing constraint between two TFs
 spacingConstraint :: Motif   -- ^ motif 1
