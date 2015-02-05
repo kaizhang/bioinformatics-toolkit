@@ -5,27 +5,29 @@ module Bio.ChIPSeq
     , rpkmSortedBed
     , profiling
     , rpkmBam
+    , tagCountDistr
     ) where
 
 import Bio.SamTools.Bam
 import qualified Bio.SamTools.BamIndex as BI
 import Control.Arrow ((***))
-import Control.Monad (liftM)
+import Control.Monad (liftM, forM_)
 import Control.Monad.Primitive (PrimMonad)
 import Control.Monad.Trans.Class (lift)
 import Data.Conduit
 import qualified Data.Conduit.List as CL
 import Data.Function (on)
-import Data.Foldable (forM_)
+import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as M
 import qualified Data.IntervalMap as IM
 import Data.List (groupBy)
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, isJust)
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Algorithms.Intro as I
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable as GM
+import qualified Data.HashTable.IO as HT
 
 import Bio.Data.Bam
 import Bio.Data.Bed
@@ -150,39 +152,84 @@ rpkmBam fl = do
                                                              else acc
 {-# INLINE rpkmBam #-}
 
+tagCountDistr :: G.Vector v Int => Sink BED IO (v Int)
+tagCountDistr = loop M.empty
+  where
+    loop m = do
+        x <- await
+        case x of
+            Just (BED chr s e _ _ (Just str)) -> do
+                let p | str = s
+                      | otherwise = 1 - e
+                case M.lookup chr m of
+                    Just table -> do
+                        lift $ do c <- HT.lookup table p
+                                  if isJust c 
+                                     then HT.insert table p $ fromJust c + 1
+                                     else HT.insert table p 1
+                        loop m
+                    _ -> do
+                        t <- lift $ do t <- HT.new :: IO (HT.CuckooHashTable Int Int)
+                                       HT.insert t p 1
+                                       return t
+                        loop $ M.insert chr t m
+            _ -> lift $ do
+                vec <- GM.replicate 100 0
+                F.forM_ m $ \table ->
+                    flip HT.mapM_ table $ \(_,v) -> do
+                        let i = min 99 v
+                        GM.unsafeRead vec i >>= GM.unsafeWrite vec i . (+1)
+                G.unsafeFreeze vec
+{-# INLINE tagCountDistr #-}
+
 {-
+
+tagDistrFromBamFile :: G.Vector v Int => FilePath -> IO (v Int)
+tagDistrFromBamFile bamFl = do
+    chrInfo <- readBam bamFl $= bamToBed $$ getRange
+    readBam bamFl $= bamToBed $$ tagDistr chrInfo 
+
 -- | the distribution of the number of tags per position
-tagDistr :: Sink BED IO (U.Vector Int)
-tagDistr = do
-    go M.empty
+tagDistr :: G.Vector v Int => M.HashMap B.ByteString Int -> Sink BED IO (v Int)
+tagDistr chrInfo = do
+    [forwardCount,reverseCount] <- lift $ replicateM 2 $ forM chrInfo $ \v -> do
+        ar <- newByteArray v
+        fillByteArray ar 0 v 0
+        return ar
+    loop (forwardCount, reverseCount)
+  where
+    loop (f,r) = do
+        x <- await
+        case x of
+            Just (BED chr s e _ _ (Just str)) ->
+                if str
+                   then do
+                       let vec = M.lookupDefault (error "unknown chromosome") chr f
+                       lift $ readByteArray vec s >>= writeByteArray vec s . (+(1::Word8))
+                       loop (f,r)
+                   else do
+                       let vec = M.lookupDefault (error "unknown chromosome") chr r
+                       lift $ readByteArray vec (e-1) >>= writeByteArray vec (e-1) . (+(1::Word8))
+                       loop (f,r)
+            _ -> lift $ do
+                vec <- GM.replicate 100 0
+                g f vec >> g r vec >> G.unsafeFreeze vec
+
+    g xs v = F.forM_ xs $ \ar -> do
+        let n = sizeofMutableByteArray ar
+        forM_ [0..n-1] $ \i -> do
+            c <- fmap (min 99 . fromIntegral) (readByteArray ar i :: IO Word8)
+            GM.read v c >>= GM.write v c . (+1)
+{-# INLINE tagDistr #-}
+
+-- | loop over bed file and ranges for each chromosome
+getRange :: Monad m => Sink BED m (M.HashMap B.ByteString Int)
+getRange = go M.empty
   where
     go m = do
         x <- await
         case x of
-            Just (BED chr s e _ _ (Just str)) ->
-                let x | str = s
-                      | otherwise = -e + 1
-                in case M.lookup chr m of
-                    Just ja -> do
-                        lift $ do
-                            isMember <- J.member x ja
-                            if isMember
-                                then J.adjust (+1) x ja
-                                else J.insert x 1 ja
-                        go m
-                    _ -> do
-                        m' <- lift $ do
-                            ar <- J.new
-                            J.insert x 1 ar
-                            return $ M.insert chr ar m
-                        go m'
-            _ -> do
-                v <- GM.replicate 100 0
-                forM_ m $ \ja -> do
-                    items <- J.elems ja
-                    forM_ items $ \i -> do
-                        let i' | i > 100 = 99
-                               | otherwise = i - 1
-                        GM.unsafeRead v i' >>= GM.unsafeWrite v i' . (+1)
-                U.unsafeFreeze v
-                -}
+            Just (BED chr _ e _ _ _) -> go $ M.insertWith max chr e m
+            _ -> return m
+{-# INLINE getRange #-}
+-}
