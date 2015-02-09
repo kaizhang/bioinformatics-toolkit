@@ -33,7 +33,7 @@ deltaJS = distanceBy jsd
 {-# INLINE deltaJS #-}
 
 alignment :: PWM -> PWM -> (Double, (PWM, PWM, Int))
-alignment = alignmentBy jsd quadPenal
+alignment = alignmentBy jsd 0.5
 
 -- | linear penalty
 linPenal :: PenalFn
@@ -52,7 +52,7 @@ expPenal :: PenalFn
 expPenal n = fromIntegral (2^n :: Int) * 0.01
 
 -- internal gaps are not allowed, larger score means larger distance, so the smaller the better
-alignmentBy :: DistanceFn -> PenalFn -> PWM -> PWM -> (Double, (PWM, PWM, Int))
+alignmentBy :: DistanceFn -> Double -> PWM -> PWM -> (Double, (PWM, PWM, Int))
 alignmentBy fn pFn m1 m2 | fst forwardAlign <= fst reverseAlign = (fst forwardAlign, (m1, m2, snd forwardAlign))
                          | otherwise = (fst reverseAlign, (m1, m2', snd reverseAlign))
   where
@@ -62,7 +62,7 @@ alignmentBy fn pFn m1 m2 | fst forwardAlign <= fst reverseAlign = (fst forwardAl
                           ++ zip (map (f s1 . flip drop s2') [1 .. n2-1]) [-1, -2 .. -n2+1]
     f a b = let xs = U.fromList $ zipWith fn a b
                 nGaps = n1 + n2 - 2 * U.length xs
-            in mean xs + pFn nGaps
+            in (G.sum xs + pFn * fromIntegral nGaps) / fromIntegral (U.length xs + nGaps)
     s1 = toRows . _mat $ m1
     s2 = toRows . _mat $ m2
     s2' = toRows . _mat $ m2'
@@ -92,7 +92,4 @@ progressiveMerging t = case t of
 buildTree :: [Motif] -> Dendrogram Motif
 buildTree motifs = dendrogram UPGMA motifs δ
   where
-    -- shift motifs by 2
-    δ (Motif _ x) (Motif _ y) = minimum $ map (deltaJS x) [shiftPWM y 0, shiftPWM y 1, shiftPWM y 2] ++ map (deltaJS y) [shiftPWM x 1, shiftPWM x 2]
-    shiftPWM pwm i = subPWM i (n-i) pwm
-      where n = rows $ _mat pwm
+    δ (Motif _ x) (Motif _ y) = fst $ alignment x y

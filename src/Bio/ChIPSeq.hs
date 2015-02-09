@@ -6,7 +6,6 @@ module Bio.ChIPSeq
     , profiling
     , rpkmBam
     , tagCountDistr
-    , tagCountDistr'
     ) where
 
 import Bio.SamTools.Bam
@@ -28,7 +27,6 @@ import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Algorithms.Intro as I
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable as GM
-import qualified Data.HashTable.IO as HT
 
 import Bio.Data.Bam
 import Bio.Data.Bed
@@ -174,6 +172,7 @@ tagCountDistr = loop M.empty
                 G.unsafeFreeze vec
 {-# INLINE tagCountDistr #-}
 
+{-
 tagCountDistr' :: G.Vector v Int => Sink BED IO (v Int)
 tagCountDistr' = loop M.empty
   where
@@ -203,3 +202,4 @@ tagCountDistr' = loop M.empty
                         GM.unsafeRead vec i >>= GM.unsafeWrite vec i . (+1)
                 G.unsafeFreeze vec
 {-# INLINE tagCountDistr' #-}
+-}

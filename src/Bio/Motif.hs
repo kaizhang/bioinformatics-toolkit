@@ -284,9 +284,9 @@ writeMEME :: FilePath -> [Motif] -> Bkgd -> IO ()
 writeMEME fl xs bg = B.writeFile fl $ toMEME xs bg
 
 toMEME :: [Motif] -> Bkgd -> B.ByteString
-toMEME xs (BG (a,c,g,t)) = B.unlines $ header : map f xs
+toMEME xs (BG (a,c,g,t)) = B.intercalate "" $ header : map f xs
   where
-    header = B.pack $ printf "MEME version 4\n\nALPHABET= ACGT\n\nstrands: + -\n\nBackground letter frequencies\nA %f C %f G %f T %f\n" a c g t
+    header = B.pack $ printf "MEME version 4\n\nALPHABET= ACGT\n\nstrands: + -\n\nBackground letter frequencies\nA %f C %f G %f T %f\n\n" a c g t
     f (Motif nm pwm) =
         let x = "MOTIF " `B.append` nm
             y = B.pack $ printf "letter-probability matrix: alength= 4 w= %d nsites= %d E= 0" (size pwm) sites

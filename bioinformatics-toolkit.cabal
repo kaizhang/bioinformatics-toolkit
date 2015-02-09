@@ -52,7 +52,6 @@ library
     , containers >=0.5
     , data-default-class
     , double-conversion
-    , hashtables
     , hierarchical-clustering
     , http-conduit
     , mtl
