@@ -8,6 +8,7 @@ module Bio.GO.GREAT
 import Control.Monad.Primitive
 import qualified Data.ByteString.Char8 as B
 import Data.Conduit
+import Data.Default.Class
 import qualified Data.HashMap.Strict as M
 import qualified Data.IntervalMap as IM
 import qualified Data.Vector as V
@@ -25,6 +26,9 @@ import Bio.Utils.Functions
 data AssocRule = BasalPlusExtension Int Int Int
                | TwoNearest
                | OneNearest
+
+instance Default AssocRule where
+    def = BasalPlusExtension 5000 1000 50000
 
 type Gene = ( B.ByteString  -- ^ chromosome
             , Int           -- ^ tss
