@@ -12,11 +12,11 @@ import Text.XML.Expat.Tree
 
 import Bio.GO
 
-readOWL :: FilePath -> IO ()
+readOWL :: FilePath -> IO [GO]
 readOWL fl = do c <- L.readFile fl
                 let (xml, _) = parse defaultParseOptions c :: (Node T.Text T.Text, Maybe XMLParseError)
                     goTerms = findChildren "owl:Class" xml
-                print $ head $ map pickle goTerms
+                return $ map pickle goTerms
   where
     pickle x = GO (f $ findChild "rdfs:label" x)
                   (B.pack . T.unpack . f $ findChild "oboInOwl:id" x)

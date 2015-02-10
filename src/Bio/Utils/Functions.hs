@@ -17,6 +17,7 @@ module Bio.Utils.Functions (
       ihs
     , ihs'
     , scale
+    , hyperquick
     , kld
     , jsd
     , binarySearch
@@ -25,6 +26,7 @@ module Bio.Utils.Functions (
 ) where
 
 import Data.Bits (shiftR)
+import Data.List (foldl')
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
@@ -48,6 +50,44 @@ scale xs = G.map (\x -> (x - m) / sqrt s) xs
   where
     (m,s) = meanVarianceUnb xs
 {-# INLINE scale #-}
+
+hyperquick :: Int -> Int -> Int -> Int -> Double
+hyperquick x m _n _N = loop (m-2) s s (2*e)
+  where
+    loop !k !ak !bk !epsk
+        | k < _N - (_n-x) - 1 && epsk > e =
+            let ck = ak / bk
+                k' = k + 1
+                jjm = invJm _n x _N k'
+                bk' = bk * jjm + 1
+                ak' = ak * jjm
+                espk' = fromIntegral (_N - (_n - x) - 1 - k') * (ck - ak' / bk')
+            in loop k' ak' bk' espk'
+        | otherwise = 1 - (ak / bk - epsk / 2)
+    s = foldl' (\s' k -> 1 + s' * invJm _n x _N k) 1.0 [x..m-2]
+    invJm _n x _N m = ( 1 - fromIntegral x / fromIntegral (m+1) ) /
+                          ( 1 - fromIntegral (_n-1-x) / fromIntegral (_N-1-m) )
+    e = 1e-20
+
+{-
+hyperquick' :: Int -> Int -> Int -> Int -> Double
+hyperquick' x m _n _N = loop (m-2) s s (2*e)
+  where
+    loop !k !ak !bk !epsk
+        | k < _N - (_n-x) - 1 && epsk > e =
+            let ck = ak / bk
+                k' = k + 1
+                jjm = invJm _n x _N k'
+                bk' = bk * jjm + 1
+                ak' = ak * jjm
+                espk' = fromIntegral (_N - (_n - x) - 1 - k') * (ck - ak' / bk')
+            in loop k' ak' bk' espk'
+        | otherwise = 1 - (ak / bk - epsk / 2)
+    s = foldl' (\s' k -> 1 + s' * invJm _n x _N k) 1.0 [x..m-2]
+    invJm _n x _N m = ( 1 - fromIntegral x / fromIntegral (m+1) ) /
+                          ( 1 - fromIntegral (_n-1-x) / fromIntegral (_N-1-m) )
+    e = 1e-200
+    -}
 
 -- | compute the Kullback-Leibler divergence between two valid (not check) probability distributions.
 -- kl(X,Y) = \sum_i P(x_i) log_2(P(x_i)\/P(y_i)). 

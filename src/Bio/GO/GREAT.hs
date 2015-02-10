@@ -5,17 +5,21 @@ module Bio.GO.GREAT
     , enrichedTerms
     ) where
 
+import Control.Monad.Primitive
 import qualified Data.ByteString.Char8 as B
 import Data.Conduit
 import qualified Data.HashMap.Strict as M
 import qualified Data.IntervalMap as IM
+import qualified Data.Vector as V
+import Data.Vector.Algorithms.Intro (sortBy)
+import Data.List (sort, group)
+import Data.Ord (comparing)
 import Data.IntervalMap.Interval (lowerBound, upperBound)
 import Data.Maybe (fromJust)
-import Statistics.Distribution
-import Statistics.Distribution.Hypergeometric (hypergeometric)
 
 import Bio.Data.Bed
 import Bio.GO
+import Bio.Utils.Functions
 
 -- | how to associate genomic regions with genes
 data AssocRule = BasalPlusExtension Int Int Int
@@ -53,27 +57,33 @@ countTerms :: (BEDLike b, Monad m)
            -> Sink b m (Int, M.HashMap GOId Int)
 countTerms tree = go 0 M.empty
   where
-    go !n !m = do
+    go !n !termCount = do
         x <- await
         case x of
             Just bed ->do
                 let chr = chrom bed
                     s = chromStart bed
                     e = chromEnd bed
-                    terms = concatMap snd . IM.intersecting
+                    terms = nub' . concatMap snd . IM.intersecting
                         (M.lookupDefault IM.empty chr tree) $ IM.IntervalCO s e
-                go (n+1) $ foldl (\acc t -> M.insertWith (+) t 1 acc) m terms
-            _ -> return (n, m)
+                go (n+1) $ foldl (\acc t -> M.insertWith (+) t 1 acc) termCount terms
+            _ -> return (n, termCount)
 {-# INLINE countTerms #-}
 
-enrichedTerms :: (BEDLike b1, BEDLike b2, Monad m)
+nub' :: [B.ByteString] -> [B.ByteString]
+nub' = map head . group . sort
+{-# INLINE nub' #-}
+
+enrichedTerms :: (BEDLike b1, BEDLike b2, PrimMonad m)
               => Source m b1
               -> Source m b2
               -> BEDTree [GOId]
-              -> m (M.HashMap GOId Double)
+              -> m (V.Vector (GOId, Double))
 enrichedTerms fg bg tree = do
-    (n, c1) <- fg $$ countTerms tree
-    (m, c2) <- bg $$ countTerms tree
-    return $ flip M.mapWithKey c1 $ \t c ->
-        let k = fromJust $ M.lookup t c2
-        in complCumulative (hypergeometric k m n) $ fromIntegral c
+    (n1, table1) <- fg $$ countTerms tree
+    (n2, table2) <- bg $$ countTerms tree
+    v <- V.unsafeThaw $ V.fromList $ M.toList $ flip M.mapWithKey table1 $ \t c ->
+        let k = fromJust $ M.lookup t table2
+        in 1 - hyperquick c k n1 n2
+    sortBy (comparing snd) v
+    V.unsafeFreeze v
