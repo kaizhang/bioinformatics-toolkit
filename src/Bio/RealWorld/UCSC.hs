@@ -14,7 +14,7 @@
 --------------------------------------------------------------------------------
 
 module Bio.RealWorld.UCSC
-    ( Gene(..)
+    ( UCSCGene(..)
     , readGenes
     , readGenes'
     ) where
@@ -28,7 +28,7 @@ import System.IO
 
 import Bio.Utils.Misc (readInt)
 
-data Gene = Gene
+data UCSCGene = UCSCGene
     { _geneName :: !B.ByteString
     , _chrom :: !B.ByteString
     , _strand :: !Bool
@@ -41,7 +41,7 @@ data Gene = Gene
     } deriving (Show)
 
 -- | read genes from UCSC "knownGenes.tsv"
-readGenes :: FilePath -> Source IO Gene
+readGenes :: FilePath -> Source IO UCSCGene
 readGenes fl = do
     handle <- liftIO $ openFile fl ReadMode
     _ <- liftIO $ B.hGetLine handle   -- header
@@ -57,11 +57,11 @@ readGenes fl = do
                loop h
 {-# INLINE readGenes #-}
 
-readGenes' :: FilePath -> IO [Gene]
+readGenes' :: FilePath -> IO [UCSCGene]
 readGenes' fl = readGenes fl $$ CL.consume
 {-# INLINE readGenes' #-}
 
-readGeneFromLine :: B.ByteString -> Gene
+readGeneFromLine :: B.ByteString -> UCSCGene
 readGeneFromLine xs =
     let [f1,f2,f3,f4,f5,f6,f7,_,f9,f10,f11,f12] = B.split '\t' xs
         str | f3 == "+" = True
@@ -72,6 +72,6 @@ readGeneFromLine xs =
         exonEnds = map readInt . init . B.split ',' $ f10
         exons = U.fromList $ zip exonStarts exonEnds
         introns = U.fromList $ zip exonEnds $ tail exonStarts
-    in Gene f1 f2 str trans cds exons introns f11 f12
+    in UCSCGene f1 f2 str trans cds exons introns f11 f12
 {-# INLINE readGeneFromLine #-}
 

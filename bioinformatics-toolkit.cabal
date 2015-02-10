@@ -26,6 +26,9 @@ library
     , Bio.Data.Bed
     , Bio.Data.BigWig
     , Bio.Data.Fasta
+    , Bio.GO
+    , Bio.GO.Parser
+    , Bio.GO.GREAT
     , Bio.HiC
     , Bio.Motif
     , Bio.Motif.Alignment
@@ -54,14 +57,15 @@ library
     , double-conversion
     , hierarchical-clustering
     , http-conduit
-    , mtl
+    , hexpat
+    , mtl ==2.1.3.1
     , parallel >=3.2
     , primitive
     , samtools
     , split
     , statistics >=0.13.2.1
     , text >=0.11
-    , transformers
+    , transformers ==0.3.0.0
     , unordered-containers >=0.2
     , vector
     , vector-algorithms

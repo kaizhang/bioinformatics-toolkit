@@ -15,6 +15,7 @@
 
 module Bio.Data.Bed
     ( BEDLike(..)
+    , BEDTree
     , bedToTree
     , sortedBedToTree
     , splitBed
