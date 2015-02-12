@@ -17,6 +17,7 @@ module Bio.Utils.Functions (
       ihs
     , ihs'
     , scale
+    , filterFDR
     , hyperquick
     , kld
     , jsd
@@ -27,10 +28,12 @@ module Bio.Utils.Functions (
 
 import Data.Bits (shiftR)
 import Data.List (foldl')
+import Data.Ord (comparing)
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
 import Statistics.Sample (meanVarianceUnb)
+import Statistics.Function (sortBy)
 
 -- | inverse hyperbolic sine transformation
 ihs :: Double  -- ^ θ, determine the shape of the function
@@ -50,6 +53,16 @@ scale xs = G.map (\x -> (x - m) / sqrt s) xs
   where
     (m,s) = meanVarianceUnb xs
 {-# INLINE scale #-}
+
+-- | given the p-values, filter data by controling FDR
+filterFDR :: G.Vector v (a, Double) => Double -> v (a, Double) -> v (a, Double)
+filterFDR α xs = go n . sortBy (comparing snd) $ xs
+  where
+    go rank v | rank <= 0 = G.empty
+              | snd (v `G.unsafeIndex` (rank-1)) <= fromIntegral rank * α / fromIntegral n = G.slice 0 rank v
+              | otherwise = go (rank-1) v
+    n = G.length xs
+{-# INLINE filterFDR #-}
 
 hyperquick :: Int -> Int -> Int -> Int -> Double
 hyperquick x m _n _N = loop (m-2) s s (2*e)
