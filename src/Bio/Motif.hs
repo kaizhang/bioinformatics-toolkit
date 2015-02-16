@@ -15,7 +15,7 @@ module Bio.Motif
     , score
     , optimalScore
     , pValueToScore
-    , pValueToScore'
+    , pValueToScoreExact
     , toIUPAC
     , readMEME
     , writeMEME
@@ -198,21 +198,8 @@ pBkgd (BG (a, c, g, t)) = B.foldl' f 1
 -- | calculate the minimum motif mathching score that would produce a kmer with
 -- p-Value less than the given number. This score would then be used to search
 -- for motif occurrences with significant p-Value
-pValueToScore :: Double -- ^ desirable p-Value
-              -> Bkgd
-              -> PWM
-              -> Double
-pValueToScore p bg pwm = go 0 0 . sort' . map ((scoreHelp bg pwm &&& pBkgd bg) . B.pack) . replicateM l $ "ACGT"
-  where
-    sort' xs = V.create $ do v <- V.unsafeThaw . V.fromList $ xs
-                             I.sortBy (flip (comparing fst)) v
-                             return v
-    go !acc !i vec | acc > p = fst $ vec V.! (i - 1)
-                   | otherwise = go (acc + snd (vec V.! i)) (i+1) vec
-    l = size pwm
-
-pValueToScore' :: Double -> Bkgd -> PWM -> Double
-pValueToScore' p bg pwm = go 0 $ n - 1
+pValueToScore :: Double -> Bkgd -> PWM -> Double
+pValueToScore p bg pwm = go 0 $ n - 1
   where
     n = VV.length cdf
     (cdf, scFn) = scoreCDF bg pwm
@@ -222,6 +209,22 @@ pValueToScore' p bg pwm = go 0 $ n - 1
                                 else go acc' (i-1)
                | otherwise = error ""
 
+-- | unlike pValueToScore, this version compute the exact score but much slower
+-- and is inpractical for long motifs
+pValueToScoreExact :: Double -- ^ desirable p-Value
+              -> Bkgd
+              -> PWM
+              -> Double
+pValueToScoreExact p bg pwm = go 0 0 . sort' . map ((scoreHelp bg pwm &&& pBkgd bg) . B.pack) . replicateM l $ "ACGT"
+  where
+    sort' xs = V.create $ do v <- V.unsafeThaw . V.fromList $ xs
+                             I.sortBy (flip (comparing fst)) v
+                             return v
+    go !acc !i vec | acc > p = fst $ vec V.! (i - 1)
+                   | otherwise = go (acc + snd (vec V.! i)) (i+1) vec
+    l = size pwm
+
+-- approximate the cdf of motif matching scores
 scoreCDF :: Bkgd -> PWM -> (VV.Vector Double, Int -> Double)
 scoreCDF (BG (a,c,g,t)) pwm = loop (VV.fromList [1], const 0) 0
   where
@@ -265,11 +268,11 @@ scoreCDF (BG (a,c,g,t)) pwm = loop (VV.fromList [1], const 0) 0
 
 -- | get pwm from a matrix
 toPWM :: [B.ByteString] -> PWM
-toPWM x = PWM Nothing . fromLists . map (map readDouble.B.words) $ x
+toPWM x = PWM Nothing . fromRowLists . map (map readDouble.B.words) $ x
 
 -- | pwm to bytestring
 fromPWM :: PWM -> B.ByteString
-fromPWM = B.unlines . map (B.unwords . map toShortest) . toLists . _mat
+fromPWM = B.unlines . map (B.unwords . map toShortest) . toRowLists . _mat
 
 writeFasta :: FilePath -> [Motif] -> IO ()
 writeFasta fl motifs = B.writeFile fl contents
@@ -290,7 +293,7 @@ toMEME xs (BG (a,c,g,t)) = B.intercalate "" $ header : map f xs
     f (Motif nm pwm) =
         let x = "MOTIF " `B.append` nm
             y = B.pack $ printf "letter-probability matrix: alength= 4 w= %d nsites= %d E= 0" (size pwm) sites
-            z = B.unlines . map (B.unwords . ("":) . map toShortest) . toLists . _mat $ pwm
+            z = B.unlines . map (B.unwords . ("":) . map toShortest) . toRowLists . _mat $ pwm
             sites | isNothing (_nSites pwm) = 0
                   | otherwise = fromJust $ _nSites pwm
         in B.unlines [x,y,z]
@@ -319,7 +322,7 @@ fromMEME meme = evalState (go $ B.lines meme) (0, [])
     startOfPwm = B.isPrefixOf "letter-probability matrix:"
     toMotif (name:n:xs) = Motif name pwm
       where
-        pwm = PWM (Just $ readInt n) $ fromLists . map (map readDouble.B.words) $ xs
+        pwm = PWM (Just $ readInt n) $ fromRowLists . map (map readDouble.B.words) $ xs
     toMotif _ = error "error"
 {-# INLINE fromMEME #-}
 
