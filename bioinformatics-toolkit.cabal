@@ -20,27 +20,28 @@ library
   ghc-options: -Wall
 
   exposed-modules:     
-      Bio.ChIPSeq
-    , Bio.ChIPSeq.FragLen
-    , Bio.Data.Bam
-    , Bio.Data.Bed
-    , Bio.Data.BigWig
-    , Bio.Data.Fasta
-    , Bio.GO
-    , Bio.GO.Parser
-    , Bio.GO.GREAT
-    , Bio.HiC
-    , Bio.Motif
-    , Bio.Motif.Alignment
-    , Bio.Motif.Search
-    , Bio.RealWorld.ENCODE
-    , Bio.RealWorld.UCSC
-    , Bio.Seq
-    , Bio.Seq.IO
-    , Bio.Utils.Functions
-    , Bio.Utils.Misc
-    , Bio.Utils.Overlap
-    , Bio.Utils.Types
+    Bio.ChIPSeq
+    Bio.ChIPSeq.FragLen
+    Bio.Data.Bam
+    Bio.Data.Bed
+    Bio.Data.BigWig
+    Bio.Data.Fasta
+    Bio.GO
+    Bio.GO.Parser
+    Bio.GO.GREAT
+    Bio.HiC
+    Bio.Motif
+    Bio.Motif.Alignment
+    Bio.Motif.Search
+    Bio.RealWorld.ENCODE
+    Bio.RealWorld.ID
+    Bio.RealWorld.UCSC
+    Bio.Seq
+    Bio.Seq.IO
+    Bio.Utils.Functions
+    Bio.Utils.Misc
+    Bio.Utils.Overlap
+    Bio.Utils.Types
 
   -- other-modules:       
   -- other-extensions:

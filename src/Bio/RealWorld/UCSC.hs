@@ -15,8 +15,10 @@
 
 module Bio.RealWorld.UCSC
     ( UCSCGene(..)
-    , readGenes
-    , readGenes'
+    , getTSS
+    , getJunction
+    , readUCSCGenes
+    , readUCSCGenes'
     ) where
 
 import Control.Monad.IO.Class (liftIO)
@@ -26,6 +28,7 @@ import qualified Data.Conduit.List as CL
 import qualified Data.Vector.Unboxed as U
 import System.IO
 
+import Bio.RealWorld.ID
 import Bio.Utils.Misc (readInt)
 
 data UCSCGene = UCSCGene
@@ -36,13 +39,21 @@ data UCSCGene = UCSCGene
     , _cds :: !(Int, Int)
     , _exons :: !(U.Vector (Int, Int))
     , _introns :: !(U.Vector (Int, Int))
-    , _proteinId :: !B.ByteString
-    , _alignId :: !B.ByteString
+    , _proteinId :: !BioID
+    , _alignId :: !BioID
     } deriving (Show)
 
+-- | get Transcription Start Site
+getTSS :: UCSCGene -> (B.ByteString, Int)
+getTSS g = (_chrom g, fst $ _transcript g)
+
+-- | get exon-intron junctions
+getJunction :: UCSCGene -> (B.ByteString, U.Vector Int)
+getJunction g = (_chrom g, U.map fst $ _introns g)
+
 -- | read genes from UCSC "knownGenes.tsv"
-readGenes :: FilePath -> Source IO UCSCGene
-readGenes fl = do
+readUCSCGenes :: FilePath -> Source IO UCSCGene
+readUCSCGenes fl = do
     handle <- liftIO $ openFile fl ReadMode
     _ <- liftIO $ B.hGetLine handle   -- header
     loop handle
@@ -55,11 +66,11 @@ readGenes fl = do
                l <- liftIO $ B.hGetLine h
                yield $ readGeneFromLine l
                loop h
-{-# INLINE readGenes #-}
+{-# INLINE readUCSCGenes #-}
 
-readGenes' :: FilePath -> IO [UCSCGene]
-readGenes' fl = readGenes fl $$ CL.consume
-{-# INLINE readGenes' #-}
+readUCSCGenes' :: FilePath -> IO [UCSCGene]
+readUCSCGenes' fl = readUCSCGenes fl $$ CL.consume
+{-# INLINE readUCSCGenes' #-}
 
 readGeneFromLine :: B.ByteString -> UCSCGene
 readGeneFromLine xs =
@@ -72,6 +83,5 @@ readGeneFromLine xs =
         exonEnds = map readInt . init . B.split ',' $ f10
         exons = U.fromList $ zip exonStarts exonEnds
         introns = U.fromList $ zip exonEnds $ tail exonStarts
-    in UCSCGene f1 f2 str trans cds exons introns f11 f12
+    in UCSCGene f1 f2 str trans cds exons introns (Uniprot f11) (UCSC f12)
 {-# INLINE readGeneFromLine #-}
-
