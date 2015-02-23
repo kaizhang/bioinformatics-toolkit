@@ -39,8 +39,8 @@ data UCSCGene = UCSCGene
     , _cds :: !(Int, Int)
     , _exons :: !(U.Vector (Int, Int))
     , _introns :: !(U.Vector (Int, Int))
-    , _proteinId :: !BioID
-    , _alignId :: !BioID
+    , _proteinId :: !UniprotID
+    , _alignId :: !UCSCID
     } deriving (Show)
 
 -- | get Transcription Start Site
@@ -83,5 +83,5 @@ readGeneFromLine xs =
         exonEnds = map readInt . init . B.split ',' $ f10
         exons = U.fromList $ zip exonStarts exonEnds
         introns = U.fromList $ zip exonEnds $ tail exonStarts
-    in UCSCGene f1 f2 str trans cds exons introns (Uniprot f11) (UCSC f12)
+    in UCSCGene f1 f2 str trans cds exons introns (UniprotID f11) (UCSCID f12)
 {-# INLINE readGeneFromLine #-}
