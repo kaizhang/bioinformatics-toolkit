@@ -10,8 +10,7 @@ module Bio.ChIPSeq
 
 import Bio.SamTools.Bam
 import qualified Bio.SamTools.BamIndex as BI
-import Control.Arrow ((***))
-import Control.Monad (liftM, forM_)
+import Control.Monad (liftM, forM_, forM)
 import Control.Monad.Primitive (PrimMonad)
 import Control.Monad.Trans.Class (lift)
 import Data.Conduit
@@ -20,8 +19,7 @@ import Data.Function (on)
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as M
 import qualified Data.IntervalMap as IM
-import Data.List (groupBy)
-import Data.Maybe (fromJust, isJust)
+import Data.Maybe (fromJust)
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Algorithms.Intro as I
@@ -79,11 +77,11 @@ rpkmSortedBed (Sorted regions) = do
 
 -- | divide each region into consecutive bins, and count tags for each bin
 profiling :: (PrimMonad m, G.Vector v Int, BEDLike b)
-          => Int                   -- ^ bin size
-          -> Sorted (V.Vector b)   -- ^ regions
+          => Int   -- ^ bin size
+          -> [b]   -- ^ regions
           -> Sink BED m [v Int]
-profiling k (Sorted beds) = do
-    vectors <- lift $ G.forM beds $ \bed -> do
+profiling k beds = do
+    initRC <- lift $ forM beds $ \bed -> do
         let start = chromStart bed
             end = chromEnd bed
             num = (end - start) `div` k
@@ -91,7 +89,7 @@ profiling k (Sorted beds) = do
         v <- GM.replicate num 0
         return (v, index)
 
-    sink vectors
+    sink $ V.fromList initRC
   where
     sink vs = do
         tag <- await
@@ -99,25 +97,19 @@ profiling k (Sorted beds) = do
             Just (BED chr start end _ _ strand) -> do
                 let p | strand == Just True = start
                       | strand == Just False = end - 1
-                      | otherwise = error "unkown strand"
+                      | otherwise = error "profiling: unkown strand"
                     overlaps = snd . unzip $
                         IM.containing (M.lookupDefault IM.empty chr intervalMap) p
                 lift $ forM_ overlaps $ \x -> do
-                    let (v, f) = vs `G.unsafeIndex` x
-                        i = f p
+                    let (v, idxFn) = vs `G.unsafeIndex` x
+                        i = idxFn p
                     GM.unsafeRead v i >>= GM.unsafeWrite v i . (+1)
                 sink vs
 
             _ -> lift $ mapM (G.unsafeFreeze . fst) $ G.toList vs
                                                             
-    intervalMap = M.fromList
-           . map ((head *** IM.fromAscListWith (error "profiling: non-unique regions")) . unzip)
-           . groupBy ((==) `on` fst)
-           . map (\(b, i) -> (chrom b, (IM.ClosedInterval (chromStart b) (chromEnd b), i)))
-           . G.toList . G.zip beds
-           $ G.enumFromN 0 n
-
-    n = G.length beds
+    intervalMap = bedToTree errMsg $ zip beds [0..]
+    errMsg = error "profiling: please remove duplicates"
 {-# INLINE profiling #-}
 
 -- | calculate RPKM using BAM file (*.bam) and its index file (*.bam.bai), using 
