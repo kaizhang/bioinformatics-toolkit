@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
 module Bio.ChIPSeq
     ( rpkmBed
     , rpkmSortedBed
@@ -75,11 +76,12 @@ rpkmSortedBed (Sorted regions) = do
     errMsg = error "rpkmSortedBed: redundant records"
 {-# INLINE rpkmSortedBed #-}
 
--- | divide each region into consecutive bins, and count tags for each bin
+-- | divide each region into consecutive bins, and count tags for each bin. The
+-- total number of tags is also returned
 profiling :: (PrimMonad m, G.Vector v Int, BEDLike b)
           => Int   -- ^ bin size
           -> [b]   -- ^ regions
-          -> Sink BED m [v Int]
+          -> Sink BED m ([v Int], Int)
 profiling k beds = do
     initRC <- lift $ forM beds $ \bed -> do
         let start = chromStart bed
@@ -89,9 +91,9 @@ profiling k beds = do
         v <- GM.replicate num 0
         return (v, index)
 
-    sink $ V.fromList initRC
+    sink 0 $ V.fromList initRC
   where
-    sink vs = do
+    sink !nTags vs = do
         tag <- await
         case tag of
             Just (BED chr start end _ _ strand) -> do
@@ -104,9 +106,10 @@ profiling k beds = do
                     let (v, idxFn) = vs `G.unsafeIndex` x
                         i = idxFn p
                     GM.unsafeRead v i >>= GM.unsafeWrite v i . (+1)
-                sink vs
+                sink (nTags+1) vs
 
-            _ -> lift $ mapM (G.unsafeFreeze . fst) $ G.toList vs
+            _ -> do rc <- lift $ mapM (G.unsafeFreeze . fst) $ G.toList vs
+                    return (rc, nTags)
                                                             
     intervalMap = bedToTree errMsg $ zip beds [0..]
     errMsg = error "profiling: please remove duplicates"

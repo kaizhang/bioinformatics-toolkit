@@ -1,7 +1,12 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Bio.Motif.Alignment where
+module Bio.Motif.Alignment
+    ( alignment
+    , alignmentBy
+    , buildTree
+    , progressiveMerging
+    ) where
 
 import Bio.Motif
 import Bio.Utils.Functions
@@ -9,39 +14,22 @@ import Data.Clustering.Hierarchical
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
 import Statistics.Matrix hiding (map)
-import Statistics.Sample
 
 -- | penalty function takes the gaps number as input, return penalty value
 type PenalFn = Int -> Double
 
 type DistanceFn = (G.Vector v Double, G.Vector v (Double, Double)) => v Double -> v Double -> Double
 
--- | calculate distance between PWMs
-distanceBy :: DistanceFn -> PWM -> PWM -> Double
-distanceBy f (PWM _ m1) (PWM _ m2) = mean . U.fromList $ zipWith f x y
-  where (x, y) = (toRows m1, toRows m2)
-{-# INLINE distanceBy #-}
-
--- Calculate distance by Kullback-Leibler divergence
-deltaKL :: PWM -> PWM -> Double
-deltaKL = distanceBy kld
-{-# INLINE deltaKL #-}
-
--- Calculate distance by Jensen-Shannon divergence
-deltaJS :: PWM -> PWM -> Double
-deltaJS = distanceBy jsd
-{-# INLINE deltaJS #-}
-
 alignment :: PWM -> PWM -> (Double, (PWM, PWM, Int))
-alignment = alignmentBy jsd 0.5
+alignment = alignmentBy jsd quadPenal
 
 -- | linear penalty
 linPenal :: PenalFn
-linPenal n = fromIntegral n * 0.01
+linPenal n = fromIntegral n * 0.5
 
 -- | quadratic penalty
 quadPenal :: PenalFn
-quadPenal n = fromIntegral (n ^ (2 :: Int)) * 0.01
+quadPenal n = fromIntegral (n ^ (2 :: Int)) * 0.25
 
 -- | cubic penalty
 cubePenal :: PenalFn
@@ -52,7 +40,7 @@ expPenal :: PenalFn
 expPenal n = fromIntegral (2^n :: Int) * 0.01
 
 -- internal gaps are not allowed, larger score means larger distance, so the smaller the better
-alignmentBy :: DistanceFn -> Double -> PWM -> PWM -> (Double, (PWM, PWM, Int))
+alignmentBy :: DistanceFn -> PenalFn -> PWM -> PWM -> (Double, (PWM, PWM, Int))
 alignmentBy fn pFn m1 m2 | fst forwardAlign <= fst reverseAlign = (fst forwardAlign, (m1, m2, snd forwardAlign))
                          | otherwise = (fst reverseAlign, (m1, m2', snd reverseAlign))
   where
@@ -62,7 +50,7 @@ alignmentBy fn pFn m1 m2 | fst forwardAlign <= fst reverseAlign = (fst forwardAl
                           ++ zip (map (f s1 . flip drop s2') [1 .. n2-1]) [-1, -2 .. -n2+1]
     f a b = let xs = U.fromList $ zipWith fn a b
                 nGaps = n1 + n2 - 2 * U.length xs
-            in (G.sum xs + pFn * fromIntegral nGaps) / fromIntegral (U.length xs + nGaps)
+            in (G.sum xs + pFn nGaps) / fromIntegral (U.length xs + nGaps)
     s1 = toRows . _mat $ m1
     s2 = toRows . _mat $ m2
     s2' = toRows . _mat $ m2'
