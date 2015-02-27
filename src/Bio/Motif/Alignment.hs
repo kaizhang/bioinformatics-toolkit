@@ -4,6 +4,7 @@
 module Bio.Motif.Alignment
     ( alignment
     , alignmentBy
+    , mergePWM
     , buildTree
     , progressiveMerging
     ) where
@@ -25,11 +26,11 @@ alignment = alignmentBy jsd quadPenal
 
 -- | linear penalty
 linPenal :: PenalFn
-linPenal n = fromIntegral n * 0.5
+linPenal n = fromIntegral n * 0.3
 
 -- | quadratic penalty
 quadPenal :: PenalFn
-quadPenal n = fromIntegral (n ^ (2 :: Int)) * 0.25
+quadPenal n = fromIntegral (n ^ (2 :: Int)) * 0.15
 
 -- | cubic penalty
 cubePenal :: PenalFn
@@ -59,9 +60,9 @@ alignmentBy fn pFn m1 m2 | fst forwardAlign <= fst reverseAlign = (fst forwardAl
     n2 = length s2
 {-# INLINE alignmentBy #-}
 
-merge :: (PWM, PWM, Int) -> PWM
-merge (m1, m2, i) | i >= 0 = PWM Nothing (fromRows $ take i s1 ++ zipWith f (drop i s1) s2 ++ drop (n1 - i) s2)
-                  | otherwise = PWM Nothing (fromRows $ take (-i) s2 ++ zipWith f (drop (-i) s2) s1 ++ drop (n2 + i) s1)
+mergePWM :: (PWM, PWM, Int) -> PWM
+mergePWM (m1, m2, i) | i >= 0 = PWM Nothing (fromRows $ take i s1 ++ zipWith f (drop i s1) s2 ++ drop (n1 - i) s2)
+                     | otherwise = PWM Nothing (fromRows $ take (-i) s2 ++ zipWith f (drop (-i) s2) s1 ++ drop (n2 + i) s1)
   where
     f = G.zipWith (\x y -> (x+y)/2)
     s1 = toRows . _mat $ m1
@@ -74,7 +75,7 @@ progressiveMerging t = case t of
     Branch _ left right -> f (progressiveMerging left) $ progressiveMerging right
     Leaf a -> _pwm a
   where
-    f a b = merge $! snd $ alignment a b
+    f a b = mergePWM $! snd $ alignment a b
 
 -- | build a guide tree from a set of motifs
 buildTree :: [Motif] -> Dendrogram Motif
