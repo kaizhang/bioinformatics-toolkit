@@ -56,7 +56,7 @@ library
     , containers >=0.5
     , data-default-class
     , double-conversion
-    , hierarchical-clustering
+    , clustering
     , http-conduit
     , hexpat
     , mtl ==2.1.3.1

@@ -11,8 +11,9 @@ module Bio.Motif.Alignment
 
 import Bio.Motif
 import Bio.Utils.Functions
-import Data.Clustering.Hierarchical
+import AI.Clustering.Hierarchical
 import qualified Data.Vector.Generic as G
+import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
 import Statistics.Matrix hiding (map)
 
@@ -72,13 +73,13 @@ mergePWM (m1, m2, i) | i >= 0 = PWM Nothing (fromRows $ take i s1 ++ zipWith f (
 
 progressiveMerging :: Dendrogram Motif -> PWM
 progressiveMerging t = case t of
-    Branch _ left right -> f (progressiveMerging left) $ progressiveMerging right
+    Branch _ _ left right -> f (progressiveMerging left) $ progressiveMerging right
     Leaf a -> _pwm a
   where
     f a b = mergePWM $! snd $ alignment a b
 
 -- | build a guide tree from a set of motifs
 buildTree :: [Motif] -> Dendrogram Motif
-buildTree motifs = dendrogram UPGMA motifs δ
+buildTree motifs = hclust Average (V.fromList motifs) δ
   where
     δ (Motif _ x) (Motif _ y) = fst $ alignment x y
