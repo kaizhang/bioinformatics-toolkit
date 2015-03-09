@@ -117,7 +117,7 @@ rc (DNA s) = DNA . B.map f . B.reverse $ s
 
 -- | O(n) Compute GC content
 gcContent :: DNA alphabet -> Double
-gcContent = (\(a,b) -> a / fromIntegral b) . B.foldl f (0.0,0::Int) . toBS
+gcContent = (\(a,b) -> a / fromIntegral b) . B.foldl' f (0.0,0::Int) . toBS
   where
     f (!x,!n) c =
         let x' = case c of
@@ -136,7 +136,7 @@ gcContent = (\(a,b) -> a / fromIntegral b) . B.foldl f (0.0,0::Int) . toBS
 
 -- | O(n) Compute single nucleotide frequency
 nucleotideFreq :: BioSeq DNA a => DNA a -> M.HashMap Char Int
-nucleotideFreq dna = B.foldl f m0 . toBS $ dna
+nucleotideFreq dna = B.foldl' f m0 . toBS $ dna
   where
     m0 = M.fromList . zip (S.toList $ alphabet dna) . repeat $ 0
     f m x = M.adjust (+1) x m
