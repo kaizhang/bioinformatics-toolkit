@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE BangPatterns #-}
-
+{-# LANGUAGE FlexibleContexts #-}
 module Bio.Seq 
     ( 
     -- * Alphabet
@@ -16,10 +16,12 @@ module Bio.Seq
     -- * DNA related functions
     , rc
     , gcContent
+    , nucleotideFreq
     ) where
 
 import Prelude hiding (length)
 import qualified Data.ByteString.Char8 as B
+import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as S
 import Data.Char8 (toUpper)
 import Data.Monoid (Monoid(..))
@@ -102,7 +104,7 @@ instance BioSeq RNA Basic where
         f x | x `S.member` alphabet (undefined :: RNA Basic) = x
             | otherwise = error $ "Bio.Seq.fromBS: unknown character: " ++ [x]
 
--- | O(n). reverse complementary of DNA sequence
+-- | O(n) Reverse complementary of DNA sequence
 rc :: DNA alphabet -> DNA alphabet
 rc (DNA s) = DNA . B.map f . B.reverse $ s
   where
@@ -113,7 +115,7 @@ rc (DNA s) = DNA . B.map f . B.reverse $ s
         'T' -> 'A'
         _ -> x
 
--- | O(n). compute GC content
+-- | O(n) Compute GC content
 gcContent :: DNA alphabet -> Double
 gcContent = (\(a,b) -> a / fromIntegral b) . B.foldl f (0.0,0::Int) . toBS
   where
@@ -131,3 +133,11 @@ gcContent = (\(a,b) -> a / fromIntegral b) . B.foldl f (0.0,0::Int) . toBS
                 'W' -> x
                 _ -> x + 0.5     -- "NMKYR"
         in (x', n+1)
+
+-- | O(n) Compute single nucleotide frequency
+nucleotideFreq :: BioSeq DNA a => DNA a -> M.HashMap Char Int
+nucleotideFreq dna = B.foldl f m0 . toBS $ dna
+  where
+    m0 = M.fromList . zip (S.toList $ alphabet dna) . repeat $ 0
+    f m x = M.adjust (+1) x m
+{-# INLINE nucleotideFreq #-}

@@ -14,6 +14,6 @@ tests = testGroup "Test: Bio.Data.Bed"
 
 sortBedTest :: Assertion
 sortBedTest = do beds <- readBed' "tests/data/peaks.bed" :: IO [BED]
-                 let (Sorted actual) = sortBed . V.fromList $ beds
+                 let (Sorted actual) = sortBed beds
                  expect <- fmap V.fromList $ readBed' "tests/data/peaks.sorted.bed"
                  expect @=? actual
