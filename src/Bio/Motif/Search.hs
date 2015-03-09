@@ -19,6 +19,7 @@ import Data.List (foldl', intercalate)
 import Data.Ord (comparing)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Vector.Unboxed as U
+import qualified Data.Matrix.Unboxed as M
 import Statistics.Matrix hiding (map)
 
 
@@ -85,7 +86,7 @@ optimalScoresSuffix :: Bkgd -> PWM -> U.Vector Double
 optimalScoresSuffix (BG (a, c, g, t)) (PWM _ pwm) = 
     U.fromList . tail . map (last sigma -) $ sigma
   where
-    sigma = scanl f 0 $ toRows pwm
+    sigma = scanl f 0 $ M.toRows pwm
     f !acc xs = let (i, s) = U.maximumBy (comparing snd) . 
                                 U.zip (U.fromList ([0..3] :: [Int])) $ xs
                 in acc + case i of
@@ -128,10 +129,10 @@ lookAheadSearch (BG (a, c, g, t)) pwm sigma dna start thres = loop (0, -1) 0
               'Y' -> log $! (matchC + matchT) / (c + t)
               'R' -> log $! (matchA + matchG) / (a + g)
               _   -> error "Bio.Motif.Search.lookAheadSearch: invalid nucleotide"
-        matchA = addSome $ unsafeIndex (_mat pwm) d 0
-        matchC = addSome $ unsafeIndex (_mat pwm) d 1
-        matchG = addSome $ unsafeIndex (_mat pwm) d 2
-        matchT = addSome $ unsafeIndex (_mat pwm) d 3
+        matchA = addSome $ M.unsafeIndex (_mat pwm) (d,0)
+        matchC = addSome $ M.unsafeIndex (_mat pwm) (d,1)
+        matchG = addSome $ M.unsafeIndex (_mat pwm) (d,2)
+        matchT = addSome $ M.unsafeIndex (_mat pwm) (d,3)
         addSome !x | x == 0 = pseudoCount
                    | otherwise = x
         pseudoCount = 0.0001

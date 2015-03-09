@@ -15,6 +15,7 @@ import AI.Clustering.Hierarchical
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
+import qualified Data.Matrix.Unboxed as M
 import Statistics.Matrix hiding (map)
 
 -- | penalty function takes the gaps number as input, return penalty value
@@ -53,21 +54,21 @@ alignmentBy fn pFn m1 m2 | fst forwardAlign <= fst reverseAlign = (fst forwardAl
     f a b = let xs = U.fromList $ zipWith fn a b
                 nGaps = n1 + n2 - 2 * U.length xs
             in (G.sum xs + pFn nGaps) / fromIntegral (U.length xs + nGaps)
-    s1 = toRows . _mat $ m1
-    s2 = toRows . _mat $ m2
-    s2' = toRows . _mat $ m2'
+    s1 = M.toRows . _mat $ m1
+    s2 = M.toRows . _mat $ m2
+    s2' = M.toRows . _mat $ m2'
     m2' = rcPWM m2
     n1 = length s1
     n2 = length s2
 {-# INLINE alignmentBy #-}
 
 mergePWM :: (PWM, PWM, Int) -> PWM
-mergePWM (m1, m2, i) | i >= 0 = PWM Nothing (fromRows $ take i s1 ++ zipWith f (drop i s1) s2 ++ drop (n1 - i) s2)
-                     | otherwise = PWM Nothing (fromRows $ take (-i) s2 ++ zipWith f (drop (-i) s2) s1 ++ drop (n2 + i) s1)
+mergePWM (m1, m2, i) | i >= 0 = PWM Nothing (M.fromRows $ take i s1 ++ zipWith f (drop i s1) s2 ++ drop (n1 - i) s2)
+                     | otherwise = PWM Nothing (M.fromRows $ take (-i) s2 ++ zipWith f (drop (-i) s2) s1 ++ drop (n2 + i) s1)
   where
     f = G.zipWith (\x y -> (x+y)/2)
-    s1 = toRows . _mat $ m1
-    s2 = toRows . _mat $ m2
+    s1 = M.toRows . _mat $ m1
+    s2 = M.toRows . _mat $ m2
     n1 = length s1
     n2 = length s2
 

@@ -40,19 +40,18 @@ import Data.Ord (comparing)
 import qualified Data.Vector as VV
 import qualified Data.Vector.Mutable as VVM
 import qualified Data.Vector.Unboxed as V
-import qualified Data.Vector.Unboxed.Mutable as VM
 import qualified Data.Vector.Algorithms.Intro as I
-import Statistics.Matrix hiding (map)
+import qualified Data.Matrix.Unboxed as M
 import Text.Printf (printf)
 
 -- | k x 4 position weight matrix for motifs
 data PWM = PWM 
     { _nSites :: !(Maybe Int)  -- ^ number of sites used to generate this matrix
-    , _mat :: !Matrix
+    , _mat :: !(M.Matrix Double)
     } deriving (Show)
 
 size :: PWM -> Int
-size (PWM _ (Matrix nrow _ _ _)) = nrow
+size (PWM _ mat) = M.rows mat
 
 -- | information content of a poistion in pwm
 ic :: PWM -> Int -> Double
@@ -60,24 +59,24 @@ ic = undefined
 
 -- | extract sub-PWM given starting position and length, zero indexed
 subPWM :: Int -> Int -> PWM -> PWM
-subPWM i l (PWM n (Matrix _ _ _ v)) = PWM n (fromVector l 4 v')
-  where
-    v' = V.slice (i * 4) (l * 4) v
+subPWM i l (PWM n mat) = PWM n $ M.subMatrix (i,0) (i+l,3) mat
 {-# INLINE subPWM #-}
 
 -- | reverse complementary of PWM
 rcPWM :: PWM -> PWM
-rcPWM (PWM n (Matrix nrow ncol p v)) = PWM n (Matrix nrow ncol p $ V.reverse v)
+rcPWM (PWM n mat) = PWM n . M.fromVector d . V.reverse . M.flatten $ mat
+  where
+    d = M.dim mat
 {-# INLINE rcPWM #-}
 
 -- | GC content of PWM
 gcContentPWM :: PWM -> Double
 gcContentPWM (PWM _ mat) = loop 0 0 / fromIntegral m
   where
-    m = rows mat
+    m = M.rows mat
     loop !acc !i | i >= m = acc
                  | otherwise = 
-                     let acc' = acc + unsafeIndex mat i 1 + unsafeIndex mat i 2
+                     let acc' = acc + M.unsafeIndex mat (i,1) + M.unsafeIndex mat (i,2)
                      in loop acc' (i+1)
 
 data Motif = Motif
@@ -94,7 +93,7 @@ instance Default Bkgd where
 
 -- | convert pwm to consensus sequence, see D. R. Cavener (1987).
 toIUPAC :: PWM -> DNA IUPAC
-toIUPAC (PWM _ pwm) = fromBS . B.pack . map f $ toRows pwm
+toIUPAC (PWM _ pwm) = fromBS . B.pack . map f $ M.toRows pwm
   where
     f v | snd a > 0.5 && snd a > 2 * snd b = fst a
         | snd a + snd b > 0.75             = iupac (fst a, fst b)
@@ -118,7 +117,7 @@ scores bg p@(PWM _ pwm) dna = go $! toBS dna
   where
     go s | B.length s >= len = scoreHelp bg p (B.take len s) : go (B.tail s)
          | otherwise = []
-    len = rows pwm
+    len = M.rows pwm
 {-# INLINE scores #-}
 
 -- | a streaming version of scores
@@ -130,7 +129,7 @@ scores' bg p@(PWM _ pwm) dna = go 0
          | otherwise = return ()
     s = toBS dna
     n = B.length s
-    len = rows pwm
+    len = M.rows pwm
 {-# INLINE scores' #-}
 
 score :: Bkgd -> PWM -> DNA a -> Double
@@ -139,7 +138,7 @@ score bg p dna = scoreHelp bg p $! toBS dna
 
 -- | the best possible score for a pwm
 optimalScore :: Bkgd -> PWM -> Double
-optimalScore (BG (a, c, g, t)) (PWM _ pwm) = foldl' (+) 0 . map f . toRows $ pwm
+optimalScore (BG (a, c, g, t)) (PWM _ pwm) = foldl' (+) 0 . map f . M.toRows $ pwm
   where f xs = let (i, s) = V.maximumBy (comparing snd) . 
                                 V.zip (V.fromList ([0..3] :: [Int])) $ xs
                in case i of
@@ -172,10 +171,10 @@ scoreHelp (BG (a, c, g, t)) (PWM _ pwm) dna = fst . B.foldl f (0,0) $ dna
               'Y' -> log $! (matchC + matchT) / (c + t)
               'R' -> log $! (matchA + matchG) / (a + g)
               _   -> error "Bio.Motif.score: invalid nucleotide"
-        matchA = addSome $ unsafeIndex pwm i 0
-        matchC = addSome $ unsafeIndex pwm i 1
-        matchG = addSome $ unsafeIndex pwm i 2
-        matchT = addSome $ unsafeIndex pwm i 3
+        matchA = addSome $ M.unsafeIndex pwm (i,0)
+        matchC = addSome $ M.unsafeIndex pwm (i,1)
+        matchG = addSome $ M.unsafeIndex pwm (i,2)
+        matchT = addSome $ M.unsafeIndex pwm (i,3)
         addSome !y | y == 0 = pseudoCount
                    | otherwise = y
         pseudoCount = 0.0001
@@ -238,10 +237,10 @@ scoreCDF (BG (a,c,g,t)) pwm = loop (VV.fromList [1], const 0) 0
                           new <- VVM.replicate nBin' 0
                           VV.sequence_ $ flip VV.imap old $ \x p ->
                               when (p /= 0) $ do
-                                  let idx_a = idx $ sc + log' (unsafeIndex (_mat pwm) i 0) - log a
-                                      idx_c = idx $ sc + log' (unsafeIndex (_mat pwm) i 1) - log c
-                                      idx_g = idx $ sc + log' (unsafeIndex (_mat pwm) i 2) - log g
-                                      idx_t = idx $ sc + log' (unsafeIndex (_mat pwm) i 3) - log t
+                                  let idx_a = idx $ sc + log' (M.unsafeIndex (_mat pwm) (i,0)) - log a
+                                      idx_c = idx $ sc + log' (M.unsafeIndex (_mat pwm) (i,1)) - log c
+                                      idx_g = idx $ sc + log' (M.unsafeIndex (_mat pwm) (i,2)) - log g
+                                      idx_t = idx $ sc + log' (M.unsafeIndex (_mat pwm) (i,3)) - log t
                                       sc = scFn x
                                   new `VVM.read` idx_a >>= VVM.write new idx_a . (a * p + ) 
                                   new `VVM.read` idx_c >>= VVM.write new idx_c . (c * p + ) 
@@ -254,10 +253,10 @@ scoreCDF (BG (a,c,g,t)) pwm = loop (VV.fromList [1], const 0) 0
         nBin = VV.length old
         go v (l,h) x | x >= nBin = (l,h)
                      | old VV.! x /= 0 = let sc = scFn x
-                                             s1 = sc + log' (unsafeIndex (_mat pwm) i 0) - log a
-                                             s2 = sc + log' (unsafeIndex (_mat pwm) i 1) - log c
-                                             s3 = sc + log' (unsafeIndex (_mat pwm) i 2) - log g
-                                             s4 = sc + log' (unsafeIndex (_mat pwm) i 3) - log t
+                                             s1 = sc + log' (M.unsafeIndex (_mat pwm) (i,0)) - log a
+                                             s2 = sc + log' (M.unsafeIndex (_mat pwm) (i,1)) - log c
+                                             s3 = sc + log' (M.unsafeIndex (_mat pwm) (i,2)) - log g
+                                             s4 = sc + log' (M.unsafeIndex (_mat pwm) (i,3)) - log t
                                          in go v (foldr min l [s1,s2,s3,s4],foldr max h [s1,s2,s3,s4]) (x+1)
                      | otherwise = go v (l,h) (x+1)
     precision = 0.002
@@ -268,11 +267,11 @@ scoreCDF (BG (a,c,g,t)) pwm = loop (VV.fromList [1], const 0) 0
 
 -- | get pwm from a matrix
 toPWM :: [B.ByteString] -> PWM
-toPWM x = PWM Nothing . fromRowLists . map (map readDouble.B.words) $ x
+toPWM x = PWM Nothing . M.fromLists . map (map readDouble.B.words) $ x
 
 -- | pwm to bytestring
 fromPWM :: PWM -> B.ByteString
-fromPWM = B.unlines . map (B.unwords . map toShortest) . toRowLists . _mat
+fromPWM = B.unlines . map (B.unwords . map toShortest) . M.toLists . _mat
 
 writeFasta :: FilePath -> [Motif] -> IO ()
 writeFasta fl motifs = B.writeFile fl contents
@@ -293,7 +292,7 @@ toMEME xs (BG (a,c,g,t)) = B.intercalate "" $ header : map f xs
     f (Motif nm pwm) =
         let x = "MOTIF " `B.append` nm
             y = B.pack $ printf "letter-probability matrix: alength= 4 w= %d nsites= %d E= 0" (size pwm) sites
-            z = B.unlines . map (B.unwords . ("":) . map toShortest) . toRowLists . _mat $ pwm
+            z = B.unlines . map (B.unwords . ("":) . map toShortest) . M.toLists . _mat $ pwm
             sites | isNothing (_nSites pwm) = 0
                   | otherwise = fromJust $ _nSites pwm
         in B.unlines [x,y,z]
@@ -322,7 +321,7 @@ fromMEME meme = evalState (go $ B.lines meme) (0, [])
     startOfPwm = B.isPrefixOf "letter-probability matrix:"
     toMotif (name:n:xs) = Motif name pwm
       where
-        pwm = PWM (Just $ readInt n) $ fromRowLists . map (map readDouble.B.words) $ xs
+        pwm = PWM (Just $ readInt n) $ M.fromLists . map (map readDouble.B.words) $ xs
     toMotif _ = error "error"
 {-# INLINE fromMEME #-}
 
