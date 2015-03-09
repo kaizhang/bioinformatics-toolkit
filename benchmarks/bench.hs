@@ -6,7 +6,7 @@ import qualified Data.ByteString.Char8 as B
 import Bio.Motif
 import Bio.Motif.Search
 import Bio.Seq
-import Data.Default.Generics
+import Data.Default.Class
 import qualified Data.Conduit.List as CL
 import Data.Conduit
 import Control.Monad.Identity
@@ -38,7 +38,7 @@ pwm = toPWM [ "0.3 0.3 0.3 0.1"
 main :: IO ()
 main = defaultMain 
     [ bench "motif score" $ nf (scores def pwm) dna 
-    , bgroup "TFBS scanning" [ bench "Naive" $ nf (\x -> runIdentity $ findTFBS' def pwm x (0.6 * optimalScore def pwm) $$ CL.consume) dna
+    , bgroup "TFBS scanning" [ bench "Naive" $ nf (\x -> runIdentity $ findTFBSSlow def pwm x (0.6 * optimalScore def pwm) $$ CL.consume) dna
                              , bench "look ahead" $ nf (\x -> runIdentity $ findTFBS def pwm x (0.6 * optimalScore def pwm) $$ CL.consume) dna
                              ]
     ]
