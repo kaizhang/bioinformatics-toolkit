@@ -42,12 +42,14 @@ monoColonalize = do
         case x of
             Nothing -> return ()
             Just current ->
-                if chromStart prev == chromStart current &&
-                   chromEnd prev == chromEnd current &&
-                   chrom prev == chrom current &&
-                   _strand prev == _strand current
-                   then loop prev
-                   else yield current >> loop current
+                case () of
+                   _ | compareBed prev current == GT ->
+                         error "Bio.ChIPSeq.monoColonalize: Input is not sorted"
+                     | chromStart prev == chromStart current &&
+                       chromEnd prev == chromEnd current &&
+                       chrom prev == chrom current &&
+                       _strand prev == _strand current -> loop prev
+                     | otherwise -> yield current >> loop current
 {-# INLINE monoColonalize #-}
 
 -- | calculate RPKM on a set of unique regions. Regions (in bed format) would be kept in
