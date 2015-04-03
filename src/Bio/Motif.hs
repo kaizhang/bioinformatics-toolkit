@@ -26,8 +26,6 @@ module Bio.Motif
     ) where
 
 import Prelude hiding (sum)
-import Bio.Seq
-import Bio.Utils.Misc (readDouble, readInt)
 import Control.Arrow ((&&&))
 import Control.Monad.State.Lazy
 import qualified Data.ByteString.Char8 as B
@@ -37,13 +35,16 @@ import Data.Default.Class
 import Data.List (sortBy, foldl')
 import Data.Maybe (fromJust, isNothing)
 import Data.Ord (comparing)
-import qualified Data.Vector as VV
-import qualified Data.Vector.Mutable as VVM
-import qualified Data.Vector.Unboxed as V
-import qualified Data.Vector.Unboxed.Mutable as VM
+import qualified Data.Vector as V
+import qualified Data.Vector.Mutable as VM
+import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Algorithms.Intro as I
 import Statistics.Matrix hiding (map)
 import Text.Printf (printf)
+
+import Bio.Seq
+import Bio.Utils.Misc (readDouble, readInt)
+import Bio.Utils.Functions (binarySearchBy)
 
 -- | k x 4 position weight matrix for motifs
 data PWM = PWM 
@@ -62,12 +63,12 @@ ic = undefined
 subPWM :: Int -> Int -> PWM -> PWM
 subPWM i l (PWM n (Matrix _ _ _ v)) = PWM n (fromVector l 4 v')
   where
-    v' = V.slice (i * 4) (l * 4) v
+    v' = U.slice (i * 4) (l * 4) v
 {-# INLINE subPWM #-}
 
 -- | reverse complementary of PWM
 rcPWM :: PWM -> PWM
-rcPWM (PWM n (Matrix nrow ncol p v)) = PWM n (Matrix nrow ncol p $ V.reverse v)
+rcPWM (PWM n (Matrix nrow ncol p v)) = PWM n (Matrix nrow ncol p $ U.reverse v)
 {-# INLINE rcPWM #-}
 
 -- | GC content of PWM
@@ -100,7 +101,7 @@ toIUPAC (PWM _ pwm) = fromBS . B.pack . map f $ toRows pwm
         | snd a + snd b > 0.75             = iupac (fst a, fst b)
         | otherwise                        = 'N'
       where 
-        [a, b, _, _] = sortBy (flip (comparing snd)) $ zip "ACGT" $ V.toList v
+        [a, b, _, _] = sortBy (flip (comparing snd)) $ zip "ACGT" $ U.toList v
     iupac x = case sort' x of
         ('A', 'C') -> 'M'
         ('G', 'T') -> 'K'
@@ -140,8 +141,8 @@ score bg p dna = scoreHelp bg p $! toBS dna
 -- | the best possible score for a pwm
 optimalScore :: Bkgd -> PWM -> Double
 optimalScore (BG (a, c, g, t)) (PWM _ pwm) = foldl' (+) 0 . map f . toRows $ pwm
-  where f xs = let (i, s) = V.maximumBy (comparing snd) . 
-                                V.zip (V.fromList ([0..3] :: [Int])) $ xs
+  where f xs = let (i, s) = U.maximumBy (comparing snd) . 
+                                U.zip (U.fromList ([0..3] :: [Int])) $ xs
                in case i of
                    0 -> log $ s / a
                    1 -> log $ s / c
@@ -195,19 +196,6 @@ pBkgd (BG (a, c, g, t)) = B.foldl' f 1
               _ -> undefined
 {-# INLINE pBkgd #-}
 
--- | calculate the minimum motif mathching score that would produce a kmer with
--- p-Value less than the given number. This score would then be used to search
--- for motif occurrences with significant p-Value
-pValueToScore :: Double -> Bkgd -> PWM -> Double
-pValueToScore p bg pwm = go 0 $ n - 1
-  where
-    n = VV.length cdf
-    (cdf, scFn) = scoreCDF bg pwm
-    go !acc !i | i >= 0 = let acc' = acc + cdf VV.! i
-                          in if acc' >= p
-                                then scFn i
-                                else go acc' (i-1)
-               | otherwise = error ""
 
 -- | unlike pValueToScore, this version compute the exact score but much slower
 -- and is inpractical for long motifs
@@ -217,49 +205,92 @@ pValueToScoreExact :: Double -- ^ desirable p-Value
               -> Double
 pValueToScoreExact p bg pwm = go 0 0 . sort' . map ((scoreHelp bg pwm &&& pBkgd bg) . B.pack) . replicateM l $ "ACGT"
   where
-    sort' xs = V.create $ do v <- V.unsafeThaw . V.fromList $ xs
+    sort' xs = U.create $ do v <- U.unsafeThaw . U.fromList $ xs
                              I.sortBy (flip (comparing fst)) v
                              return v
-    go !acc !i vec | acc > p = fst $ vec V.! (i - 1)
-                   | otherwise = go (acc + snd (vec V.! i)) (i+1) vec
+    go !acc !i vec | acc > p = fst $ vec U.! (i - 1)
+                   | otherwise = go (acc + snd (vec U.! i)) (i+1) vec
     l = size pwm
 
--- approximate the cdf of motif matching scores
-scoreCDF :: Bkgd -> PWM -> (VV.Vector Double, Int -> Double)
-scoreCDF (BG (a,c,g,t)) pwm = loop (VV.fromList [1], const 0) 0
+-- | calculate the minimum motif mathching score that would produce a kmer with
+-- p-Value less than the given number. This score would then be used to search
+-- for motif occurrences with significant p-Value
+pValueToScore :: Double -> Bkgd -> PWM -> Double
+pValueToScore p bg pwm = cdf' (scoreCDF bg pwm) $ 1 - p
+
+newtype CDF = CDF (V.Vector (Double, Double))
+
+-- P(X <= x)
+cdf :: CDF -> Double -> Double
+cdf (CDF v) x = let i = binarySearchBy cmp v x
+                in case () of
+                    _ | i >= n -> snd $ V.last v
+                      | i == 0 -> if x == fst (V.head v) then snd (V.head v) else 0.0
+                      | otherwise -> let (a, a') = v V.! (i-1)
+                                         (b, b') = v V.! i
+                                         α = (b - x) / (b - a)
+                                         β = (x - a) / (b - a)
+                                     in α * a' + β * b'
   where
-    loop (old,scFn) i
-        | i < n = let (lo,hi) = go old (1/0,-1/0) 0
-                      nBin' = min 100000 $ ceiling $ (hi - lo) / precision
-                      step = (hi - lo) / fromIntegral nBin'
-                      idx x = let j = truncate $ (x - lo) / step
-                              in if j >= nBin' then nBin' - 1 else j
-                      v = VV.create $ do
-                          new <- VVM.replicate nBin' 0
-                          VV.sequence_ $ flip VV.imap old $ \x p ->
-                              when (p /= 0) $ do
-                                  let idx_a = idx $ sc + log' (unsafeIndex (_mat pwm) i 0) - log a
-                                      idx_c = idx $ sc + log' (unsafeIndex (_mat pwm) i 1) - log c
-                                      idx_g = idx $ sc + log' (unsafeIndex (_mat pwm) i 2) - log g
-                                      idx_t = idx $ sc + log' (unsafeIndex (_mat pwm) i 3) - log t
-                                      sc = scFn x
-                                  new `VVM.read` idx_a >>= VVM.write new idx_a . (a * p + ) 
-                                  new `VVM.read` idx_c >>= VVM.write new idx_c . (c * p + ) 
-                                  new `VVM.read` idx_g >>= VVM.write new idx_g . (g * p + ) 
-                                  new `VVM.read` idx_t >>= VVM.write new idx_t . (t * p + ) 
-                          return new
-                  in loop (v, \x -> (fromIntegral x + 0.5) * step + lo) (i+1)
-        | otherwise = (old,scFn)
+    cmp (a,_) b = compare a b
+    n = V.length v
+
+-- the inverse of cdf
+cdf' :: CDF -> Double -> Double
+cdf' (CDF v) p
+    | p > 1 || p < 0 = error "p must be in [0,1]"
+    | otherwise = let i = binarySearchBy cmp v p
+                  in case () of
+                      _ | i >= n -> 1/0
+                        | i == 0 -> if p == snd (V.head v) then fst (V.head v) else undefined
+                        | otherwise -> let (a, a') = v V.! (i-1)
+                                           (b, b') = v V.! i
+                                           α = (b' - p) / (b' - a')
+                                           β = (p - a') / (b' - a')
+                                       in α * a + β * b
+  where
+    cmp (_,a) b = compare a b
+    n = V.length v
+
+-- approximate the cdf of motif matching scores
+scoreCDF :: Bkgd -> PWM -> CDF
+scoreCDF (BG (a,c,g,t)) pwm = toCDF $ loop (V.singleton 1, const 0) 0
+  where
+    loop (prev,scFn) i
+        | i < n =
+            let (lo,hi) = minMax (1/0,-1/0) 0
+                nBin' = min 100000 $ ceiling $ (hi - lo) / precision
+                step = (hi - lo) / fromIntegral nBin'
+                idx x = let j = truncate $ (x - lo) / step
+                        in if j >= nBin' then nBin' - 1 else j
+                v = V.create $ do
+                    new <- VM.replicate nBin' 0
+                    V.sequence_ $ flip V.imap prev $ \x p ->
+                        when (p /= 0) $ do
+                            let idx_a = idx $ sc + log' (unsafeIndex (_mat pwm) i 0) - log a
+                                idx_c = idx $ sc + log' (unsafeIndex (_mat pwm) i 1) - log c
+                                idx_g = idx $ sc + log' (unsafeIndex (_mat pwm) i 2) - log g
+                                idx_t = idx $ sc + log' (unsafeIndex (_mat pwm) i 3) - log t
+                                sc = scFn x
+                            new `VM.read` idx_a >>= VM.write new idx_a . (a * p + ) 
+                            new `VM.read` idx_c >>= VM.write new idx_c . (c * p + ) 
+                            new `VM.read` idx_g >>= VM.write new idx_g . (g * p + ) 
+                            new `VM.read` idx_t >>= VM.write new idx_t . (t * p + ) 
+                    return new
+            in loop (v, \x -> (fromIntegral x + 0.5) * step + lo) (i+1)
+        | otherwise = (prev, scFn)
       where
-        nBin = VV.length old
-        go v (l,h) x | x >= nBin = (l,h)
-                     | old VV.! x /= 0 = let sc = scFn x
-                                             s1 = sc + log' (unsafeIndex (_mat pwm) i 0) - log a
-                                             s2 = sc + log' (unsafeIndex (_mat pwm) i 1) - log c
-                                             s3 = sc + log' (unsafeIndex (_mat pwm) i 2) - log g
-                                             s4 = sc + log' (unsafeIndex (_mat pwm) i 3) - log t
-                                         in go v (foldr min l [s1,s2,s3,s4],foldr max h [s1,s2,s3,s4]) (x+1)
-                     | otherwise = go v (l,h) (x+1)
+        minMax (l,h) x
+            | x >= V.length prev = (l,h)
+            | prev V.! x /= 0 =
+                let sc = scFn x
+                    s1 = sc + log' (unsafeIndex (_mat pwm) i 0) - log a
+                    s2 = sc + log' (unsafeIndex (_mat pwm) i 1) - log c
+                    s3 = sc + log' (unsafeIndex (_mat pwm) i 2) - log g
+                    s4 = sc + log' (unsafeIndex (_mat pwm) i 3) - log t
+                 in minMax (foldr min l [s1,s2,s3,s4],foldr max h [s1,s2,s3,s4]) (x+1)
+            | otherwise = minMax (l,h) (x+1)
+    toCDF (v, scFn) = CDF $ V.imap (\i x -> (scFn i, x)) $ V.scanl1 (+) v
     precision = 0.002
     n = size pwm
     log' x | x == 0 = log 0.001

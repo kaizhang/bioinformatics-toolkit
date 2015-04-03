@@ -120,7 +120,7 @@ jsd xs ys = 0.5 * kld xs zs + 0.5 * kld ys zs
 {-# SPECIALIZE jsd :: U.Vector Double -> U.Vector Double -> Double #-}
 {-# SPECIALIZE jsd :: V.Vector Double -> V.Vector Double -> Double #-}
 
--- | O(log n). return the position of the first element that is greater than query
+-- | O(log n). return the position of the first element that is >= query
 binarySearch :: (G.Vector v e, Ord e)
              => v e -> e -> Int
 binarySearch vec e = binarySearchByBounds compare vec e 0 $ G.length vec - 1
@@ -139,7 +139,7 @@ binarySearchByBounds cmp vec e = loop
         | u < l = l
         | otherwise = case cmp (vec G.! k) e of
                         LT -> loop (k+1) u
-                        EQ -> k
+                        EQ -> loop l (k-1)
                         GT -> loop l (k-1)
       where k = u + l `shiftR` 1
 {-# INLINE binarySearchByBounds #-}

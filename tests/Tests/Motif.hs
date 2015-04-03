@@ -2,10 +2,6 @@
 
 module Tests.Motif (tests) where
 
-import Bio.Seq
-import Bio.Motif
-import Bio.Motif.Search
-import Bio.Data.Fasta
 import Test.Tasty
 import Test.Tasty.HUnit
 import System.Random
@@ -13,6 +9,11 @@ import Data.Default.Class
 import qualified Data.Conduit.List as CL
 import qualified Data.ByteString.Char8 as B
 import Data.Conduit
+
+import Bio.Seq
+import Bio.Motif
+import Bio.Motif.Search
+import Bio.Data.Fasta
 
 dna :: DNA Basic
 dna = fromBS $ B.pack $ map f $ take 5000 $ randomRs (0, 3) (mkStdGen 2)
@@ -31,7 +32,8 @@ motifs = readFasta' "tests/data/motifs.fasta"
 tests :: TestTree
 tests = testGroup "Test: Bio.Motif"
     [ --testCase "IUPAC converting" toIUPACTest
-     testCase "TFBS scanning" findTFBSTest
+      testCase "TFBS scanning" findTFBSTest
+    , testCase "pValue calculation" pValueTest
     ]
 
 
@@ -50,3 +52,10 @@ findTFBSTest = do
     expect <- findTFBS def pwm dna (0.6 * optimalScore def pwm) $$ CL.consume
     actual <- findTFBSSlow def pwm dna (0.6 * optimalScore def pwm) $$ CL.consume
     assertEqual "findTFBS" expect actual
+
+pValueTest :: Assertion
+pValueTest = do
+    ms <- motifs
+    let expect = map (pValueToScoreExact 1e-4 def . _pwm) ms
+        actual = map (pValueToScore 1e-4 def . _pwm) ms
+    assertEqual "pValueToScore" expect actual
