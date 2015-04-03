@@ -102,18 +102,26 @@ class BEDLike b where
     readBed' fl = readBed fl $$ CL.consume
     {-# INLINE readBed' #-}
 
+    hWriteBed :: Handle -> Sink b IO ()
+    hWriteBed handle = do
+        x <- await
+        case x of
+            Nothing -> return ()
+            Just bed -> (lift . B.hPutStrLn handle . toLine) bed >> hWriteBed handle
+    {-# INLINE hWriteBed #-}
+
+    hWriteBed' :: Handle -> [b] -> IO ()
+    hWriteBed' handle = mapM_ (B.hPutStrLn handle . toLine)
+    {-# INLINE hWriteBed' #-}
+
     writeBed :: FilePath -> Sink b IO ()
     writeBed fl = do handle <- lift $ openFile fl WriteMode
-                     go handle
-      where
-        go h = do x <- await
-                  case x of
-                      Nothing -> lift $ hClose h
-                      Just bed -> (lift . B.hPutStrLn h . toLine) bed >> go h
+                     hWriteBed handle
+                     lift $ hClose handle
     {-# INLINE writeBed #-}
 
     writeBed' :: FilePath -> [b] -> IO ()
-    writeBed' fl beds = withFile fl WriteMode $ \h -> mapM_ (B.hPutStrLn h.toLine) beds
+    writeBed' fl beds = withFile fl WriteMode $ \h -> hWriteBed' h beds
     {-# INLINE writeBed' #-}
 
     {-# MINIMAL asBed, fromLine, toLine, chrom, chromStart, chromEnd #-}
