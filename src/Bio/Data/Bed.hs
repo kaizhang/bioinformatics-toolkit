@@ -25,7 +25,9 @@ module Bio.Data.Bed
     , intersectBed
     , intersectSortedBed
     , mergeBed
+    , mergeBedWith
     , mergeSortedBed
+    , mergeSortedBedWith
     -- * BED6 format
     , BED(..)
     -- * BED3 format
@@ -197,6 +199,7 @@ sortBed beds = Sorted $ V.create $ do
     return v
 {-# INLINE sortBed #-}
 
+-- | return records in A that are overlapped with records in B
 intersectBed :: (BEDLike b1, BEDLike b2) => [b1] -> [b2] -> [b1]
 intersectBed a b = intersectSortedBed a b'
   where
@@ -218,21 +221,38 @@ mergeBed :: (BEDLike b, Monad m) => [b] -> Source m b
 mergeBed = mergeSortedBed . sortBed
 {-# INLINE mergeBed #-}
 
+mergeBedWith :: (BEDLike b, Monad m)
+              => ([b] -> b) -> [b] -> Source m b
+mergeBedWith f = mergeSortedBedWith f . sortBed
+{-# INLINE mergeBedWith #-}
+
 mergeSortedBed :: (BEDLike b, Monad m) => Sorted (V.Vector b) -> Source m b
-mergeSortedBed (Sorted beds) = V.fold1M'_ f beds
+mergeSortedBed = mergeSortedBedWith f
   where
-    f c bed = do let chr = chrom c
-                     s = chromStart c
-                     e = chromEnd c
-                     chr' = chrom bed
-                     s' = chromStart bed
-                     e' = chromEnd bed
-                 case () of
-                    _ | chr /= chr' || s' > e -> yield c >> return bed
-                      | e' <= e -> return c
-                      | otherwise -> return $ asBed chr s e'
+    f xs = asBed (chrom $ head xs) lo hi
+      where
+        lo = minimum . map chromStart $ xs
+        hi = maximum . map chromEnd $ xs
 {-# INLINE mergeSortedBed #-}
 
+mergeSortedBedWith :: (BEDLike b, Monad m)
+                   => ([b] -> b) -> Sorted (V.Vector b) -> Source m b
+mergeSortedBedWith mergeFn (Sorted beds) = do
+    (_, r) <- V.foldM' f acc0 . V.tail $ beds
+    yield $ mergeFn r
+  where
+    x0 = V.head beds
+    acc0 = ((chrom x0, chromStart x0, chromEnd x0), [x0])
+    f ((chr,lo,hi), acc) bed
+        | chr /= chr' || s' >= hi = yield (mergeFn acc) >>
+                                    return ((chr',s',e'), [bed])
+        | e' > hi = return ((chr',lo,e'), bed:acc)
+        | otherwise = return ((chr,lo,hi), bed:acc)
+      where
+        chr' = chrom bed
+        s' = chromStart bed
+        e' = chromEnd bed
+{-# INLINE mergeSortedBedWith #-}
 
 -- * BED6 format
 
