@@ -23,7 +23,9 @@ module Bio.Data.Bed
     , Sorted(..)
     , sortBed
     , intersectBed
+    , intersectBedWith
     , intersectSortedBed
+    , intersectSortedBedWith
     , mergeBed
     , mergeBedWith
     , mergeSortedBed
@@ -217,6 +219,27 @@ intersectSortedBed a (Sorted b) = filter (not . null . f) a
     tree = sortedBedToTree (\_ _ -> False) . Sorted . zip (V.toList b) . repeat $ False
 {-# INLINE intersectSortedBed #-}
 
+intersectBedWith :: (BEDLike b1, BEDLike b2)
+                 => ([b2] -> a)
+                 -> [b1]
+                 -> [b2]
+                 -> [(b1, a)]
+intersectBedWith fn a = intersectSortedBedWith fn a . sortBed
+{-# INLINE intersectBedWith #-}
+
+intersectSortedBedWith :: (BEDLike b1, BEDLike b2)
+                       => ([b2] -> a)
+                       -> [b1]
+                       -> Sorted (V.Vector b2)
+                       -> [(b1, a)]
+intersectSortedBedWith fn a (Sorted b) = map f a
+  where
+    f bed = let chr = chrom bed
+                interval = IM.IntervalCO (chromStart bed) $ chromEnd bed
+            in (bed, fn $ map snd $ IM.intersecting (M.lookupDefault IM.empty chr tree) interval)
+    tree = sortedBedToTree const . Sorted . V.toList . V.zip b $ b
+{-# INLINE intersectSortedBedWith #-}
+
 mergeBed :: (BEDLike b, Monad m) => [b] -> Source m b
 mergeBed = mergeSortedBed . sortBed
 {-# INLINE mergeBed #-}
@@ -244,8 +267,8 @@ mergeSortedBedWith mergeFn (Sorted beds) = do
     x0 = V.head beds
     acc0 = ((chrom x0, chromStart x0, chromEnd x0), [x0])
     f ((chr,lo,hi), acc) bed
-        | chr /= chr' || s' >= hi = yield (mergeFn acc) >>
-                                    return ((chr',s',e'), [bed])
+        | chr /= chr' || s' > hi = yield (mergeFn acc) >>
+                                   return ((chr',s',e'), [bed])
         | e' > hi = return ((chr',lo,e'), bed:acc)
         | otherwise = return ((chr,lo,hi), bed:acc)
       where
