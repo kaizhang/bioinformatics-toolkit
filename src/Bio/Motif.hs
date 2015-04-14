@@ -14,6 +14,10 @@ module Bio.Motif
     , scores'
     , score
     , optimalScore
+    , CDF
+    , cdf
+    , cdf'
+    , scoreCDF
     , pValueToScore
     , pValueToScoreExact
     , toIUPAC
@@ -232,8 +236,9 @@ cdf (CDF v) x = let i = binarySearchBy cmp v x
                                          β = (x - a) / (b - a)
                                      in α * a' + β * b'
   where
-    cmp (a,_) b = compare a b
+    cmp (a,_) = compare a
     n = V.length v
+{-# INLINE cdf #-}
 
 -- the inverse of cdf
 cdf' :: CDF -> Double -> Double
@@ -249,8 +254,9 @@ cdf' (CDF v) p
                                            β = (p - a') / (b' - a')
                                        in α * a + β * b
   where
-    cmp (_,a) b = compare a b
+    cmp (_,a) = compare a
     n = V.length v
+{-# INLINE cdf' #-}
 
 -- approximate the cdf of motif matching scores
 scoreCDF :: Bkgd -> PWM -> CDF
