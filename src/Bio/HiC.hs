@@ -1,5 +1,7 @@
 module Bio.HiC
-    ( mkContactMap
+    ( ContactMap(..)
+    , fromAL
+    , mkContactMap
     , mkContactMap'
     ) where
 
@@ -11,20 +13,44 @@ import Control.Monad.Trans (lift)
 import qualified Data.ByteString.Char8 as B
 import Data.Conduit
 import qualified Data.Conduit.List as CL
+import Data.List (foldl')
 import Data.Maybe (fromJust)
-import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable as GM
 import qualified Data.Vector.Unboxed as U
+import qualified Data.Matrix.Symmetric as MS
+import qualified Data.Matrix.Symmetric.Mutable as MSM
 
 import Bio.Data.Bam
 import Bio.Data.Bed
+
+type Matrix a = MS.SymMatrix U.Vector a
 
 -- | a specific base in the genome
 type Site = (B.ByteString, Int)
 
 -- | two sites interacting with each other form a contact
 type Contact = (Site, Site)
+
+data ContactMap = ContactMap
+    { _chroms :: [(B.ByteString, Int)]
+    , _resolution :: !Int
+    , _matrix :: !(Matrix Double)
+    }
+
+-- | Read HiC contact map from associate list
+fromAL :: PrimMonad m
+       => [(B.ByteString,Int)]
+       -> Int
+       -> Sink ((Int, Int), Double) m ContactMap
+fromAL chrs res = do
+    mat <- lift $ MSM.replicate (matSize,matSize) 0
+    CL.mapM_ $ \((i,j), v) -> MSM.write mat (i `div` res, j `div` res) v
+    mat' <- lift $ MS.unsafeFreeze mat
+    return $ ContactMap chrs res mat'
+  where
+    matSize = foldl' (+) 0 $ map (\(_,x) -> (x-1) `div` res + 1) chrs
+{-# INLINE fromAL #-}
 
 {-
 mkContactMap' :: FilePath -> [BED3] -> Int -> Int -> Source IO ..

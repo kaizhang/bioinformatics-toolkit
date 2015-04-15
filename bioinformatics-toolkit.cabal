@@ -30,6 +30,7 @@ library
     Bio.GO.Parser
     Bio.GO.GREAT
     Bio.HiC
+    Bio.HiC.Visualize
     Bio.Motif
     Bio.Motif.Alignment
     Bio.Motif.Search
@@ -52,6 +53,7 @@ library
     , bbi
     , bytestring >=0.10
     , bytestring-lexing >=0.4
+    , colour
     , conduit
     , containers >=0.5
     , data-default-class
@@ -59,9 +61,12 @@ library
     , clustering
     , http-conduit
     , hexpat
+    , JuicyPixels
+    , matrices >=0.4.0
     , mtl ==2.1.3.1
     , parallel >=3.2
     , primitive
+    , palette
     , samtools
     , split
     , statistics >=0.13.2.1
