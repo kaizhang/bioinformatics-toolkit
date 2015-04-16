@@ -3,6 +3,12 @@ module Bio.HiC
     , fromAL
     , mkContactMap
     , mkContactMap'
+
+    -- * contact matrix normalization
+    , vcNorm
+    , vcNormVector
+    , sqrtNorm
+    , sqrtNormVector
     ) where
 
 import Bio.SamTools.Bam
@@ -15,6 +21,7 @@ import Data.Conduit
 import qualified Data.Conduit.List as CL
 import Data.List (foldl')
 import Data.Maybe (fromJust)
+import Data.Bits (shiftR)
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable as GM
 import qualified Data.Vector.Unboxed as U
@@ -40,7 +47,7 @@ data ContactMap = ContactMap
 
 -- | Read HiC contact map from associate list
 fromAL :: PrimMonad m
-       => [(B.ByteString,Int)]
+       => [(B.ByteString, Int)]
        -> Int
        -> Sink ((Int, Int), Double) m ContactMap
 fromAL chrs res = do
@@ -148,3 +155,44 @@ readCount handle w ((c1, p1), (c2, p2)) = viewBam handle (c1, p1-w, p1+w) $$ CL.
     isOverlapped (lo,hi) (lo',hi') = lo' < hi && hi' > lo
     r2 = (p2-w, p2+w)
 {-# INLINE readCount #-}
+
+-- | Vanilla coverage normalization (Lieberman-Aiden et al., 2009)
+vcNorm :: ContactMap -> ContactMap
+vcNorm c = normalizeBy (vcNormVector c) c 
+
+sqrtNorm :: ContactMap -> ContactMap
+sqrtNorm c = normalizeBy (sqrtNormVector c) c 
+
+normalizeBy :: U.Vector Double -> ContactMap -> ContactMap
+normalizeBy normVec c = c{_matrix = MS.SymMatrix n vec'}
+  where
+    (MS.SymMatrix n vec) = _matrix c
+    vec' = U.create $ do
+        v <- U.thaw vec
+        loop 0 0 v
+        return v
+    loop i j v | i < n && j < n = do let i' = idx n i j
+                                         x = (normVec U.! i) * (normVec U.! j)
+                                         x' | x == 0 = 0
+                                            | otherwise = 1 / x
+                                     GM.read v i' >>= GM.write v i' . (*x')
+                                     loop i (j+1) v
+               | i < n = loop (i+1) (i+1) v
+               | otherwise = return ()
+{-# INLINE normalizeBy #-}
+
+vcNormVector :: ContactMap -> U.Vector Double
+vcNormVector c = U.generate n $ \i -> (U.foldl1' (+) $ mat `MS.takeRow` i) / 1e6
+  where
+    mat = _matrix c
+    n = fst $ MS.dim mat
+{-# INLINE vcNormVector #-}
+
+sqrtNormVector :: ContactMap -> U.Vector Double
+sqrtNormVector = U.map sqrt . vcNormVector
+{-# INLINE sqrtNormVector #-}
+
+-- row major upper triangular indexing
+idx :: Int -> Int -> Int -> Int
+idx n i j = (i * (2 * n - i - 1)) `shiftR` 1 + j
+{-# INLINE idx #-}
