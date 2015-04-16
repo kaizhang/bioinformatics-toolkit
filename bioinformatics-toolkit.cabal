@@ -14,6 +14,8 @@ category:            Bio
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
+data-files:
+    data/*.fasta
 
 library
   hs-source-dirs:   src
@@ -110,6 +112,7 @@ benchmark bench
     , bioinformatics-toolkit
     , random
     , criterion
+    , clustering
     , bytestring
     , data-default-class
     , conduit

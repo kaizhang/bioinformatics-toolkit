@@ -3,13 +3,18 @@
 import Criterion.Main
 import System.Random
 import qualified Data.ByteString.Char8 as B
-import Bio.Motif
-import Bio.Motif.Search
-import Bio.Seq
 import Data.Default.Class
 import qualified Data.Conduit.List as CL
 import Data.Conduit
 import Control.Monad.Identity
+import System.IO.Unsafe
+import AI.Clustering.Hierarchical
+
+import Bio.Data.Fasta
+import Bio.Motif
+import Bio.Motif.Search
+import Bio.Motif.Alignment
+import Bio.Seq
 
 dna :: DNA Basic
 dna = fromBS $ B.pack $ map f $ take 5000 $ randomRs (0, 3) (mkStdGen 2)
@@ -35,10 +40,14 @@ pwm = toPWM [ "0.3 0.3 0.3 0.1"
             , "0 0 0 1"
             ]
 
+motifs :: [Motif]
+motifs = unsafePerformIO $ readFasta' "data/motifs.fasta"
+
 main :: IO ()
 main = defaultMain 
     [ bench "motif score" $ nf (scores def pwm) dna 
     , bgroup "TFBS scanning" [ bench "Naive" $ nf (\x -> runIdentity $ findTFBSSlow def pwm x (0.6 * optimalScore def pwm) $$ CL.consume) dna
                              , bench "look ahead" $ nf (\x -> runIdentity $ findTFBS def pwm x (0.6 * optimalScore def pwm) $$ CL.consume) dna
                              ]
+    , bench "motif merge" $ nf (\x -> fmap show $ flatten $ buildTree x) motifs
     ]
