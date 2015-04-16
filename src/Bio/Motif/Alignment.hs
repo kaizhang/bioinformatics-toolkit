@@ -1,5 +1,6 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Bio.Motif.Alignment
     ( alignment
@@ -9,13 +10,14 @@ module Bio.Motif.Alignment
     , progressiveMerging
     ) where
 
-import Bio.Motif
-import Bio.Utils.Functions
 import AI.Clustering.Hierarchical
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
 import Statistics.Matrix hiding (map)
+
+import Bio.Motif
+import Bio.Utils.Functions
 
 -- | penalty function takes the gaps number as input, return penalty value
 type PenalFn = Int -> Double
@@ -43,16 +45,33 @@ expPenal n = fromIntegral (2^n :: Int) * 0.01
 
 -- internal gaps are not allowed, larger score means larger distance, so the smaller the better
 alignmentBy :: DistanceFn -> PenalFn -> PWM -> PWM -> (Double, (PWM, PWM, Int))
-alignmentBy fn pFn m1 m2 | fst forwardAlign <= fst reverseAlign = (fst forwardAlign, (m1, m2, snd forwardAlign))
-                         | otherwise = (fst reverseAlign, (m1, m2', snd reverseAlign))
+alignmentBy fn pFn m1 m2
+    | fst forwardAlign <= fst reverseAlign = (fst forwardAlign, (m1, m2, snd forwardAlign))
+    | otherwise = (fst reverseAlign, (m1, m2', snd reverseAlign))
   where
-    forwardAlign = minimum $ zip (map (f s2 . flip drop s1) [0 .. n1-1]) [0 .. n1-1]
-                          ++ zip (map (f s1 . flip drop s2) [1 .. n2-1]) [-1, -2 .. -n2+1]
-    reverseAlign = minimum $ zip (map (f s2' . flip drop s1) [0 .. n1-1]) [0 .. n1-1]
-                          ++ zip (map (f s1 . flip drop s2') [1 .. n2-1]) [-1, -2 .. -n2+1]
-    f a b = let xs = U.fromList $ zipWith fn a b
-                nGaps = n1 + n2 - 2 * U.length xs
-            in (G.sum xs + pFn nGaps) / fromIntegral (U.length xs + nGaps)
+    forwardAlign | d1 < d2 = (d1,i1)
+                 | otherwise = (d2,-i2)
+      where
+        (d1,i1) = loop (1/0,-1) s2 s1 0
+        (d2,i2) = loop (1/0,-1) s1 s2 0
+    reverseAlign | d1 < d2 = (d1,i1)
+                 | otherwise = (d2,-i2)
+      where
+        (d1,i1) = loop (1/0,-1) s2' s1 0
+        (d2,i2) = loop (1/0,-1) s1 s2' 0
+
+    loop (min',i') a b@(_:xs) !i
+        | currentBest >= min' = (min',i')
+        | d < min' = loop (d,i) a xs (i+1)
+        | otherwise = loop (min',i') a xs (i+1)
+      where
+        d = (G.sum sc + gapP) / fromIntegral (U.length sc + nGaps)
+        currentBest = gapP / fromIntegral (n1 + n2)
+        sc = U.fromList $ zipWith fn a b
+        nGaps = n1 + n2 - 2 * U.length sc
+        gapP = pFn nGaps
+    loop (min',i') _ _ _ = (min',i')
+
     s1 = toRows . _mat $ m1
     s2 = toRows . _mat $ m2
     s2' = toRows . _mat $ m2'
