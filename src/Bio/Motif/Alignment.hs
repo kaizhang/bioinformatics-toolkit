@@ -52,25 +52,37 @@ alignmentBy fn pFn m1 m2
     forwardAlign | d1 < d2 = (d1,i1)
                  | otherwise = (d2,-i2)
       where
-        (d1,i1) = loop (1/0,-1) s2 s1 0
-        (d2,i2) = loop (1/0,-1) s1 s2 0
+        (d1,i1) = loop opti2 (1/0,-1) s2 s1 0
+        (d2,i2) = loop opti1 (1/0,-1) s1 s2 0
     reverseAlign | d1 < d2 = (d1,i1)
                  | otherwise = (d2,-i2)
       where
-        (d1,i1) = loop (1/0,-1) s2' s1 0
-        (d2,i2) = loop (1/0,-1) s1 s2' 0
+        (d1,i1) = loop opti2 (1/0,-1) s2' s1 0
+        (d2,i2) = loop opti1 (1/0,-1) s1 s2' 0
 
-    loop (min',i') a b@(_:xs) !i
+    loop opti (min',i') a b@(_:xs) !i
         | currentBest >= min' = (min',i')
-        | d < min' = loop (d,i) a xs (i+1)
-        | otherwise = loop (min',i') a xs (i+1)
+        | d < min' = loop opti (d,i) a xs (i+1)
+        | otherwise = loop opti (min',i') a xs (i+1)
       where
         d = (G.sum sc + gapP) / fromIntegral (U.length sc + nGaps)
-        currentBest = gapP / fromIntegral (n1 + n2)
+        currentBest = opti U.! i
         sc = U.fromList $ zipWith fn a b
         nGaps = n1 + n2 - 2 * U.length sc
         gapP = pFn nGaps
-    loop (min',i') _ _ _ = (min',i')
+    loop _ (min',i') _ _ _ = (min',i')
+
+    opti1 = optimalSc n1 n2
+    opti2 = optimalSc n2 n1
+
+    optimalSc x y = U.fromList $ scanr1 f $ go 0
+      where
+        f v min' = min v min'
+        go i | a == 0 = []
+             | otherwise = pFn b / fromIntegral (a + b) : go (i+1)
+          where
+            a = min x (y-i)
+            b = i + abs (x - (y-i))
 
     s1 = toRows . _mat $ m1
     s2 = toRows . _mat $ m2
