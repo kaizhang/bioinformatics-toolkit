@@ -14,23 +14,38 @@
 --------------------------------------------------------------------------------
 
 module Bio.RealWorld.ENCODE
-    ( search
-    , showResult
-    , (|@)
-    , (|!)
-    , as
-    , (&)
+    ( KeyWords(..)
+    , search
+
+    -- * common search
     , terms
     , cellIs
     , organismIs
     , assayIs
+
+    -- * specific search
+    , getFile
+    , queryById
+    , openUrl
+    , jsonFromUrl
+
+    -- * Inspection
+    , (|@)
+    , (|!)
+    , as
+    , (&)
+
+    -- * printing
+    , showResult
     ) where
 
+import Control.Applicative ((<$>))
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Aeson.Encode.Pretty (encodePretty)
 import qualified Data.HashMap.Lazy as M
 import qualified Data.ByteString.Lazy.Char8 as B
+import qualified Data.ByteString.Char8 as BS
 import qualified Data.Sequence as S
 import qualified Data.Foldable as F
 import qualified Data.Text as T
@@ -38,6 +53,8 @@ import qualified Data.Vector as V
 import Network.HTTP.Conduit
 import Data.Default.Class
 import Data.Monoid
+
+import Bio.RealWorld.ID
 
 data KeyWords = KeyWords (S.Seq String)  -- ^ terms
                          (S.Seq String)  -- ^ constraints
@@ -70,14 +87,12 @@ search kw = do
                           }
     r <- withManager $ \manager -> httpLbs request manager
     return $ (eitherDecode . responseBody) r >>=
-                parseEither (\x -> withObject "ENCODE_JSON" (.: "@graph") x)
+                parseEither (withObject "ENCODE_JSON" (.: "@graph"))
   where
     url = base ++ "search/?" ++ show kw
 
 showResult :: Value -> IO ()
 showResult = B.putStrLn . encodePretty
-
--- * common search
 
 terms :: [String] -> KeyWords
 terms xs = KeyWords (S.fromList xs) S.empty
@@ -93,21 +108,26 @@ organismIs x = KeyWords S.empty $
 cellIs :: String -> KeyWords
 cellIs x = KeyWords S.empty $ S.fromList ["biosample_term_name=" ++ x]
 
--- * special search
+-- | accession
+queryById :: EncodeAcc -> IO (Either String Value)
+queryById acc = jsonFromUrl $ "experiments/" ++ BS.unpack (fromID acc)
+
+getFile :: FilePath -> String -> IO ()
+getFile out url = openUrl (base ++ url) "application/octet-stream" >>=
+                  B.writeFile out
 
 openUrl :: String -> String -> IO B.ByteString
 openUrl url datatype = do
     initReq <- parseUrl url
     let request = initReq { method = "GET" 
-                          , requestHeaders = [("accept", "application/json")]
+                          , requestHeaders = [("accept", BS.pack datatype)]
                           }
     r <- withManager $ \manager -> httpLbs request manager
     return $ responseBody r
 
 jsonFromUrl :: String -> IO (Either String Value)
-jsonFromUrl url = fmap eitherDecode $ openUrl (base ++ url) "application/json"
+jsonFromUrl url = eitherDecode <$> openUrl (base ++ url) "application/json"
 
--- * Inspection
 
 (|@) :: Value -> T.Text -> Value
 (|@) (Object obj) key = M.lookupDefault (error "cannot find key") key obj
@@ -129,6 +149,3 @@ as = getResult . fromJSON
     getResult (Error e) = error e 
     getResult (Success x) = x
 {-# INLINE as #-}
-
-test = do Right x <- search $ def <> assayIs "ChIP-seq" <> organismIs "Homo sapiens" <> cellIs "H1-hESC"
-          showResult $ x !! 2

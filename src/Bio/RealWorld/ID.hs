@@ -3,10 +3,18 @@ module Bio.RealWorld.ID where
 import qualified Data.ByteString.Char8 as B
 
 class BioID a where
-    idToBS :: a -> B.ByteString
+    fromID :: a -> B.ByteString
+    toID :: B.ByteString -> a
 
 newtype UniprotID = UniprotID B.ByteString deriving (Show)
 
 newtype UCSCID = UCSCID B.ByteString deriving (Show)
 
 newtype GOID = GOID B.ByteString deriving (Show)
+
+-- | ENCODE Accession
+newtype EncodeAcc = EncodeAcc B.ByteString deriving (Show)
+
+instance BioID EncodeAcc where
+    fromID (EncodeAcc x) = x
+    toID = EncodeAcc
