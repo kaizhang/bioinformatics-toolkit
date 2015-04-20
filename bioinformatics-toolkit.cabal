@@ -53,6 +53,7 @@ library
     , aeson
     , aeson-pretty
     , bbi
+    , binary
     , bytestring >=0.10
     , bytestring-lexing >=0.4
     , colour

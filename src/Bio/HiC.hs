@@ -13,10 +13,11 @@ module Bio.HiC
 
 import Bio.SamTools.Bam
 import qualified Bio.SamTools.BamIndex as BI
-import Control.Monad (forM_, when, liftM)
+import Control.Monad (forM_, when, liftM, replicateM)
 import Control.Monad.Primitive
 import Control.Monad.Trans (lift)
 import qualified Data.ByteString.Char8 as B
+import Data.Binary (Binary(..))
 import Data.Conduit
 import qualified Data.Conduit.List as CL
 import Data.List (foldl')
@@ -44,6 +45,22 @@ data ContactMap = ContactMap
     , _resolution :: !Int
     , _matrix :: !(Matrix Double)
     }
+
+instance Binary ContactMap where
+    put (ContactMap chroms res mat) = do
+        put n
+        mapM_ put chroms
+        put res
+        put mat
+      where
+        n = length chroms
+    
+    get = do
+        n <- get
+        chroms <- replicateM n get
+        res <- get
+        mat <- get
+        return $ ContactMap chroms res mat
 
 -- | Read HiC contact map from associate list
 fromAL :: PrimMonad m
