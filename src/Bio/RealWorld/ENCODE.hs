@@ -130,7 +130,9 @@ jsonFromUrl url = eitherDecode <$> openUrl (base ++ url) "application/json"
 
 
 (|@) :: Value -> T.Text -> Value
-(|@) (Object obj) key = M.lookupDefault (error "cannot find key") key obj
+(|@) (Object obj) key = M.lookupDefault (error errMsg) key obj
+  where
+    errMsg = "No such key: " ++ T.unpack key ++ " In: " ++ show obj
 (|@) _ _ = error "not an object"
 {-# INLINE (|@) #-}
 

@@ -3,6 +3,7 @@ module Bio.Utils.Misc (
     , readDouble
     , bins
     , binBySize
+    , binBySizeLeft
 ) where
 
 import qualified Data.ByteString.Char8 as B
@@ -39,6 +40,12 @@ binBySize :: Int -> (Int, Int) -> [(Int, Int)]
 binBySize step (start, end) = let xs = [start, start + step .. end]
                               in zip xs . tail $ xs
 {-# INLINE binBySize #-}
+
+-- | Including leftovers, the last bin may not have desired size.
+binBySizeLeft :: Int -> (Int, Int) -> [(Int, Int)]
+binBySizeLeft step (start, end) = let xs = [start, start + step .. end-1] ++ [end]
+                                  in zip xs . tail $ xs
+{-# INLINE binBySizeLeft #-}
 
 -- | divide a given region into k equal size sub-regions, discarding leftovers
 bins :: Int -> (Int, Int) -> [(Int, Int)]

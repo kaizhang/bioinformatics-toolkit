@@ -20,6 +20,7 @@ module Bio.Data.Bed
     , sortedBedToTree
     , splitBed
     , splitBedBySize
+    , splitBedBySizeLeft
     , Sorted(..)
     , sortBed
     , intersectBed
@@ -39,15 +40,12 @@ module Bio.Data.Bed
     , compareBed
     ) where
 
-import Bio.Seq
-import Bio.Seq.IO
-import Bio.Utils.Misc
 import Control.Arrow ((***))
 import Control.Monad.State.Strict
 import qualified Data.ByteString.Char8 as B
 import Data.Conduit
 import qualified Data.Conduit.List as CL
-import Data.Default.Class
+import Data.Default.Class (Default(..))
 import Data.Function (on)
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as M
@@ -57,6 +55,10 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Intro as I
 import System.IO
+
+import Bio.Seq
+import Bio.Seq.IO
+import Bio.Utils.Misc (binBySizeLeft, binBySize, bins, readInt, readDouble)
 
 -- | a class representing BED-like data, e.g., BED3, BED6 and BED12. BED format
 -- uses 0-based index (see documentation).
@@ -182,6 +184,15 @@ splitBedBySize k bed = map (uncurry (asBed chr)) . binBySize k $ (s, e)
     s = chromStart bed
     e = chromEnd bed
 {-# INLINE splitBedBySize #-}
+
+-- | split a bed region into consecutive fixed size subregions, including leftovers
+splitBedBySizeLeft :: BEDLike b => Int -> b -> [b]
+splitBedBySizeLeft k bed = map (uncurry (asBed chr)) . binBySizeLeft k $ (s, e)
+  where
+    chr = chrom bed
+    s = chromStart bed
+    e = chromEnd bed
+{-# INLINE splitBedBySizeLeft #-}
 
 -- | a type to imply that underlying data structure is sorted
 newtype Sorted b = Sorted {fromSorted :: b}
