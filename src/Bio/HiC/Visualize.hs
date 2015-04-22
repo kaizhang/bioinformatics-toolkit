@@ -11,7 +11,6 @@ import Codec.Picture
 import Data.Colour
 import Data.Colour.Names
 import Data.Colour.SRGB
-import Data.Colour.Palette.BrewerSet
 import Data.Default.Class (Default(..))
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
@@ -20,14 +19,14 @@ import Bio.HiC
 
 data DrawHiCOpt = DrawHiCOpt 
     { _range :: !(Maybe (Double, Double))
-    , _colours :: !(V.Vector (Colour Double))
+    , _palette :: !(V.Vector (Colour Double))
     }
 
 instance Default DrawHiCOpt where
     def = DrawHiCOpt
         { _range = Nothing
---        , _colours = V.fromList $ brewerSet Reds 3
-        , _colours = V.fromList $ interpolate 62 white red
+--        , _palette = V.fromList $ brewerSet Reds 3
+        , _palette = V.fromList $ interpolate 62 white red
         }
 
 drawHiC :: FilePath -> ContactMap -> DrawHiCOpt -> IO ()
@@ -39,8 +38,8 @@ drawHiC fl m opt = case encodePalettedPng pal pic of
     pal = generateImage fn nCol 1
       where
         fn i _ = colorConvert $ cols V.! i
-        cols = _colours opt
-    nCol = V.length $ _colours opt
+        cols = _palette opt
+    nCol = V.length $ _palette opt
     mat@(SymMatrix _ v) = _matrix m
     (lo,hi) = case _range opt of
         Just (a,b) -> (a,b)

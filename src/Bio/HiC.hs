@@ -9,6 +9,8 @@ module Bio.HiC
     , vcNormVector
     , sqrtNorm
     , sqrtNormVector
+    , obsDivExp
+    , expectedVector
     ) where
 
 import Bio.SamTools.Bam
@@ -28,6 +30,7 @@ import qualified Data.Vector.Generic.Mutable as GM
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Matrix.Symmetric as MS
 import qualified Data.Matrix.Symmetric.Mutable as MSM
+import Statistics.Sample (mean)
 
 import Bio.Data.Bam
 import Bio.Data.Bed
@@ -188,12 +191,13 @@ normalizeBy normVec c = c{_matrix = MS.SymMatrix n vec'}
         v <- U.thaw vec
         loop 0 0 v
         return v
-    loop i j v | i < n && j < n = do let i' = idx n i j
-                                         x = (normVec U.! i) * (normVec U.! j)
-                                         x' | x == 0 = 0
-                                            | otherwise = 1 / x
-                                     GM.read v i' >>= GM.write v i' . (*x')
-                                     loop i (j+1) v
+    loop i j v | i < n && j < n = do
+                   let i' = idx n i j
+                       x = (normVec U.! i) * (normVec U.! j)
+                       x' | x == 0 = 0
+                          | otherwise = 1 / x
+                   GM.read v i' >>= GM.write v i' . (*x')
+                   loop i (j+1) v
                | i < n = loop (i+1) (i+1) v
                | otherwise = return ()
 {-# INLINE normalizeBy #-}
@@ -209,6 +213,40 @@ sqrtNormVector :: ContactMap -> U.Vector Double
 sqrtNormVector = U.map sqrt . vcNormVector
 {-# INLINE sqrtNormVector #-}
 
+-- | O/E
+obsDivExp :: ContactMap -> ContactMap
+obsDivExp c = c{_matrix = MS.SymMatrix n vec'}
+  where
+    (MS.SymMatrix n vec) = _matrix c
+    vec' = U.create $ do
+        v <- U.thaw vec
+        loop 0 0 v
+        return v
+    loop i j v | i < n && j < n = do
+                   let i' = idx n i j
+                       x = expect `U.unsafeIndex` (j-i)
+                       x' | x == 0 = 0
+                          | otherwise = 1 / x
+                   GM.read v i' >>= GM.write v i' . (*x')
+                   loop i (j+1) v
+               | i < n = loop (i+1) (i+1) v
+               | otherwise = return ()
+    expect = expectedVector c
+
+-- | Expected contact frequency between two locus with distance d.
+expectedAt :: Int -> ContactMap -> Double
+expectedAt d c = mean $ U.generate (n-1-d) $ \i -> MS.unsafeIndex mat (i,i+d)
+  where
+    mat = _matrix c
+    n = MS.rows mat
+{-# INLINE expectedAt #-}
+
+expectedVector :: ContactMap -> U.Vector Double
+expectedVector c = U.generate (n-1) $ \d -> expectedAt d c
+  where
+    n = MS.rows $ _matrix c
+{-# INLINE expectedVector #-}
+    
 -- row major upper triangular indexing
 idx :: Int -> Int -> Int -> Int
 idx n i j = (i * (2 * n - i - 1)) `shiftR` 1 + j
