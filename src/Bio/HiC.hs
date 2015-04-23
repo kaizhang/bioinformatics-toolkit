@@ -235,14 +235,14 @@ obsDivExp c = c{_matrix = MS.SymMatrix n vec'}
 
 -- | Expected contact frequency between two locus with distance d.
 expectedAt :: Int -> ContactMap -> Double
-expectedAt d c = mean $ U.generate (n-1-d) $ \i -> MS.unsafeIndex mat (i,i+d)
+expectedAt d c = mean $ U.generate (n-d) $ \i -> MS.unsafeIndex mat (i,i+d)
   where
     mat = _matrix c
     n = MS.rows mat
 {-# INLINE expectedAt #-}
 
 expectedVector :: ContactMap -> U.Vector Double
-expectedVector c = U.generate (n-1) $ \d -> expectedAt d c
+expectedVector c = U.generate n $ \d -> expectedAt d c
   where
     n = MS.rows $ _matrix c
 {-# INLINE expectedVector #-}

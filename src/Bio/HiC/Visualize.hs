@@ -2,6 +2,8 @@
 module Bio.HiC.Visualize
     ( drawHiC
     , DrawHiCOpt(..)
+    , reds
+    , blueRed
     ) where
 
 import qualified Data.ByteString.Lazy as L
@@ -25,9 +27,14 @@ data DrawHiCOpt = DrawHiCOpt
 instance Default DrawHiCOpt where
     def = DrawHiCOpt
         { _range = Nothing
---        , _palette = V.fromList $ brewerSet Reds 3
-        , _palette = V.fromList $ interpolate 62 white red
+        , _palette = reds
         }
+
+reds :: V.Vector (Colour Double)
+reds = V.fromList $ interpolate 62 white red
+
+blueRed :: V.Vector (Colour Double)
+blueRed = V.fromList $ interpolate 30 blue white ++ interpolate 30 white red
 
 drawHiC :: FilePath -> ContactMap -> DrawHiCOpt -> IO ()
 drawHiC fl m opt = case encodePalettedPng pal pic of
