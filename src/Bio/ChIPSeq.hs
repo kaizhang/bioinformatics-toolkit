@@ -77,25 +77,25 @@ rpkmSortedBed :: (PrimMonad m, BEDLike b, G.Vector v Double)
               => Sorted (V.Vector b) -> Sink BED m (v Double)
 rpkmSortedBed (Sorted regions) = do
     vec <- lift $ GM.replicate l 0
-    n <- CL.foldM (f vec) (0 :: Int)
+    n <- CL.foldM (count vec) (0 :: Int)
     let factor = fromIntegral n / 1e9
     lift $ liftM (G.imap (\i x -> x / factor / (fromIntegral . size) (regions V.! i)))
          $ G.unsafeFreeze vec
   where
-    f v nTags tag = do
+    count v nTags tag = do
         let chr = chrom tag
             p | _strand tag == Just True = chromStart tag
               | _strand tag == Just False = chromEnd tag - 1
               | otherwise = error "Unkown strand"
-            xs = snd . unzip $
+            xs = concat . snd . unzip $
                 IM.containing (M.lookupDefault IM.empty chr intervalMap) p
         addOne v xs
         return $ succ nTags
 
-    intervalMap = sortedBedToTree errMsg. Sorted . G.toList . G.zip regions . G.enumFromN 0 $ l
+    intervalMap = sortedBedToTree (++) . Sorted . G.toList . G.zip regions .
+                  G.map return . G.enumFromN 0 $ l
     addOne v' = mapM_ $ \x -> GM.unsafeRead v' x >>= GM.unsafeWrite v' x . (+1)
     l = G.length regions
-    errMsg = error "rpkmSortedBed: redundant records"
 {-# INLINE rpkmSortedBed #-}
 
 -- | divide each region into consecutive bins, and count tags for each bin. The
