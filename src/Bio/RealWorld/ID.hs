@@ -15,6 +15,13 @@ newtype GOID = GOID B.ByteString deriving (Show)
 -- | ENCODE Accession
 newtype EncodeAcc = EncodeAcc B.ByteString deriving (Show)
 
+-- | Ensembl ID
+newtype EnsemblID = EnsemblID B.ByteString deriving (Show)
+
 instance BioID EncodeAcc where
     fromID (EncodeAcc x) = x
     toID = EncodeAcc
+
+instance BioID EnsemblID where
+    fromID (EnsemblID x) = x
+    toID = EnsemblID
