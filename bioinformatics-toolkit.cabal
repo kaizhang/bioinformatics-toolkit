@@ -91,7 +91,6 @@ executable mkindex
     , bioinformatics-toolkit
     , shelly
     , text
-
   default-language:    Haskell2010
 
 executable viewSeq
@@ -101,7 +100,22 @@ executable viewSeq
       base >=4.6 && <5.0
     , bioinformatics-toolkit
     , bytestring
+  default-language:    Haskell2010
 
+executable mergeMotifs
+  hs-source-dirs:   exe
+  main-is: mergeMotifs.hs
+  build-depends:
+      base >=4.6 && <5.0
+    , bioinformatics-toolkit
+    , bytestring
+    , clustering
+    , data-default-class
+    , split
+    , optparse-applicative
+    , haskell-plot >=0.2.0.0
+    , diagrams-cairo >=1.3
+    , diagrams-lib >=1.3
   default-language:    Haskell2010
 
 benchmark bench
