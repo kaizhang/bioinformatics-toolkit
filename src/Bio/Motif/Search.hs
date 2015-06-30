@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 
-module Bio.Motif.Search 
+module Bio.Motif.Search
     ( findTFBS
     , findTFBS'
     , findTFBSSlow
@@ -20,11 +20,9 @@ import Data.Ord (comparing)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Matrix.Unboxed as M
-import Statistics.Matrix hiding (map)
 
-
--- | given a user defined threshold, look for TF binding sites on a DNA 
--- sequence, using look ahead search. This function doesn't search for binding 
+-- | given a user defined threshold, look for TF binding sites on a DNA
+-- sequence, using look ahead search. This function doesn't search for binding
 -- sites on the reverse strand
 findTFBS :: Monad m => Bkgd -> PWM -> DNA a -> Double -> Source m Int
 findTFBS bg pwm dna thres = loop 0
@@ -58,7 +56,7 @@ findTFBS' bg pwm dna th = concat $ parMap rdeepseq f [0,step..l-n+1]
 
 -- | use naive search
 findTFBSSlow :: Monad m => Bkgd -> PWM -> DNA a -> Double -> Source m Int
-findTFBSSlow bg pwm dna thres = scores' bg pwm dna $= 
+findTFBSSlow bg pwm dna thres = scores' bg pwm dna $=
                                        loop 0
   where
     loop i = do v <- await
@@ -83,11 +81,11 @@ maxMatchSc bg pwm dna = loop (-1/0) 0
 {-# INLINE maxMatchSc #-}
 
 optimalScoresSuffix :: Bkgd -> PWM -> U.Vector Double
-optimalScoresSuffix (BG (a, c, g, t)) (PWM _ pwm) = 
+optimalScoresSuffix (BG (a, c, g, t)) (PWM _ pwm) =
     U.fromList . tail . map (last sigma -) $ sigma
   where
     sigma = scanl f 0 $ M.toRows pwm
-    f !acc xs = let (i, s) = U.maximumBy (comparing snd) . 
+    f !acc xs = let (i, s) = U.maximumBy (comparing snd) .
                                 U.zip (U.fromList ([0..3] :: [Int])) $ xs
                 in acc + case i of
                     0 -> log $ s / a
@@ -106,7 +104,7 @@ lookAheadSearch :: Bkgd              -- ^ background nucleotide distribution
                 -> (Int, Double)     -- ^ (d, sc_d), the largest d such that sc_d > th_d
 lookAheadSearch (BG (a, c, g, t)) pwm sigma dna start thres = loop (0, -1) 0
   where
-    loop (!acc, !th_d) !d 
+    loop (!acc, !th_d) !d
       | acc < th_d = (d-2, acc)
       | otherwise = if d >= n
                        then (d-1, acc)
