@@ -1,0 +1,9 @@
+flags: {}
+packages:
+    - "/home/kai/dev/bbi"
+    - "/home/kai/dev/haskell-plot"
+    - '.'
+extra-deps:
+    - samtools-0.2.4.1
+    - IntervalMap-0.4.0.1
+resolver: nightly-2015-06-30

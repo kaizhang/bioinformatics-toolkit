@@ -16,7 +16,7 @@ module Bio.Seq.IO
 
 import Bio.Seq
 import Bio.Utils.Misc (readInt)
-import Control.Monad
+import Control.Applicative ((<$>))
 import qualified Data.ByteString.Char8 as B
 import qualified Data.HashMap.Lazy as M
 import Data.List.Split
@@ -53,34 +53,40 @@ type IndexTable = M.HashMap B.ByteString (Int, Int)
 
 type Query = (B.ByteString, Int, Int) -- (chr, start, end), zero-based index, half-close-half-open
 
-getSeqs :: BioSeq s a => Genome -> [Query] -> IO [s a]
+getSeqs :: BioSeq s a => Genome -> [Query] -> IO [Either String (s a)]
 getSeqs g querys = do gH <- gHOpen g
                       index <- readIndex gH
                       r <- mapM (getSeq gH index) querys
                       gHClose gH
                       return r
+{-# INLINE getSeqs #-}
 
-getSeq :: BioSeq s a => GenomeH -> IndexTable -> Query -> IO (s a)
-getSeq (GH h) index (chr, start, end) = do 
-    when (end > chrSize) $ error $ "Bio.Seq.getSeq: out of index: " ++ show end ++ ">" ++ show chrSize
-    hSeek h AbsoluteSeek (fromIntegral pos)
-    liftM fromBS $ B.hGet h $ end - start
-  where
-    pos = headerSize + chrStart + start
-    (chrStart, chrSize) = M.lookupDefault (error $ "Bio.Seq.getSeq: Cannot find " ++ show chr) chr index
+getSeq :: BioSeq s a => GenomeH -> IndexTable -> Query -> IO (Either String (s a))
+getSeq (GH h) index (chr, start, end) = case M.lookup chr index of
+    Just (chrStart, chrSize) -> if end > chrSize
+        then return $ Left $ "Bio.Seq.getSeq: out of index: " ++
+                 show end ++ ">" ++ show chrSize
+        else do
+            hSeek h AbsoluteSeek $ fromIntegral $ headerSize + chrStart + start
+            (Right . fromBS) <$> B.hGet h (end - start)
+    _ -> return $ Left $ "Bio.Seq.getSeq: Cannot find " ++ show chr
+{-# INLINE getSeq #-}
 
 getChrom :: Genome -> B.ByteString -> IO (Maybe (DNA IUPAC))
-getChrom g chr = do chrSize <- getChrSizes g
-                    case lookup chr chrSize of
-                        Just s -> do [dna] <- getSeqs g [(chr, 0, s)]
-                                     return $ Just dna
-                        _ -> return Nothing
+getChrom g chr = do
+    chrSize <- getChrSizes g
+    case lookup chr chrSize of
+        Just s -> do [Right dna] <- getSeqs g [(chr, 0, s)]
+                     return $ Just dna
+        _ -> return Nothing
+{-# INLINE getChrom #-}
 
 getChrSizes :: Genome -> IO [(B.ByteString, Int)]
 getChrSizes g = do gh <- gHOpen g
                    table <- readIndex gh
                    gHClose gh
                    return . map (\(k, (_, l)) -> (k, l)) . M.toList $ table
+{-# INLINE getChrSizes #-}
 
 readIndex :: GenomeH -> IO IndexTable
 readIndex (GH h) = do header <- B.hGetLine h >> B.hGetLine h
@@ -88,18 +94,19 @@ readIndex (GH h) = do header <- B.hGetLine h >> B.hGetLine h
   where
     f [k, v, l] = (k, (readInt v, readInt l))
     f _ = error "error"
+{-# INLINE readIndex #-}
 
 -- | indexing a genome.
 mkIndex :: [FilePath]    -- ^ fasta files representing individual chromosomes
         -> FilePath      -- ^ output file
         -> IO ()
-mkIndex fls outFl = do 
+mkIndex fls outFl = do
     outH <- openFile outFl WriteMode
     hPutStr outH $ magic ++ "\n" ++ replicate 2024 '#'  -- header size: 1024
     chrs <- mapM (write outH) fls
     hSeek outH AbsoluteSeek 24
     B.hPutStrLn outH $ mkHeader chrs
-    hClose outH                      
+    hClose outH
   where
     write handle fl = do h <- openFile fl ReadMode
                          fastaHeader <- B.hGetLine h
@@ -112,6 +119,7 @@ mkIndex fls outFl = do
                                else do l <- B.hGetLine h'
                                        B.hPutStr handle l
                                        loop (n + B.length l) h'
+{-# INLINE mkIndex #-}
 
 mkHeader :: [(B.ByteString, Int)] -> B.ByteString
 mkHeader xs = B.unwords.fst $ foldl f ([], 0) xs

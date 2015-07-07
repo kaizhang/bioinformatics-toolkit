@@ -71,7 +71,7 @@ class BEDLike b where
 
     -- | convert bed to bytestring
     toLine :: b -> B.ByteString
-    
+
     -- | field accessor
     chrom :: b -> B.ByteString
     chromStart :: b -> Int
@@ -153,7 +153,7 @@ bedToTree :: BEDLike b
           => (a -> a -> a)
           -> [(b, a)]
           -> BEDTree a
-bedToTree f xs = 
+bedToTree f xs =
       M.fromList
     . map ((head *** IM.fromAscListWith f) . unzip)
     . groupBy ((==) `on` fst)
@@ -319,7 +319,7 @@ instance BEDLike BED where
         f [] = do i <- get
                   if i <= 3 then error "Read BED fail: Incorrect number of fields"
                             else return def
-        f (x:xs) = do 
+        f (x:xs) = do
             i <- get
             put (i+1)
             bed <- f xs
@@ -362,25 +362,25 @@ instance BEDLike BED where
     chromEnd = _chromEnd
 
 -- | retreive sequences
-fetchSeq :: BioSeq DNA a => Genome -> Conduit BED IO (DNA a)
+fetchSeq :: BioSeq DNA a => Genome -> Conduit BED IO (Either String (DNA a))
 fetchSeq g = do gH <- lift $ gHOpen g
                 table <- lift $ readIndex gH
                 conduitWith gH table
                 lift $ gHClose gH
   where
-    conduitWith h index' = do 
+    conduitWith h index' = do
         bed <- await
         case bed of
-            Just (BED chr start end _ _ isForward) -> do 
+            Just (BED chr start end _ _ isForward) -> do
                 dna <- lift $ getSeq h index' (chr, start, end)
                 case isForward of
-                    Just False -> yield $ rc dna
+                    Just False -> yield $ fmap rc dna
                     _ -> yield dna
                 conduitWith h index'
             _ -> return ()
 {-# INLINE fetchSeq #-}
 
-fetchSeq' :: BioSeq DNA a => Genome -> [BED] -> IO [DNA a]
+fetchSeq' :: BioSeq DNA a => Genome -> [BED] -> IO [Either String (DNA a)]
 fetchSeq' g beds = CL.sourceList beds $= fetchSeq g $$ CL.consume
 {-# INLINE fetchSeq' #-}
 
@@ -398,7 +398,7 @@ instance BEDLike BED3 where
                     (a:b:c:_) -> BED3 a (readInt b) $ readInt c
                     _ -> error "Read BED fail: Incorrect number of fields"
     {-# INLINE fromLine #-}
-    
+
     toLine (BED3 f1 f2 f3) = B.intercalate "\t" [f1, (B.pack.show) f2, (B.pack.show) f3]
     {-# INLINE toLine #-}
 
