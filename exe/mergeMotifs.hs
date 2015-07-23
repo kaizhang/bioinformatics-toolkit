@@ -24,12 +24,17 @@ data Options = Options
     , thres :: Double
     , mode :: String
     , svg :: Maybe FilePath
+    , dumpDist :: Bool
     } deriving (Show)
 
 parser :: Parser Options
 parser = Options
      <$> argument str (metavar "INPUT")
-     <*> argument str (metavar "OUTPUT")
+     <*> strOption
+           ( long "output"
+          <> short 'o'
+          <> value "merged_output.meme"
+          <> metavar "OUTPUT" )
      <*> strOption
            ( long "prefix"
           <> short 'p'
@@ -52,12 +57,15 @@ parser = Options
            ( long "svg"
           <> metavar "SVG"
           <> help "draw merging tree in svg format, only available in tree mode" )
+     <*> switch
+           ( long "dump-dist"
+          <> help "output pairwise distances of original motifs without performing any merging" )
 
 iterativeMerge :: Double -> String -> [Motif] -> [Motif]
 iterativeMerge th pre ms = ms'
   where
     merged = iter $ map (\x -> (_pwm x, [_name x])) ms
-    ms' = zipWith ( \i (pwm, nms) -> 
+    ms' = zipWith ( \i (pwm, nms) ->
             Motif ( (B.pack $ pre ++ "_" ++ show i ++ "_" ++ show (toIUPAC pwm))
                     `B.append` "("
                     `B.append` B.intercalate "," nms
@@ -68,9 +76,11 @@ iterativeMerge th pre ms = ms'
       where
         ((s, (p1, p2, i)),(a,b)) = minimumBy (comparing (fst.fst)) $ map (\((x,nm1), (y,nm2)) -> (alignment x y, (nm1,nm2))) pairs
         pairs = comb xs
-        comb (y:ys) = zip (repeat y) ys ++ comb ys
-        comb _ = []
 {-# INLINE iterativeMerge #-}
+
+-- | Return pairwise distances
+pairDistance :: [Motif] -> [(B.ByteString, B.ByteString, Double)]
+pairDistance ms = map (\(a,b) -> (_name a, _name b, fst $ alignment (_pwm a) (_pwm b))) $ comb ms
 
 treeMerge :: Double -> String -> [Motif] -> ([Motif], Dendrogram Motif)
 treeMerge th pre ms = (zipWith f [0::Int ..] $ map merge $ tree `cutAt` th, tree)
@@ -87,7 +97,7 @@ getSuffix :: String -> String
 getSuffix = last . splitOn "."
 
 defaultMain :: Options -> IO ()
-defaultMain (Options inFl outFl pre th m svg) = do
+defaultMain (Options inFl outFl pre th m svg dump) = do
     let readMotif = case getSuffix inFl of
                         "fasta" -> readFasta'
                         _ -> readMEME
@@ -95,30 +105,40 @@ defaultMain (Options inFl outFl pre th m svg) = do
                         "fasta" -> writeFasta
                         _ -> \fl x -> writeMEME fl x def
     motifs <- readMotif inFl
-    let motifNumber = length motifs
 
-    hPutStrLn stderr $ printf "Merging Mode: %s" m
-    hPutStrLn stderr $ printf "Read %d motifs" motifNumber
+    if dump
+        then
+            mapM_ (\(a,b,c) -> B.putStrLn $ B.intercalate "\t" [a, b, B.pack $ show c]) $ pairDistance motifs
+        else do
+            let motifNumber = length motifs
 
-    motifs' <- case m of
-        "tree" -> do
-            let (newMotifs, tree) = treeMerge th pre motifs
-                fn x = B.unpack (_name x) ++ ": " ++ B.unpack (toBS $ toIUPAC $ _pwm x)
+            hPutStrLn stderr $ printf "Merging Mode: %s" m
+            hPutStrLn stderr $ printf "Read %d motifs" motifNumber
 
-            case svg of
-                Just fl -> do
-                    let w = 80
-                        h = 5 * fromIntegral motifNumber
-                    renderCairo fl (dims2D (10*w) (10*h)) $ drawDendrogram w h th tree fn ||| strutX 40
-                    return newMotifs
-                _ -> return newMotifs
-        "iter" -> return $ iterativeMerge th pre motifs
---         _ -> error "Unkown mode!"
+            motifs' <- case m of
+                "tree" -> do
+                    let (newMotifs, tree) = treeMerge th pre motifs
+                        fn x = B.unpack (_name x) ++ ": " ++ B.unpack (toBS $ toIUPAC $ _pwm x)
 
-    hPutStrLn stderr $ printf "Write %d motifs" (length motifs')
+                    case svg of
+                        Just fl -> do
+                            let w = 80
+                                h = 5 * fromIntegral motifNumber
+                            renderCairo fl (dims2D (10*w) (10*h)) $ drawDendrogram w h th tree fn ||| strutX 40
+                            return newMotifs
+                        _ -> return newMotifs
+                "iter" -> return $ iterativeMerge th pre motifs
+        --         _ -> error "Unkown mode!"
 
-    writeMotif outFl motifs'
+            hPutStrLn stderr $ printf "Write %d motifs" (length motifs')
+
+            writeMotif outFl motifs'
 {-# INLINE defaultMain #-}
+
+comb :: [a] -> [(a,a)]
+comb (y:ys) = zip (repeat y) ys ++ comb ys
+comb _ = []
+{-# INLINE comb #-}
 
 main :: IO ()
 main = execParser opts >>= defaultMain
@@ -126,4 +146,3 @@ main = execParser opts >>= defaultMain
     opts = info (helper <*> parser)
             ( fullDesc
            <> header "Merge similar PWMs" )
-
