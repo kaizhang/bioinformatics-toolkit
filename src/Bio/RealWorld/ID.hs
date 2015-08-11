@@ -6,17 +6,17 @@ class BioID a where
     fromID :: a -> B.ByteString
     toID :: B.ByteString -> a
 
-newtype UniprotID = UniprotID B.ByteString deriving (Show)
+newtype UniprotID = UniprotID B.ByteString deriving (Show, Eq)
 
-newtype UCSCID = UCSCID B.ByteString deriving (Show)
+newtype UCSCID = UCSCID B.ByteString deriving (Show, Eq)
 
-newtype GOID = GOID B.ByteString deriving (Show)
+newtype GOID = GOID B.ByteString deriving (Show, Eq)
 
 -- | ENCODE Accession
-newtype EncodeAcc = EncodeAcc B.ByteString deriving (Show)
+newtype EncodeAcc = EncodeAcc B.ByteString deriving (Show, Eq)
 
 -- | Ensembl ID
-newtype EnsemblID = EnsemblID B.ByteString deriving (Show)
+newtype EnsemblID = EnsemblID B.ByteString deriving (Show, Eq)
 
 instance BioID EncodeAcc where
     fromID (EncodeAcc x) = x
