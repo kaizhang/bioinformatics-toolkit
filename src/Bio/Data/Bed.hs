@@ -84,50 +84,50 @@ class BEDLike b where
     size :: b -> Int
     size bed = chromEnd bed - chromStart bed
 
-    hReadBed :: Handle -> Source IO b
-    hReadBed h = do eof <- lift $ hIsEOF h
+    hReadBed :: MonadIO m => Handle -> Source m b
+    hReadBed h = do eof <- liftIO $ hIsEOF h
                     unless eof $ do
-                        line <- lift $ B.hGetLine h
+                        line <- liftIO $ B.hGetLine h
                         yield $ fromLine line
                         hReadBed h
     {-# INLINE hReadBed #-}
 
     -- | non-streaming version
-    hReadBed' :: Handle -> IO [b]
+    hReadBed' :: MonadIO m => Handle -> m [b]
     hReadBed' h = hReadBed h $$ CL.consume
     {-# INLINE hReadBed' #-}
 
-    readBed :: FilePath -> Source IO b
-    readBed fl = do handle <- lift $ openFile fl ReadMode
+    readBed :: MonadIO m => FilePath -> Source m b
+    readBed fl = do handle <- liftIO $ openFile fl ReadMode
                     hReadBed handle
-                    lift $ hClose handle
+                    liftIO $ hClose handle
     {-# INLINE readBed #-}
 
     -- | non-streaming version
-    readBed' :: FilePath -> IO [b]
+    readBed' :: MonadIO m => FilePath -> m [b]
     readBed' fl = readBed fl $$ CL.consume
     {-# INLINE readBed' #-}
 
-    hWriteBed :: Handle -> Sink b IO ()
+    hWriteBed :: MonadIO m => Handle -> Sink b m ()
     hWriteBed handle = do
         x <- await
         case x of
             Nothing -> return ()
-            Just bed -> (lift . B.hPutStrLn handle . toLine) bed >> hWriteBed handle
+            Just bed -> (liftIO . B.hPutStrLn handle . toLine) bed >> hWriteBed handle
     {-# INLINE hWriteBed #-}
 
-    hWriteBed' :: Handle -> [b] -> IO ()
-    hWriteBed' handle = mapM_ (B.hPutStrLn handle . toLine)
+    hWriteBed' :: MonadIO m => Handle -> [b] -> m ()
+    hWriteBed' handle beds = CL.sourceList beds $$ hWriteBed handle
     {-# INLINE hWriteBed' #-}
 
-    writeBed :: FilePath -> Sink b IO ()
-    writeBed fl = do handle <- lift $ openFile fl WriteMode
+    writeBed :: MonadIO m => FilePath -> Sink b m ()
+    writeBed fl = do handle <- liftIO $ openFile fl WriteMode
                      hWriteBed handle
-                     lift $ hClose handle
+                     liftIO $ hClose handle
     {-# INLINE writeBed #-}
 
-    writeBed' :: FilePath -> [b] -> IO ()
-    writeBed' fl beds = withFile fl WriteMode $ \h -> hWriteBed' h beds
+    writeBed' :: MonadIO m => FilePath -> [b] -> m ()
+    writeBed' fl beds = CL.sourceList beds $$ writeBed fl
     {-# INLINE writeBed' #-}
 
     {-# MINIMAL asBed, fromLine, toLine, chrom, chromStart, chromEnd #-}
