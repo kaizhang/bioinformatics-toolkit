@@ -122,7 +122,7 @@ profiling k beds = do
                 let p | strand == Just True = start
                       | strand == Just False = end - 1
                       | otherwise = error "profiling: unkown strand"
-                    overlaps = snd . unzip $
+                    overlaps = concat . snd . unzip $
                         IM.containing (M.lookupDefault IM.empty chr intervalMap) p
                 lift $ forM_ overlaps $ \x -> do
                     let (v, idxFn) = vs `G.unsafeIndex` x
@@ -132,12 +132,11 @@ profiling k beds = do
 
             _ -> do rc <- lift $ mapM (G.unsafeFreeze . fst) $ G.toList vs
                     return (rc, nTags)
-                                                            
-    intervalMap = bedToTree errMsg $ zip beds [0..]
-    errMsg = error "profiling: please remove duplicates"
+
+    intervalMap = bedToTree (++) $ zip beds $ map return [0..]
 {-# INLINE profiling #-}
 
--- | calculate RPKM using BAM file (*.bam) and its index file (*.bam.bai), using 
+-- | calculate RPKM using BAM file (*.bam) and its index file (*.bam.bai), using
 -- constant space
 rpkmBam :: BEDLike b => FilePath -> Conduit b IO Double
 rpkmBam fl = do
@@ -202,7 +201,7 @@ tagCountDistr' = loop M.empty
                 case M.lookup chr m of
                     Just table -> do
                         lift $ do c <- HT.lookup table p
-                                  if isJust c 
+                                  if isJust c
                                      then HT.insert table p $ fromJust c + 1
                                      else HT.insert table p 1
                         loop m
