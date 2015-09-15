@@ -27,6 +27,7 @@ module Bio.Data.Bed
     , intersectBedWith
     , intersectSortedBed
     , intersectSortedBedWith
+    , isOverlapped
     , mergeBed
     , mergeBedWith
     , mergeSortedBed
@@ -250,6 +251,16 @@ intersectSortedBedWith fn a (Sorted b) = map f a
             in (bed, fn $ map snd $ IM.intersecting (M.lookupDefault IM.empty chr tree) interval)
     tree = sortedBedToTree const . Sorted . V.toList . V.zip b $ b
 {-# INLINE intersectSortedBedWith #-}
+
+isOverlapped :: (BEDLike b1, BEDLike b2) => b1 -> b2 -> Bool
+isOverlapped bed1 bed2 = chr == chr' && not (e <= s' || e' <= s)
+  where
+    chr = chrom bed1
+    s = chromStart bed1
+    e = chromEnd bed1
+    chr' = chrom bed2
+    s' = chromStart bed2
+    e' = chromEnd bed2
 
 mergeBed :: (BEDLike b, Monad m) => [b] -> Source m b
 mergeBed = mergeSortedBed . sortBed
