@@ -8,6 +8,7 @@ module Bio.ChIPSeq
     , profiling
     , rpkmBam
     , tagCountDistr
+    , peakCluster
     ) where
 
 import Bio.SamTools.Bam
@@ -188,34 +189,21 @@ tagCountDistr = loop M.empty
                 G.unsafeFreeze vec
 {-# INLINE tagCountDistr #-}
 
-{-
-tagCountDistr' :: G.Vector v Int => Sink BED IO (v Int)
-tagCountDistr' = loop M.empty
+-- | cluster peaks
+peakCluster :: (BEDLike b, Monad m)
+            => [b]   -- ^ peaks
+            -> Int   -- ^ radius
+            -> Int   -- ^ cutoff
+            -> Source m BED
+peakCluster peaks r th = mergeBedWith mergeFn peaks' $= CL.filter g
   where
-    loop m = do
-        x <- await
-        case x of
-            Just (BED chr s e _ _ (Just str)) -> do
-                let p | str = s
-                      | otherwise = 1 - e
-                case M.lookup chr m of
-                    Just table -> do
-                        lift $ do c <- HT.lookup table p
-                                  if isJust c
-                                     then HT.insert table p $ fromJust c + 1
-                                     else HT.insert table p 1
-                        loop m
-                    _ -> do
-                        t <- lift $ do t <- HT.new :: IO (HT.CuckooHashTable Int Int)
-                                       HT.insert t p 1
-                                       return t
-                        loop $ M.insert chr t m
-            _ -> lift $ do
-                vec <- GM.replicate 100 0
-                F.forM_ m $ \table ->
-                    flip HT.mapM_ table $ \(_,v) -> do
-                        let i = min 99 v
-                        GM.unsafeRead vec i >>= GM.unsafeWrite vec i . (+1)
-                G.unsafeFreeze vec
-{-# INLINE tagCountDistr' #-}
--}
+    peaks' = map f peaks
+    f b = let chr = chrom b
+              c = (chromStart b + chromEnd b) `div` 2
+          in asBed chr (c-r) (c+r)
+    mergeFn xs = BED (chrom $ head xs) lo hi Nothing (Just $ fromIntegral $ length xs) Nothing
+      where
+        lo = minimum . map chromStart $ xs
+        hi = maximum . map chromEnd $ xs
+    g b = fromJust (_score b) >= fromIntegral th
+{-# INLINE peakCluster #-}
