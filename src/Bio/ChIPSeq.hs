@@ -6,6 +6,7 @@ module Bio.ChIPSeq
     , rpkmSortedBed
     , monoColonalize
     , profiling
+    , profilingCoverage
     , rpkmBam
     , tagCountDistr
     , peakCluster
@@ -136,6 +137,47 @@ profiling k beds = do
 
     intervalMap = bedToTree (++) $ zip beds $ map return [0..]
 {-# INLINE profiling #-}
+
+-- | divide each region into consecutive bins, and count tags for each bin. The
+-- total number of tags is also returned
+profilingCoverage :: (PrimMonad m, G.Vector v Int, BEDLike b1, BEDLike b2)
+          => Int   -- ^ bin size
+          -> [b1]   -- ^ regions
+          -> Sink b2 m ([v Int], Int)
+profilingCoverage k beds = do
+    initRC <- lift $ forM beds $ \bed -> do
+        let start = chromStart bed
+            end = chromEnd bed
+            num = (end - start) `div` k
+            index i = (i - start) `div` k
+        v <- GM.replicate num 0
+        return (v, index)
+
+    sink 0 $ V.fromList initRC
+  where
+    sink !nTags vs = do
+        tag <- await
+        case tag of
+            Just bed -> do
+                let chr = chrom bed
+                    start = chromStart bed
+                    end = chromEnd bed
+                    overlaps = concat . snd . unzip $ IM.intersecting
+                        (M.lookupDefault IM.empty chr intervalMap) $ IM.IntervalCO start end
+                lift $ forM_ overlaps $ \x -> do
+                    let (v, idxFn) = vs `G.unsafeIndex` x
+                        lo = idxFn start
+                        hi = idxFn end
+                    forM_ [lo..hi] $ \i ->
+                        GM.unsafeRead v i >>= GM.unsafeWrite v i . (+1)
+                sink (nTags+1) vs
+
+            _ -> do rc <- lift $ mapM (G.unsafeFreeze . fst) $ G.toList vs
+                    return (rc, nTags)
+
+    intervalMap = bedToTree (++) $ zip beds $ map return [0..]
+{-# INLINE profilingCoverage #-}
+
 
 -- | calculate RPKM using BAM file (*.bam) and its index file (*.bam.bai), using
 -- constant space
