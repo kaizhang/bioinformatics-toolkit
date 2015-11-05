@@ -56,7 +56,7 @@ import Bio.Utils.Functions (binarySearchBy)
 data PWM = PWM
     { _nSites :: !(Maybe Int)  -- ^ number of sites used to generate this matrix
     , _mat :: !(M.Matrix Double)
-    } deriving (Show)
+    } deriving (Show, Read)
 
 size :: PWM -> Int
 size (PWM _ mat) = M.rows mat
@@ -90,7 +90,7 @@ gcContentPWM (PWM _ mat) = loop 0 0 / fromIntegral m
 data Motif = Motif
     { _name :: !B.ByteString
     , _pwm :: !PWM
-    } deriving (Show)
+    } deriving (Show, Read)
 
 -- | background model which consists of single nucletide frequencies, and di-nucletide
 -- frequencies
