@@ -22,6 +22,8 @@ module Bio.Motif
     , pValueToScoreExact
     , toIUPAC
     , readMEME
+    , toMEME
+    , fromMEME
     , writeMEME
     , writeFasta
 
