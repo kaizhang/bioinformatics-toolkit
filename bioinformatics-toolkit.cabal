@@ -31,8 +31,6 @@ library
     Bio.GO
     Bio.GO.Parser
     Bio.GO.GREAT
---    Bio.HiC
---    Bio.HiC.Visualize
     Bio.Motif
     Bio.Motif.Alignment
     Bio.Motif.Search
