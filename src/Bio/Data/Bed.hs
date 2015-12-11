@@ -40,6 +40,7 @@ module Bio.Data.Bed
     , fetchSeq
     , fetchSeq'
     , compareBed
+    , convert
     ) where
 
 import Control.Arrow ((***))
@@ -430,3 +431,7 @@ instance BEDLike BED3 where
     chrom (BED3 f1 _ _) = f1
     chromStart (BED3 _ f2 _) = f2
     chromEnd (BED3 _ _ f3) = f3
+
+convert :: (BEDLike b1, BEDLike b2) => b1 -> b2
+convert b = asBed (chrom b) (chromStart b) (chromEnd b)
+{-# INLINE convert #-}
