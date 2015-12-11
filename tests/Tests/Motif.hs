@@ -56,6 +56,8 @@ findTFBSTest = do
 pValueTest :: Assertion
 pValueTest = do
     ms <- motifs
-    let expect = map (pValueToScoreExact 1e-4 def . _pwm) ms
-        actual = map (pValueToScore 1e-4 def . _pwm) ms
+    let expect = map (approx . pValueToScoreExact 1e-4 def . _pwm) ms
+        actual = map (approx . pValueToScore 1e-4 def . _pwm) ms
     assertEqual "pValueToScore" expect actual
+  where
+    approx x = round $ 10 * x

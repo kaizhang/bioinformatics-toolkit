@@ -21,6 +21,7 @@ module Bio.Data.Bed
     , splitBed
     , splitBedBySize
     , splitBedBySizeLeft
+    , splitBedBySizeOverlap
     , Sorted(..)
     , sortBed
     , intersectBed
@@ -59,7 +60,8 @@ import System.IO
 
 import Bio.Seq
 import Bio.Seq.IO
-import Bio.Utils.Misc (binBySizeLeft, binBySize, bins, readInt, readDouble)
+import Bio.Utils.Misc ( binBySizeLeft, binBySize, binBySizeOverlap, bins
+                      , readInt, readDouble )
 
 -- | a class representing BED-like data, e.g., BED3, BED6 and BED12. BED format
 -- uses 0-based index (see documentation).
@@ -194,6 +196,18 @@ splitBedBySizeLeft k bed = map (uncurry (asBed chr)) . binBySizeLeft k $ (s, e)
     s = chromStart bed
     e = chromEnd bed
 {-# INLINE splitBedBySizeLeft #-}
+
+splitBedBySizeOverlap :: BEDLike b
+                      => Int     -- ^ bin size
+                      -> Int     -- ^ overlap size
+                      -> b -> [b]
+splitBedBySizeOverlap k o bed = map (uncurry (asBed chr)) .
+    binBySizeOverlap k o $ (s, e)
+  where
+    chr = chrom bed
+    s = chromStart bed
+    e = chromEnd bed
+{-# INLINE splitBedBySizeOverlap #-}
 
 -- | a type to imply that underlying data structure is sorted
 newtype Sorted b = Sorted {fromSorted :: b}

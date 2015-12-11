@@ -4,6 +4,7 @@ module Bio.Utils.Misc
     , bins
     , binBySize
     , binBySizeLeft
+    , binBySizeOverlap
     ) where
 
 import Data.ByteString.Char8 (ByteString)
@@ -30,10 +31,21 @@ binBySize step (start, end) = let xs = [start, start + step .. end]
                               in zip xs . tail $ xs
 {-# INLINE binBySize #-}
 
--- | Including leftovers, the last bin may not have desired size.
+binBySizeOverlap :: Int -> Int -> (Int, Int) -> [(Int, Int)]
+binBySizeOverlap step overlap (start, end)
+    | overlap >= step = error "binBySizeOverlap: overlap > step"
+    | otherwise = go start
+  where
+    go i | i + overlap < end = (i, i + step) : go (i + step - overlap)
+         | otherwise = []
+{-# INLINE binBySizeOverlap #-}
+
+-- | Including leftovers, the last bin will be extended to match desirable size
 binBySizeLeft :: Int -> (Int, Int) -> [(Int, Int)]
-binBySizeLeft step (start, end) = let xs = [start, start + step .. end-1] ++ [end]
-                                  in zip xs . tail $ xs
+binBySizeLeft step (start, end) = go start
+  where
+    go i | i < end = (i, i + step) : go (i + step)
+         | otherwise = []
 {-# INLINE binBySizeLeft #-}
 
 -- | divide a given region into k equal size sub-regions, discarding leftovers
