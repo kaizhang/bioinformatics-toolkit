@@ -388,17 +388,17 @@ instance BEDLike BED where
     chromEnd = _chromEnd
 
 -- | retreive sequences
-fetchSeq :: BioSeq DNA a => Genome -> Conduit BED IO (Either String (DNA a))
-fetchSeq g = do gH <- lift $ gHOpen g
-                table <- lift $ readIndex gH
+fetchSeq :: (BioSeq DNA a, MonadIO m) => Genome -> Conduit BED m (Either String (DNA a))
+fetchSeq g = do gH <- liftIO $ gHOpen g
+                table <- liftIO $ readIndex gH
                 conduitWith gH table
-                lift $ gHClose gH
+                liftIO $ gHClose gH
   where
     conduitWith h index' = do
         bed <- await
         case bed of
             Just (BED chr start end _ _ isForward) -> do
-                dna <- lift $ getSeq h index' (chr, start, end)
+                dna <- liftIO $ getSeq h index' (chr, start, end)
                 case isForward of
                     Just False -> yield $ fmap rc dna
                     _ -> yield dna
@@ -406,7 +406,7 @@ fetchSeq g = do gH <- lift $ gHOpen g
             _ -> return ()
 {-# INLINE fetchSeq #-}
 
-fetchSeq' :: BioSeq DNA a => Genome -> [BED] -> IO [Either String (DNA a)]
+fetchSeq' :: (BioSeq DNA a, MonadIO m) => Genome -> [BED] -> m [Either String (DNA a)]
 fetchSeq' g beds = CL.sourceList beds $= fetchSeq g $$ CL.consume
 {-# INLINE fetchSeq' #-}
 
