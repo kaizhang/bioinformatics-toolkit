@@ -211,7 +211,7 @@ splitBedBySizeOverlap k o bed = map (uncurry (asBed chr)) .
 {-# INLINE splitBedBySizeOverlap #-}
 
 -- | a type to imply that underlying data structure is sorted
-newtype Sorted b = Sorted {fromSorted :: b}
+newtype Sorted b = Sorted {fromSorted :: b} deriving (Show, Read, Eq)
 
 compareBed :: (BEDLike b1, BEDLike b2) => b1 -> b2 -> Ordering
 compareBed x y = compare x' y'
@@ -324,7 +324,7 @@ data BED = BED
     , _name :: !(Maybe B.ByteString)
     , _score :: !(Maybe Double)
     , _strand :: !(Maybe Bool)  -- ^ True: "+", False: "-"
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Read)
 
 instance Default BED where
     def = BED
@@ -412,7 +412,7 @@ fetchSeq' g beds = CL.sourceList beds $= fetchSeq g $$ CL.consume
 
 -- * BED3 format
 
-data BED3 = BED3 !B.ByteString !Int !Int deriving (Eq, Show)
+data BED3 = BED3 !B.ByteString !Int !Int deriving (Eq, Show, Read)
 
 instance Default BED3 where
     def = BED3 "" 0 0
