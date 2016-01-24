@@ -33,6 +33,7 @@ tests :: TestTree
 tests = testGroup "Test: Bio.Motif"
     [ --testCase "IUPAC converting" toIUPACTest
       testCase "TFBS scanning" findTFBSTest
+    , testCase "Max matching score" maxScTest
     , testCase "pValue calculation" pValueTest
     ]
 
@@ -52,6 +53,13 @@ findTFBSTest = do
     expect <- findTFBS def pwm dna (0.6 * optimalScore def pwm) $$ CL.consume
     actual <- findTFBSSlow def pwm dna (0.6 * optimalScore def pwm) $$ CL.consume
     assertEqual "findTFBS" expect actual
+
+maxScTest :: Assertion
+maxScTest = do
+    ms <- motifs
+    let expect = map (\x -> maximum $ scores def (_pwm x) dna) ms
+        actual = map (\x -> maxMatchSc def (_pwm x) dna) ms
+    assertEqual "maxMatchSc" expect actual
 
 pValueTest :: Assertion
 pValueTest = do
