@@ -5,6 +5,9 @@
 module Bio.Motif.Alignment
     ( alignment
     , alignmentBy
+    , linPenal
+    , quadPenal
+    , cubePenal
     , mergePWM
     , buildTree
     , progressiveMerging

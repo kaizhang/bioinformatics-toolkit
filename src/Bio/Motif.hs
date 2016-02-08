@@ -333,7 +333,7 @@ toMEME xs (BG (a,c,g,t)) = B.intercalate "" $ header : map f xs
         let x = "MOTIF " `B.append` nm
             y = B.pack $ printf "letter-probability matrix: alength= 4 w= %d nsites= %d E= 0" (size pwm) sites
             z = B.unlines . map (B.unwords . ("":) . map toShortest) . M.toLists . _mat $ pwm
-            sites | isNothing (_nSites pwm) = 0
+            sites | isNothing (_nSites pwm) = 1
                   | otherwise = fromJust $ _nSites pwm
         in B.unlines [x,y,z]
 {-# INLINE toMEME #-}
