@@ -238,7 +238,7 @@ intersectBed a b = intersectSortedBed a b'
 -- | return records in A that are overlapped with records in B
 intersectSortedBed :: (BEDLike b1, BEDLike b2)
                    => [b1] -> Sorted (V.Vector b2) -> [b1]
-intersectSortedBed a (Sorted b) = filter (not . null . f) a
+intersectSortedBed a (Sorted b) = filter (not . IM.null . f) a
   where
     f bed = let chr = chrom bed
                 interval = IM.IntervalCO (chromStart bed) $ chromEnd bed
@@ -263,7 +263,7 @@ intersectSortedBedWith fn a (Sorted b) = map f a
   where
     f bed = let chr = chrom bed
                 interval = IM.IntervalCO (chromStart bed) $ chromEnd bed
-            in (bed, fn $ map snd $ IM.intersecting (M.lookupDefault IM.empty chr tree) interval)
+            in (bed, fn $ IM.elems $ IM.intersecting (M.lookupDefault IM.empty chr tree) interval)
     tree = sortedBedToTree const . Sorted . V.toList . V.zip b $ b
 {-# INLINE intersectSortedBedWith #-}
 

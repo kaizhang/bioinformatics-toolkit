@@ -82,7 +82,8 @@ fetchByGeneNames genes = do
     let request = initReq { method = "GET"
                           , requestHeaders = [("Content-type", "text/plain")]
                           }
-    r <- withManager $ \manager -> httpLbs request manager
+    manager <- newManager tlsManagerSettings
+    r <- httpLbs request manager
     return $ map parseAsTab2 $ BL.lines $ responseBody r
   where
     url = base ++ "/interactions/?searchNames=ture&includeInteractors=false"

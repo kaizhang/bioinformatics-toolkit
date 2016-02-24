@@ -8,6 +8,7 @@ module Bio.Motif.Alignment
     , linPenal
     , quadPenal
     , cubePenal
+    , expPenal
     , mergePWM
     , buildTree
     , progressiveMerging
@@ -25,7 +26,8 @@ import Bio.Utils.Functions
 -- | penalty function takes the gaps number as input, return penalty value
 type PenalFn = Int -> Double
 
-type DistanceFn = (G.Vector v Double, G.Vector v (Double, Double)) => v Double -> v Double -> Double
+type DistanceFn = forall v. (G.Vector v Double, G.Vector v (Double, Double))
+               => v Double -> v Double -> Double
 
 alignment :: PWM -> PWM -> (Double, (PWM, PWM, Int))
 alignment = alignmentBy jsd quadPenal

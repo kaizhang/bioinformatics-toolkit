@@ -80,14 +80,15 @@ base = "https://www.encodeproject.org/"
 -- | general search using keywords and a set of constraints. Example:
 -- search ["chip", "sp1"] ["type=experiment"]
 search :: KeyWords -> IO (Either String [Value])
-search kw = do 
+search kw = do
     initReq <- parseUrl url
-    let request = initReq { method = "GET" 
+    let request = initReq { method = "GET"
                           , requestHeaders = [("accept", "application/json")]
                           }
-    r <- withManager $ \manager -> httpLbs request manager
+    manager <- newManager tlsManagerSettings
+    r <- httpLbs request manager
     return $ (eitherDecode . responseBody) r >>=
-                parseEither (withObject "ENCODE_JSON" (.: "@graph"))
+        parseEither (withObject "ENCODE_JSON" (.: "@graph"))
   where
     url = base ++ "search/?" ++ show kw
 
@@ -119,10 +120,11 @@ getFile out url = openUrl (base ++ url) "application/octet-stream" >>=
 openUrl :: String -> String -> IO B.ByteString
 openUrl url datatype = do
     initReq <- parseUrl url
-    let request = initReq { method = "GET" 
+    let request = initReq { method = "GET"
                           , requestHeaders = [("accept", BS.pack datatype)]
                           }
-    r <- withManager $ \manager -> httpLbs request manager
+    manager <- newManager tlsManagerSettings
+    r <- httpLbs request manager
     return $ responseBody r
 
 jsonFromUrl :: String -> IO (Either String Value)
@@ -148,6 +150,6 @@ jsonFromUrl url = eitherDecode <$> openUrl (base ++ url) "application/json"
 as :: FromJSON a => Value -> a
 as = getResult . fromJSON
   where
-    getResult (Error e) = error e 
+    getResult (Error e) = error e
     getResult (Success x) = x
 {-# INLINE as #-}

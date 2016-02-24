@@ -2,7 +2,7 @@
 -- further documentation, see http://haskell.org/cabal/users-guide/
 
 name:                bioinformatics-toolkit
-version:             0.1.0
+version:             0.1.1
 synopsis:            A collection of bioinformatics tools
 description:         A collection of bioinformatics tools
 license:             MIT
@@ -26,7 +26,7 @@ library
     Bio.ChIPSeq.FragLen
     Bio.Data.Bam
     Bio.Data.Bed
-    Bio.Data.BigWig
+--    Bio.Data.BigWig
     Bio.Data.Fasta
     Bio.GO
     Bio.GO.Parser
@@ -52,16 +52,16 @@ library
       base >=4.0 && <5.0
     , aeson
     , aeson-pretty
-    , bbi
+--    , bbi
     , binary
     , bytestring >=0.10
     , bytestring-lexing >=0.5
     , colour
     , conduit
     , containers >=0.5
+    , clustering
     , data-default-class
     , double-conversion
-    , clustering
     , http-conduit
     , hexpat
     , matrices >=0.4.3
@@ -78,7 +78,7 @@ library
     , vector
     , vector-algorithms
     , word8
-    , IntervalMap >=0.3
+    , IntervalMap >=0.5.0.0
 
   default-language:    Haskell2010
 

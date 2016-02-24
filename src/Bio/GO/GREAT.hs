@@ -41,12 +41,14 @@ getRegulatoryDomains :: AssocRule -> [Gene] -> BEDTree [GOId]
 getRegulatoryDomains (BasalPlusExtension up dw ext) gs =
     bedToTree undefined $ flip map basal $ \(BED3 chr s e, go) ->
         let intervals = fromJust . M.lookup chr $ basalTree
-            s' = case IM.intersecting intervals (IM.OpenInterval (s - ext)  s) of
-                [] -> s - ext
-                x -> min s (maximum $ map (upperBound . fst) x)
-            e' = case IM.intersecting intervals (IM.OpenInterval e (e + ext)) of
-                [] -> e + ext
-                x -> max e (minimum $ map (lowerBound . fst) x)
+            s' = let im = IM.intersecting intervals $ IM.OpenInterval (s-ext) s
+                 in if IM.null im
+                     then s - ext
+                     else min s $ maximum $ map upperBound $ IM.keys im
+            e' = let im = IM.intersecting intervals $ IM.OpenInterval e (e+ext)
+                 in if IM.null im
+                     then e + ext
+                     else max e $ minimum $ map lowerBound $ IM.keys im
         in (BED3 chr s' e', go)
   where
     basalTree = bedToTree (error "encounter redundant regions") basal
@@ -69,7 +71,7 @@ countTerms tree = go 0 M.empty
                 let chr = chrom bed
                     s = chromStart bed
                     e = chromEnd bed
-                    terms = nub' . concatMap snd . IM.intersecting
+                    terms = nub' . concat . IM.elems . IM.intersecting
                         (M.lookupDefault IM.empty chr tree) $ IM.IntervalCO s e
                 go (n+1) $ foldl (\acc t -> M.insertWith (+) t 1 acc) termCount terms
             _ -> return (n, termCount)

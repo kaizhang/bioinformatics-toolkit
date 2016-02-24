@@ -28,11 +28,12 @@ lookup xs = do
 lookupHelp :: [EnsemblID] -> IO (Either String Object)
 lookupHelp xs = do
     initReq <- parseUrl url
-    let request = initReq { method = "POST" 
+    let request = initReq { method = "POST"
                           , requestHeaders = [("Content-type", "application/json")]
                           , requestBody = body
                           }
-    r <- withManager $ \manager -> httpLbs request manager
+    manager <- newManager tlsManagerSettings
+    r <- httpLbs request manager
     return . eitherDecode . responseBody $ r
   where
     url = base ++ "/lookup/id/"

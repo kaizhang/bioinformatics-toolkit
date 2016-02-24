@@ -89,7 +89,7 @@ rpkmSortedBed (Sorted regions) = do
             p | _strand tag == Just True = chromStart tag
               | _strand tag == Just False = chromEnd tag - 1
               | otherwise = error "Unkown strand"
-            xs = concat . snd . unzip $
+            xs = concat $ IM.elems $
                 IM.containing (M.lookupDefault IM.empty chr intervalMap) p
         addOne v xs
         return $ succ nTags
@@ -124,7 +124,7 @@ profiling k beds = do
                 let p | strand == Just True = start
                       | strand == Just False = end - 1
                       | otherwise = error "profiling: unkown strand"
-                    overlaps = concat . snd . unzip $
+                    overlaps = concat $ IM.elems $
                         IM.containing (M.lookupDefault IM.empty chr intervalMap) p
                 lift $ forM_ overlaps $ \x -> do
                     let (v, idxFn) = vs `G.unsafeIndex` x
@@ -162,7 +162,7 @@ profilingCoverage k beds = do
                 let chr = chrom bed
                     start = chromStart bed
                     end = chromEnd bed
-                    overlaps = concat . snd . unzip $ IM.intersecting
+                    overlaps = concat $ IM.elems $ IM.intersecting
                         (M.lookupDefault IM.empty chr intervalMap) $ IM.IntervalCO start end
                 lift $ forM_ overlaps $ \x -> do
                     let (v, idxFn) = vs `G.unsafeIndex` x

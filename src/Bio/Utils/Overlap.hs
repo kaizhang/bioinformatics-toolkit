@@ -45,7 +45,7 @@ coverage bin tags = getResult (V.create (VM.replicate (n+1) 0 >>= go tags))
                 intervals = case set of
                     Just iMap -> IM.intersecting iMap.toInterval $ b
                     _ -> []
-            forM_ intervals (\interval -> do 
+            forM_ intervals (\interval -> do
                 let i = snd interval
                     nucl = overlap b . fst $ interval
                 VM.write v i . (+nucl) =<< VM.read v i
@@ -56,7 +56,7 @@ coverage bin tags = getResult (V.create (VM.replicate (n+1) 0 >>= go tags))
     featMap = toMap.map (\x -> (x^.chrom, (x^.chromStart, x^.chromEnd))) $ bin
     featWidth = V.fromList.map (\x -> x^.chromEnd - x^.chromStart) $ bin
     n = length bin
-    overlap (l, u) (IM.ClosedInterval l' u') 
+    overlap (l, u) (IM.ClosedInterval l' u')
         | l' >= l = if u' <= u then u'-l'+1 else u-l'+1
         | otherwise = if u' <= u then u'-l+1 else u-l+1
     overlap _ _ = 0
@@ -78,9 +78,9 @@ coverage bin tags = liftM getResult $ tags $$ sink
                     b = (s, e)
                     l = e - s + 1
                     intervals = case set of
-                        Just iMap -> IM.intersecting iMap.toInterval $ b
+                        Just iMap -> IM.toList . IM.intersecting iMap . toInterval $ b
                         _ -> []
-                forM_ intervals (\interval -> do 
+                forM_ intervals (\interval -> do
                     let i = snd interval
                         nucl = overlap b . fst $ interval
                     VM.write v i . (+nucl) =<< VM.read v i
@@ -91,13 +91,13 @@ coverage bin tags = liftM getResult $ tags $$ sink
     featMap = toMap.map (\x -> (_chrom x, (_chromStart x, _chromEnd x))) $ bin
     featWidth = V.fromList.map (\x -> _chromEnd x - _chromStart x) $ bin
     n = length bin
-    overlap (l, u) (IM.ClosedInterval l' u') 
+    overlap (l, u) (IM.ClosedInterval l' u')
         | l' >= l = if u' <= u then u'-l'+1 else u-l'+1
         | otherwise = if u' <= u then u'-l+1 else u-l+1
     overlap _ _ = 0
     normalize a b = fromIntegral a / fromIntegral b
 
-overlapFragment, overlapNucl :: 
+overlapFragment, overlapNucl ::
                   [(Int, Int)] -- ^ Ascending order list
                 -> [(Int, Int)] -- ^ tags in any order
                 -> V.Vector Int
@@ -107,7 +107,7 @@ overlapFragment xs ts = V.create (VM.replicate n 0 >>= go ts)
         iMap = IM.fromAscList $ zip (map toInterval xs) [0..]
         go ts' v = do
             forM_ ts' (\x -> do
-                let indices = snd.unzip.IM.intersecting iMap.toInterval $ x
+                let indices = IM.elems . IM.intersecting iMap . toInterval $ x
                 forM_ indices (\i -> VM.write v i . (+1) =<< VM.read v i)
                 )
             return v
@@ -118,15 +118,15 @@ overlapNucl xs ts = V.create (VM.replicate n 0 >>= go ts)
         iMap = IM.fromAscList $ zip (map toInterval xs) [0..]
         go ts' v = do
             forM_ ts' (\x -> do
-                let intervals = IM.intersecting iMap.toInterval $ x
-                forM_ intervals (\interval -> do 
+                let intervals = IM.toList . IM.intersecting iMap . toInterval $ x
+                forM_ intervals (\interval -> do
                     let i = snd interval
                         nucl = overlap x . fst $ interval
                     VM.write v i . (+nucl) =<< VM.read v i
                     )
                 )
             return v
-        overlap (l, u) (IM.ClosedInterval l' u') 
+        overlap (l, u) (IM.ClosedInterval l' u')
             | l' >= l = if u' <= u then u'-l'+1 else u-l'+1
             | otherwise = if u' <= u then u'-l+1 else u-l+1
         overlap _ _ = 0
