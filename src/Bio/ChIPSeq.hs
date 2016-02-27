@@ -16,9 +16,7 @@ import Bio.SamTools.Bam
 import qualified Bio.SamTools.BamIndex as BI
 import Control.Monad (liftM, forM_, forM)
 import Control.Monad.Primitive (PrimMonad)
-import Control.Monad.Trans.Class (lift)
-import Data.Conduit
-import qualified Data.Conduit.List as CL
+import Conduit
 import Data.Function (on)
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as M
@@ -79,7 +77,7 @@ rpkmSortedBed :: (PrimMonad m, BEDLike b, G.Vector v Double)
               => Sorted (V.Vector b) -> Sink BED m (v Double)
 rpkmSortedBed (Sorted regions) = do
     vec <- lift $ GM.replicate l 0
-    n <- CL.foldM (count vec) (0 :: Int)
+    n <- foldMC (count vec) (0 :: Int)
     let factor = fromIntegral n / 1e9
     lift $ liftM (G.imap (\i x -> x / factor / (fromIntegral . size) (regions V.! i)))
          $ G.unsafeFreeze vec
@@ -183,7 +181,7 @@ profilingCoverage k beds = do
 -- constant space
 rpkmBam :: BEDLike b => FilePath -> Conduit b IO Double
 rpkmBam fl = do
-    nTags <- lift $ readBam fl $$ CL.foldM (\acc bam -> return $
+    nTags <- lift $ readBam fl $$ foldMC (\acc bam -> return $
                                   if isUnmap bam then acc else acc + 1) 0.0
     handle <- lift $ BI.open fl
     conduit nTags handle
@@ -198,7 +196,7 @@ rpkmBam fl = do
                            rc <- lift $ viewBam h (chr, s, e) $$ readCount s e
                            yield $ rc * 1e9 / n / fromIntegral (e-s)
                            conduit n h
-    readCount l u = CL.foldM f 0.0
+    readCount l u = foldMC f 0.0
       where
         f acc bam = do let p1 = fromIntegral . fromJust . position $ bam
                            rl = fromIntegral . fromJust . queryLength $ bam
@@ -237,7 +235,7 @@ peakCluster :: (BEDLike b, Monad m)
             -> Int   -- ^ radius
             -> Int   -- ^ cutoff
             -> Source m BED
-peakCluster peaks r th = mergeBedWith mergeFn peaks' $= CL.filter g
+peakCluster peaks r th = mergeBedWith mergeFn peaks' $= filterC g
   where
     peaks' = map f peaks
     f b = let chr = chrom b

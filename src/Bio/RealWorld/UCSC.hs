@@ -21,10 +21,8 @@ module Bio.RealWorld.UCSC
     , readUCSCGenes'
     ) where
 
-import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString.Char8 as B
-import Data.Conduit
-import qualified Data.Conduit.List as CL
+import Conduit
 import qualified Data.Vector.Unboxed as U
 import System.IO
 
@@ -69,7 +67,7 @@ readUCSCGenes fl = do
 {-# INLINE readUCSCGenes #-}
 
 readUCSCGenes' :: FilePath -> IO [UCSCGene]
-readUCSCGenes' fl = readUCSCGenes fl $$ CL.consume
+readUCSCGenes' fl = readUCSCGenes fl $$ sinkList
 {-# INLINE readUCSCGenes' #-}
 
 readGeneFromLine :: B.ByteString -> UCSCGene

@@ -39,7 +39,6 @@ module Bio.RealWorld.ENCODE
     , showResult
     ) where
 
-import Control.Applicative ((<$>))
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Aeson.Encode.Pretty (encodePretty)
@@ -47,12 +46,10 @@ import qualified Data.HashMap.Lazy as M
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Sequence as S
-import qualified Data.Foldable as F
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Network.HTTP.Conduit
 import Data.Default.Class
-import Data.Monoid
 
 import Bio.RealWorld.ID
 
@@ -66,9 +63,9 @@ instance Show KeyWords where
     show (KeyWords x y) = f x ++ g y
       where
         f x' | S.null x' = ""
-             | otherwise = "searchTerm=" ++ F.foldr1 (\a b -> b ++ ('+':a)) x' ++ "&"
+             | otherwise = "searchTerm=" ++ foldr1 (\a b -> b ++ ('+':a)) x' ++ "&"
         g y' | S.null y' = ""
-             | otherwise =  F.foldr1 (\a b -> b ++ ('&':a)) y'
+             | otherwise =  foldr1 (\a b -> b ++ ('&':a)) y'
 
 instance Monoid KeyWords where
     mempty = KeyWords S.empty S.empty

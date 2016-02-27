@@ -22,8 +22,7 @@ import Bio.Motif
 import Bio.Seq
 import Control.Monad.State.Lazy
 import qualified Data.ByteString.Char8 as B
-import Data.Conduit
-import qualified Data.Conduit.List as CL
+import Conduit
 import System.IO
 
 class FastaLike f where
@@ -37,7 +36,7 @@ class FastaLike f where
 
     -- | non-stream version, read whole file in memory
     readFasta' :: FilePath -> IO [f]
-    readFasta' fl = readFasta fl $$ CL.consume
+    readFasta' fl = readFasta fl $$ sinkList
 --    writeFasta :: FilePath -> [f] -> IO ()
     {-# MINIMAL fromFastaRecord #-}
 
@@ -54,7 +53,7 @@ fastaReader fl = do handle <- liftIO $ openFile fl ReadMode
                     loop [] handle
   where
     loop :: [B.ByteString] -> Handle -> Source IO (B.ByteString, [B.ByteString])
-    loop acc h = do 
+    loop acc h = do
         eof <- liftIO $ hIsEOF h
         if eof then liftIO (hClose h) >> output acc else do
             l <- liftIO $ B.hGetLine h

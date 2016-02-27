@@ -13,7 +13,7 @@ import Bio.Seq (DNA, toBS)
 import qualified Bio.Seq as Seq (length)
 import Bio.Motif
 import Control.Parallel.Strategies (parMap, rdeepseq)
-import Data.Conduit
+import Conduit
 import qualified Data.HashSet as S
 import Data.List (foldl', intercalate)
 import Data.Ord (comparing)

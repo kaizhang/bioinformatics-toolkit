@@ -35,7 +35,7 @@ import Prelude hiding (sum)
 import Control.Arrow ((&&&))
 import Control.Monad.State.Lazy
 import qualified Data.ByteString.Char8 as B
-import Data.Conduit
+import Conduit
 import Data.Double.Conversion.ByteString (toShortest)
 import Data.Default.Class
 import Data.List (sortBy, foldl')

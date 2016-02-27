@@ -21,8 +21,7 @@ import Bio.SamTools.Bam
 import Bio.SamTools.BamIndex
 import Control.Monad.Trans.Class (lift)
 import qualified Data.ByteString.Char8 as B
-import Data.Conduit (Source, Conduit, yield)
-import qualified Data.Conduit.List as CL
+import Conduit (Source, Conduit, yield, concatMapC)
 import Data.Maybe (fromJust)
 import Bio.Data.Bed
 
@@ -37,7 +36,7 @@ readBam fl = do handle <- lift $ openBamInFile fl
 {-# INLINE readBam #-}
 
 bamToBed :: Monad m => Conduit Bam1 m BED
-bamToBed = CL.mapMaybe f
+bamToBed = concatMapC f
   where
     f bam =case targetName bam of
         Just chr ->
@@ -52,7 +51,7 @@ bamToBed = CL.mapMaybe f
 viewBam :: IdxHandle -> (B.ByteString, Int, Int) -> Source IO Bam1
 viewBam handle (chr, s, e) = case lookupTarget (idxHeader handle) chr of
     Nothing -> return ()
-    Just chrId -> do 
+    Just chrId -> do
         q <- lift $ query handle chrId (fromIntegral s,fromIntegral e)
         go q
   where

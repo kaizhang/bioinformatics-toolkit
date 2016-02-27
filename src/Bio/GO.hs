@@ -9,7 +9,6 @@ module Bio.GO
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.ByteString.Char8 as B
-import Data.Foldable (foldl')
 import qualified Data.HashMap.Strict as M
 import Data.Maybe
 

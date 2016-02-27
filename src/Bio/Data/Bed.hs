@@ -46,8 +46,7 @@ module Bio.Data.Bed
 import Control.Arrow ((***))
 import Control.Monad.State.Strict
 import qualified Data.ByteString.Char8 as B
-import Data.Conduit
-import qualified Data.Conduit.List as CL
+import Conduit
 import Data.Default.Class (Default(..))
 import Data.Function (on)
 import qualified Data.Foldable as F
@@ -98,7 +97,7 @@ class BEDLike b where
 
     -- | non-streaming version
     hReadBed' :: MonadIO m => Handle -> m [b]
-    hReadBed' h = hReadBed h $$ CL.consume
+    hReadBed' h = hReadBed h $$ sinkList
     {-# INLINE hReadBed' #-}
 
     readBed :: MonadIO m => FilePath -> Source m b
@@ -109,7 +108,7 @@ class BEDLike b where
 
     -- | non-streaming version
     readBed' :: MonadIO m => FilePath -> m [b]
-    readBed' fl = readBed fl $$ CL.consume
+    readBed' fl = readBed fl $$ sinkList
     {-# INLINE readBed' #-}
 
     hWriteBed :: MonadIO m => Handle -> Sink b m ()
@@ -121,7 +120,7 @@ class BEDLike b where
     {-# INLINE hWriteBed #-}
 
     hWriteBed' :: MonadIO m => Handle -> [b] -> m ()
-    hWriteBed' handle beds = CL.sourceList beds $$ hWriteBed handle
+    hWriteBed' handle beds = yieldMany beds $$ hWriteBed handle
     {-# INLINE hWriteBed' #-}
 
     writeBed :: MonadIO m => FilePath -> Sink b m ()
@@ -131,7 +130,7 @@ class BEDLike b where
     {-# INLINE writeBed #-}
 
     writeBed' :: MonadIO m => FilePath -> [b] -> m ()
-    writeBed' fl beds = CL.sourceList beds $$ writeBed fl
+    writeBed' fl beds = yieldMany beds $$ writeBed fl
     {-# INLINE writeBed' #-}
 
     {-# MINIMAL asBed, fromLine, toLine, chrom, chromStart, chromEnd #-}
@@ -407,7 +406,7 @@ fetchSeq g = do gH <- liftIO $ gHOpen g
 {-# INLINE fetchSeq #-}
 
 fetchSeq' :: (BioSeq DNA a, MonadIO m) => Genome -> [BED] -> m [Either String (DNA a)]
-fetchSeq' g beds = CL.sourceList beds $= fetchSeq g $$ CL.consume
+fetchSeq' g beds = yieldMany beds $= fetchSeq g $$ sinkList
 {-# INLINE fetchSeq' #-}
 
 -- * BED3 format

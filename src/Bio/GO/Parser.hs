@@ -5,7 +5,6 @@ module Bio.GO.Parser
     ) where
 
 import Control.Arrow ((&&&))
-import Control.Applicative ((<$>))
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.HashMap.Strict as M
 import Data.Maybe

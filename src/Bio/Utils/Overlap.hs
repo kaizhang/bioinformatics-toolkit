@@ -13,9 +13,7 @@ import Data.List
 import Data.Function
 import Bio.Data.Bed
 import Control.Monad
-import Data.Conduit
-import qualified Data.Conduit.List as CL
-import Control.Monad.Trans.Class (lift)
+import Conduit
 
 -- | convert lines of a BED file into a data structure - A hashmap of which the
 -- | chromosomes, and values are interval maps.
@@ -71,7 +69,7 @@ coverage bin tags = liftM getResult $ tags $$ sink
     sink :: Sink BED IO (V.Vector Int)
     sink = do
         v <- lift $ VM.replicate (n+1) 0
-        CL.mapM_ $ \t -> do
+        mapM_C $ \t -> do
                 let set = M.lookup (_chrom t) featMap
                     s = _chromStart t
                     e = _chromEnd t
