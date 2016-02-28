@@ -139,6 +139,7 @@ test-suite tests
   main-is: test.hs
   other-modules:
       Tests.Bed
+    , Tests.Bam
     , Tests.ChIPSeq
     , Tests.Motif
     , Tests.Seq
@@ -155,6 +156,7 @@ test-suite tests
     , tasty-hunit
     , bioinformatics-toolkit
     , conduit
+    , conduit-combinators
     , unordered-containers
     , mtl
 

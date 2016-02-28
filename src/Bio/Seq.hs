@@ -1,8 +1,8 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
-module Bio.Seq 
-    ( 
+module Bio.Seq
+    (
     -- * Alphabet
       Basic
     , IUPAC
@@ -24,7 +24,6 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as S
 import Data.Char8 (toUpper)
-import Data.Monoid (Monoid(..))
 
 -- | Alphabet defined by http://www.chem.qmul.ac.uk/iupac/
 -- | Standard unambiguous alphabet
@@ -77,7 +76,7 @@ instance BioSeq' Peptide where
 
 class BioSeq' s => BioSeq s a where
     alphabet :: s a -> S.HashSet Char
-    fromBS :: B.ByteString -> s a 
+    fromBS :: B.ByteString -> s a
 
 instance BioSeq DNA Basic where
     alphabet _ = S.fromList "ACGT"

@@ -16,7 +16,6 @@ module Bio.Seq.IO
 
 import Bio.Seq
 import Bio.Utils.Misc (readInt)
-import Control.Applicative ((<$>))
 import qualified Data.ByteString.Char8 as B
 import qualified Data.HashMap.Lazy as M
 import Data.List.Split
