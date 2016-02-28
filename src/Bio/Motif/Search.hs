@@ -9,17 +9,23 @@ module Bio.Motif.Search
     , spacingConstraint
     ) where
 
-import Bio.Seq (DNA, toBS)
-import qualified Bio.Seq as Seq (length)
-import Bio.Motif
-import Control.Parallel.Strategies (parMap, rdeepseq)
-import Conduit
-import qualified Data.HashSet as S
-import Data.List (foldl', intercalate)
-import Data.Ord (comparing)
-import qualified Data.ByteString.Char8 as B
-import qualified Data.Vector.Unboxed as U
-import qualified Data.Matrix.Unboxed as M
+import           Conduit                     (Source, await, mapC, sinkList,
+                                              sinkVector, yield, ($$), (=$=))
+import           Control.Monad.Identity      (runIdentity)
+import           Control.Monad.ST            (runST)
+import           Control.Parallel.Strategies (parMap, rdeepseq)
+import qualified Data.ByteString.Char8       as B
+import qualified Data.HashSet                as S
+import           Data.List                   (intercalate)
+import qualified Data.Matrix.Unboxed         as M
+import           Data.Ord                    (comparing)
+import qualified Data.Vector.Unboxed         as U
+
+import           Bio.Motif                   (Bkgd (..), Motif (..), PWM (..),
+                                              pValueToScore, rcPWM, scores',
+                                              size)
+import           Bio.Seq                     (DNA, toBS)
+import qualified Bio.Seq                     as Seq (length)
 
 -- | given a user defined threshold, look for TF binding sites on a DNA
 -- sequence, using look ahead search. This function doesn't search for binding
@@ -56,7 +62,7 @@ findTFBS' bg pwm dna th = concat $ parMap rdeepseq f [0,step..l-n+1]
 
 -- | use naive search
 findTFBSSlow :: Monad m => Bkgd -> PWM -> DNA a -> Double -> Source m Int
-findTFBSSlow bg pwm dna thres = scores' bg pwm dna $=
+findTFBSSlow bg pwm dna thres = scores' bg pwm dna =$=
                                        loop 0
   where
     loop i = do v <- await
@@ -138,11 +144,11 @@ lookAheadSearch (BG (a, c, g, t)) pwm sigma dna start thres = loop (0, -1) 0
 {-# INLINE lookAheadSearch #-}
 
 data MotifCompo = MotifCompo
-    { _motif1 :: Motif
-    , _motif2 :: Motif
+    { _motif1        :: Motif
+    , _motif2        :: Motif
     , _sameDirection :: Bool
-    , _spacing :: Int
-    , _score :: Double
+    , _spacing       :: Int
+    , _score         :: Double
     }
 
 instance Show MotifCompo where
@@ -172,20 +178,23 @@ spacingConstraint m1@(Motif _ pwm1) m2@(Motif _ pwm2) bg th w k dna = same ++ op
         nFR = map (nOverlap forward1 reverse2 w) rs
         nRF = map (nOverlap reverse1 forward2 w) $ reverse rs
         f r c = MotifCompo m1 m2 False r $ fromIntegral c / n
-    forward1 = findTFBS' bg pwm1 dna th1
-    forward2 = S.fromList $ findTFBS' bg pwm2 dna th2
-    reverse1 = map (+ (s1 - 1)) $ findTFBS' bg (rcPWM pwm1) dna th1'
-    reverse2 = S.fromList $ map (+ (s2 - 1)) $ findTFBS' bg (rcPWM pwm2) dna th2'
+    forward1 = runST $ findTFBS bg pwm1 dna th1 $$ sinkVector
+    forward2 = S.fromList $ runIdentity $ findTFBS bg pwm2 dna th2 $$ sinkList
+    reverse1 = runST $ findTFBS bg (rcPWM pwm1) dna th1' =$=
+               mapC (+ (s1 - 1)) $$ sinkVector
+    reverse2 = S.fromList $ runIdentity $ findTFBS bg (rcPWM pwm2) dna th2' =$=
+               mapC (+ (s2 - 1)) $$ sinkList
     th1 = pValueToScore th bg pwm1
     th1' = pValueToScore th bg $ rcPWM pwm1
     th2 = pValueToScore th bg pwm2
     th2' = pValueToScore th bg $ rcPWM pwm2
     s1 = size pwm1
     s2 = size pwm2
-    n = sqrt $ fromIntegral $ (length forward1 + length reverse1) * (S.size forward2 + S.size reverse2)
+    n = sqrt $ fromIntegral $ (U.length forward1 + U.length reverse1) *
+        (S.size forward2 + S.size reverse2)
 
-    nOverlap :: [Int] -> S.HashSet Int -> Int -> Int -> Int
-    nOverlap xs ys w' i = foldl' f 0 xs
+    nOverlap :: U.Vector Int -> S.HashSet Int -> Int -> Int -> Int
+    nOverlap xs ys w' i = U.foldl' f 0 xs
       where
         f acc x | any (`S.member` ys) [x + i - w' .. x + i + w'] = acc + 1
                 | otherwise = acc

@@ -3,6 +3,6 @@ packages:
     - '.'
 
 extra-deps:
-    - samtools-0.2.1.2
+    - samtools-0.2.4.1
 
 resolver: lts-5.4
