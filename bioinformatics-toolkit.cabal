@@ -83,7 +83,7 @@ library
   default-language:    Haskell2010
 
 executable mkindex
-  hs-source-dirs:   exe
+  hs-source-dirs:   app
   main-is: mkindex.hs
   build-depends:
       base >=4.8 && <5.0
@@ -93,7 +93,7 @@ executable mkindex
   default-language:    Haskell2010
 
 executable viewSeq
-  hs-source-dirs:   exe
+  hs-source-dirs:   app
   main-is: viewSeq.hs
   build-depends:
       base >=4.8 && <5.0
@@ -102,7 +102,7 @@ executable viewSeq
   default-language:    Haskell2010
 
 --executable mergeMotifs
---  hs-source-dirs:   exe
+--  hs-source-dirs:   app
 --  main-is: mergeMotifs.hs
 --  build-depends:
 --      base >=4.6 && <5.0

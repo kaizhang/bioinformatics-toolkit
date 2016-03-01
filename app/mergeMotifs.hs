@@ -1,29 +1,30 @@
 {-# LANGUAGE OverloadedStrings #-}
-import Bio.Data.Fasta
-import Bio.Motif.Alignment
-import Bio.Motif
-import Bio.Seq (toBS)
-import AI.Clustering.Hierarchical hiding (drawDendrogram)
-import qualified Data.ByteString.Char8 as B
-import Data.Default.Class
-import Data.List
-import Data.List.Split (splitOn)
-import Data.Ord
-import Diagrams.Prelude (dims2D, (|||), strutX)
-import Diagrams.Plots.Dendrogram
-import Diagrams.Backend.Cairo
-import Text.Printf
-import System.IO
 
-import Options.Applicative
+import           AI.Clustering.Hierarchical hiding (drawDendrogram)
+import           Bio.Data.Fasta
+import           Bio.Motif
+import           Bio.Motif.Alignment
+import           Bio.Seq                    (toBS)
+import qualified Data.ByteString.Char8      as B
+import           Data.Default.Class
+import           Data.List
+import           Data.List.Split            (splitOn)
+import           Data.Ord
+import           Diagrams.Backend.Cairo
+import           Diagrams.Plots.Dendrogram
+import           Diagrams.Prelude           (dims2D, strutX, (|||))
+import           System.IO
+import           Text.Printf
+
+import           Options.Applicative
 
 data Options = Options
-    { input :: FilePath
-    , output :: FilePath
-    , prefix :: String
-    , thres :: Double
-    , mode :: String
-    , svg :: Maybe FilePath
+    { input    :: FilePath
+    , output   :: FilePath
+    , prefix   :: String
+    , thres    :: Double
+    , mode     :: String
+    , svg      :: Maybe FilePath
     , dumpDist :: Bool
     } deriving (Show)
 
@@ -62,7 +63,7 @@ parser = Options
           <> help "output pairwise distances of original motifs without performing any merging" )
 
 iterativeMerge :: Double -> String -> [Motif] -> [Motif]
-iterativeMerge th pre ms = ms'
+iterativeMerge th pre motifs = ms'
   where
     merged = iter $ map (\x -> (_pwm x, [_name x])) ms
     ms' = zipWith ( \i (pwm, nms) ->
@@ -71,7 +72,7 @@ iterativeMerge th pre ms = ms'
                     `B.append` B.intercalate "," nms
                     `B.append` ")"
                   ) pwm ) [0::Int ..] merged
-    iter xs | s < th = iter $ (mergePWM (p1,p2,i), a++b) : filter (\m -> snd m /= a && snd m /= b) xs
+    iter xs | s < th = iter $ (mergePWMWeighted (p1,p2,i), a++b) : filter (\m -> snd m /= a && snd m /= b) xs
             | otherwise = xs
       where
         ((s, (p1, p2, i)),(a,b)) = minimumBy (comparing (fst.fst)) $ map (\((x,nm1), (y,nm2)) -> (alignment x y, (nm1,nm2))) pairs
