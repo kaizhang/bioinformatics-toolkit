@@ -1,22 +1,26 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns     #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Bio.Motif.Search
     ( findTFBS
     , findTFBS'
     , findTFBSSlow
     , maxMatchSc
-    , MotifCompo(..)
-    , spacingConstraint
+    , SpaceDistribution(..)
+    , spaceConstraint
+    , spaceConstraintHelper
     ) where
 
-import           Conduit                     (Source, await, mapC, sinkList,
-                                              sinkVector, yield, ($$), (=$=))
-import           Control.Monad.Identity      (runIdentity)
+import           Conduit                     (Source, await, mapC, sinkVector,
+                                              yield, ($$), (=$=))
+import           Control.Arrow               ((***))
 import           Control.Monad.ST            (runST)
 import           Control.Parallel.Strategies (parMap, rdeepseq)
 import qualified Data.ByteString.Char8       as B
+import           Data.Function               (on)
+import qualified Data.HashMap.Strict         as HM
 import qualified Data.HashSet                as S
-import           Data.List                   (intercalate)
+import           Data.List                   (nubBy)
 import qualified Data.Matrix.Unboxed         as M
 import           Data.Ord                    (comparing)
 import qualified Data.Vector.Unboxed         as U
@@ -30,27 +34,41 @@ import qualified Bio.Seq                     as Seq (length)
 -- | given a user defined threshold, look for TF binding sites on a DNA
 -- sequence, using look ahead search. This function doesn't search for binding
 -- sites on the reverse strand
-findTFBS :: Monad m => Bkgd -> PWM -> DNA a -> Double -> Source m Int
-findTFBS bg pwm dna thres = loop 0
+findTFBS :: Monad m
+         => Bkgd
+         -> PWM
+         -> DNA a
+         -> Double
+         -> Bool    -- ^ whether to skip ambiguous sequences. Recommend: True
+                    -- in most cases
+         -> Source m Int
+findTFBS bg pwm dna thres skip = loop 0
   where
     loop !i | i >= l - n + 1 = return ()
-            | otherwise = do let (d, _) = lookAheadSearch bg pwm sigma dna i thres
+            | otherwise = do let (d, _) = searchFn bg pwm sigma dna i thres
                              if d == n - 1
                                 then yield i >> loop (i+1)
                                 else loop (i+1)
     sigma = optimalScoresSuffix bg pwm
     l = Seq.length dna
     n = size pwm
+    searchFn | skip = lookAheadSearch'
+             | otherwise = lookAheadSearch
 {-# INLINE findTFBS #-}
 
 -- | a parallel version of findTFBS
-findTFBS' :: Bkgd -> PWM -> DNA a -> Double -> [Int]
-findTFBS' bg pwm dna th = concat $ parMap rdeepseq f [0,step..l-n+1]
+findTFBS' :: Bkgd
+          -> PWM
+          -> DNA a
+          -> Double
+          -> Bool
+          -> [Int]
+findTFBS' bg pwm dna th skip = concat $ parMap rdeepseq f [0,step..l-n+1]
   where
     f x = loop x
       where
         loop i | i >= x+step || i >= l-n+1 = []
-               | otherwise = let d = fst $ lookAheadSearch bg pwm sigma dna i th
+               | otherwise = let d = fst $ searchFn bg pwm sigma dna i th
                              in if d == n-1
                                    then i : loop (i+1)
                                    else loop (i+1)
@@ -58,6 +76,8 @@ findTFBS' bg pwm dna th = concat $ parMap rdeepseq f [0,step..l-n+1]
     l = Seq.length dna
     n = size pwm
     step = 500000
+    searchFn | skip = lookAheadSearch'
+             | otherwise = lookAheadSearch
 {-# INLINE findTFBS' #-}
 
 -- | use naive search
@@ -143,6 +163,39 @@ lookAheadSearch (BG (a, c, g, t)) pwm sigma dna start thres = loop (0, -1) 0
     n = size pwm
 {-# INLINE lookAheadSearch #-}
 
+-- | this version skip sequences contain ambiguous bases, like "N"
+lookAheadSearch' :: Bkgd              -- ^ background nucleotide distribution
+                 -> PWM               -- ^ pwm
+                 -> U.Vector Double   -- ^ best possible match score of suffixes
+                 -> DNA a             -- ^ DNA sequence
+                 -> Int               -- ^ starting location on the DNA
+                 -> Double            -- ^ threshold
+                 -> (Int, Double)     -- ^ (d, sc_d), the largest d such that sc_d > th_d
+lookAheadSearch' (BG (a, c, g, t)) pwm sigma dna start thres = loop (0, -1) 0
+  where
+    loop (!acc, !th_d) !d
+      | acc < th_d = (d-2, acc)
+      | otherwise = if d >= n
+                       then (d-1, acc)
+                       else loop (acc + sc, thres - sigma U.! d) (d+1)
+      where
+        sc = case toBS dna `B.index` (start + d) of
+              'A' -> log $! matchA / a
+              'C' -> log $! matchC / c
+              'G' -> log $! matchG / g
+              'T' -> log $! matchT / t
+              _ -> -1 / 0
+        matchA = addSome $ M.unsafeIndex (_mat pwm) (d,0)
+        matchC = addSome $ M.unsafeIndex (_mat pwm) (d,1)
+        matchG = addSome $ M.unsafeIndex (_mat pwm) (d,2)
+        matchT = addSome $ M.unsafeIndex (_mat pwm) (d,3)
+        addSome !x | x == 0 = pseudoCount
+                   | otherwise = x
+        pseudoCount = 0.0001
+    n = size pwm
+{-# INLINE lookAheadSearch' #-}
+
+{-
 data MotifCompo = MotifCompo
     { _motif1        :: Motif
     , _motif2        :: Motif
@@ -154,51 +207,68 @@ data MotifCompo = MotifCompo
 instance Show MotifCompo where
     show (MotifCompo m1 m2 isSame sp sc) = intercalate "\t"
         [B.unpack $ _name m1, B.unpack $ _name m2, show isSame, show sp, show sc]
+        -}
+
+data SpaceDistribution = SpaceDistribution
+    { _motif1   :: Motif
+    , _nSites1  :: (Int, Int)
+    , _motif2   :: Motif
+    , _nSites2  :: (Int, Int)
+    , _same     :: [(Int, Int)]
+    , _opposite :: [(Int, Int)]
+    } deriving (Show, Read)
 
 -- | search for spacing constraint between two TFs
-spacingConstraint :: Motif   -- ^ motif 1
-                  -> Motif   -- ^ motif 2
-                  -> Bkgd    -- ^ backgroud nucleotide distribution
-                  -> Double  -- ^ p-Value for motif finding
-                  -> Int     -- ^ half window size
-                  -> Int     -- ^ max distance to search
-                  -> DNA a -> [MotifCompo]
-spacingConstraint m1@(Motif _ pwm1) m2@(Motif _ pwm2) bg th w k dna = same ++ oppose
+spaceConstraint :: [(Motif, Motif)]   -- ^ motifs, names must be unique
+                -> Bkgd    -- ^ backgroud nucleotide distribution
+                -> Double  -- ^ p-Value for motif finding
+                -> Int     -- ^ half window size, typical 5
+                -> Int     -- ^ max distance to search, typical 300
+                -> DNA a -> [SpaceDistribution]
+spaceConstraint pairs bg th w k dna = flip map pairs $ \(a, b) ->
+    let (m1, site1) = HM.lookupDefault undefined (_name a) sites
+        (m2, site2) = HM.lookupDefault undefined (_name b) sites
+        (same, opposite) = spaceConstraintHelper site1 site2 w k
+    in SpaceDistribution m1 ((U.length *** U.length) site1) m2
+        ((U.length *** U.length) site2) same opposite
+  where
+    motifs = nubBy ((==) `on` _name) $ concatMap (\(a,b) -> [a,b]) pairs
+    findSites (Motif _ pwm) = (fwd, rev)
+      where
+        fwd = runST $ findTFBS bg pwm dna cutoff True $$ sinkVector
+        rev = runST $ findTFBS bg pwm' dna cutoff' True =$=
+              mapC (+ (size pwm - 1)) $$ sinkVector
+        cutoff = pValueToScore th bg pwm
+        cutoff' = pValueToScore th bg pwm'
+        pwm' = rcPWM pwm
+    sites = HM.fromList $ map (\m -> (_name m, (m, findSites m))) motifs
+{-# INLINE spaceConstraint #-}
+
+spaceConstraintHelper :: (U.Vector Int, U.Vector Int)
+                      -> (U.Vector Int, U.Vector Int)
+                      -> Int
+                      -> Int
+                      -> ([(Int, Int)], [(Int, Int)])
+spaceConstraintHelper (fw1, rv1) (fw2, rv2) w k = (same, oppose)
   where
     rs = let rs' = [-k, -k+2*w+1 .. 0]
          in rs' ++ map (*(-1)) (reverse rs')
-    -- on the same orientation
-    same = zipWith f rs $ zipWith (+) nFF nRR
-      where
-        nFF = map (nOverlap forward1 forward2 w) rs
-        nRR = map (nOverlap reverse1 reverse2 w) $ reverse rs
-        f r c = MotifCompo m1 m2 True r $ fromIntegral c / n
-    oppose = zipWith f rs $ zipWith (+) nFR nRF
-      where
-        nFR = map (nOverlap forward1 reverse2 w) rs
-        nRF = map (nOverlap reverse1 forward2 w) $ reverse rs
-        f r c = MotifCompo m1 m2 False r $ fromIntegral c / n
-    forward1 = runST $ findTFBS bg pwm1 dna th1 $$ sinkVector
-    forward2 = S.fromList $ runIdentity $ findTFBS bg pwm2 dna th2 $$ sinkList
-    reverse1 = runST $ findTFBS bg (rcPWM pwm1) dna th1' =$=
-               mapC (+ (s1 - 1)) $$ sinkVector
-    reverse2 = S.fromList $ runIdentity $ findTFBS bg (rcPWM pwm2) dna th2' =$=
-               mapC (+ (s2 - 1)) $$ sinkList
-    th1 = pValueToScore th bg pwm1
-    th1' = pValueToScore th bg $ rcPWM pwm1
-    th2 = pValueToScore th bg pwm2
-    th2' = pValueToScore th bg $ rcPWM pwm2
-    s1 = size pwm1
-    s2 = size pwm2
-    n = sqrt $ fromIntegral $ (U.length forward1 + U.length reverse1) *
-        (S.size forward2 + S.size reverse2)
-
+    fw2' = S.fromList $ U.toList fw2
+    rv2' = S.fromList $ U.toList rv2
     nOverlap :: U.Vector Int -> S.HashSet Int -> Int -> Int -> Int
     nOverlap xs ys w' i = U.foldl' f 0 xs
       where
         f acc x | any (`S.member` ys) [x + i - w' .. x + i + w'] = acc + 1
                 | otherwise = acc
-{-# INLINE spacingConstraint #-}
+    same = zip rs $ zipWith (+) nFF nRR
+      where
+        nFF = map (nOverlap fw1 fw2' w) rs
+        nRR = map (nOverlap rv1 rv2' w) $ reverse rs
+    oppose = zip rs $ zipWith (+) nFR nRF
+      where
+        nFR = map (nOverlap fw1 rv2' w) rs
+        nRF = map (nOverlap rv1 fw2' w) $ reverse rs
+{-# INLINE spaceConstraintHelper #-}
 
 {-
 computePValue :: Double -> [Int] -> [(Int, Double)]

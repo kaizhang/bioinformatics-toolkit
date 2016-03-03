@@ -14,7 +14,7 @@ module Bio.Motif
     , scores'
     , score
     , optimalScore
-    , CDF
+    , CDF(..)
     , cdf
     , cdf'
     , scoreCDF
@@ -224,7 +224,7 @@ pValueToScoreExact p bg pwm = go 0 0 . sort' . map ((scoreHelp bg pwm &&& pBkgd 
 pValueToScore :: Double -> Bkgd -> PWM -> Double
 pValueToScore p bg pwm = cdf' (scoreCDF bg pwm) $ 1 - p
 
-newtype CDF = CDF (V.Vector (Double, Double))
+newtype CDF = CDF (V.Vector (Double, Double)) deriving (Read, Show)
 
 -- P(X <= x)
 cdf :: CDF -> Double -> Double
