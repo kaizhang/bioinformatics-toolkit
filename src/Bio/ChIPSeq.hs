@@ -126,7 +126,9 @@ profiling k beds = do
                         IM.containing (M.lookupDefault IM.empty chr intervalMap) p
                 lift $ forM_ overlaps $ \x -> do
                     let (v, idxFn) = vs `G.unsafeIndex` x
-                        i = idxFn p
+                        i = let i' = idxFn p
+                                l = GM.length v
+                            in if i' >= l then l - 1 else i'
                     GM.unsafeRead v i >>= GM.unsafeWrite v i . (+1)
                 sink (nTags+1) vs
 
@@ -164,8 +166,11 @@ profilingCoverage k beds = do
                         (M.lookupDefault IM.empty chr intervalMap) $ IM.IntervalCO start end
                 lift $ forM_ overlaps $ \x -> do
                     let (v, idxFn) = vs `G.unsafeIndex` x
-                        lo = idxFn start
-                        hi = idxFn end
+                        lo = let i = idxFn start
+                             in if i < 0 then 0 else i
+                        hi = let i = idxFn end
+                                 l = GM.length v
+                             in if i >= l then l - 1 else i
                     forM_ [lo..hi] $ \i ->
                         GM.unsafeRead v i >>= GM.unsafeWrite v i . (+1)
                 sink (nTags+1) vs
