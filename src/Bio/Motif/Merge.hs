@@ -2,29 +2,31 @@
 module Bio.Motif.Merge
     ( mergePWM
     , mergePWMWeighted
+    , dilute
+    , trim
     , mergeTree
     , mergeTreeWeighted
     , iterativeMerge
     , buildTree
     )where
 
-import AI.Clustering.Hierarchical hiding (size)
-import Control.Monad (forM_, when)
-import Control.Monad.ST (runST)
-import qualified Data.ByteString.Char8 as B
-import qualified Data.Vector as V
-import qualified Data.Vector.Mutable as VM
-import qualified Data.Vector.Unboxed as U
-import qualified Data.Matrix.Unboxed as MU
-import qualified Data.Matrix.Symmetric as MS
+import           AI.Clustering.Hierarchical    hiding (size)
+import           Control.Monad                 (forM_, when)
+import           Control.Monad.ST              (runST)
+import qualified Data.ByteString.Char8         as B
+import           Data.List                     (dropWhileEnd)
+import qualified Data.Matrix.Symmetric         as MS
 import qualified Data.Matrix.Symmetric.Mutable as MSU
-import Data.List (dropWhileEnd)
-import Data.Maybe
-import Data.Ord (comparing)
+import qualified Data.Matrix.Unboxed           as MU
+import           Data.Maybe
+import           Data.Ord                      (comparing)
+import qualified Data.Vector                   as V
+import qualified Data.Vector.Mutable           as VM
+import qualified Data.Vector.Unboxed           as U
 
-import Bio.Motif
-import Bio.Motif.Alignment
-import Bio.Utils.Functions (kld)
+import           Bio.Motif
+import           Bio.Motif.Alignment
+import           Bio.Utils.Functions           (kld)
 
 mergePWM :: (PWM, PWM, Int) -> PWM
 mergePWM (m1, m2, i)
@@ -56,8 +58,8 @@ mergePWMWeighted (pwm1, w1) (pwm2, w2) shift
     n2 = MU.rows $ _mat pwm2
 
 -- | dilute positions in a PWM that are associated with low weights
-dilute :: [Int] -> PWM -> PWM
-dilute ws pwm = PWM Nothing $ MU.fromRows $ zipWith f ws $ MU.toRows $ _mat pwm
+dilute :: (PWM, [Int]) -> PWM
+dilute (pwm, ws) = PWM Nothing $ MU.fromRows $ zipWith f ws $ MU.toRows $ _mat pwm
   where
     f w r | w < n = let d = fromIntegral $ n - w
                     in U.map (\x -> (fromIntegral w * x + 0.25 * d) / fromIntegral n) r
@@ -66,41 +68,44 @@ dilute ws pwm = PWM Nothing $ MU.fromRows $ zipWith f ws $ MU.toRows $ _mat pwm
 {-# INLINE dilute #-}
 
 trim :: Bkgd -> Double -> PWM -> PWM
-trim (BG (a,c,g,t)) cutoff pwm = PWM Nothing $ MU.fromRows $ dropWhileEnd f $ dropWhile f rs
+trim (BG (a,c,g,t)) cutoff pwm = PWM Nothing $ MU.fromRows $ dropWhileEnd f $
+    dropWhile f rs
   where
     f x = kld x bg < cutoff
     rs = MU.toRows $ _mat pwm
     bg = U.fromList [a,c,g,t]
 {-# INLINE trim #-}
 
-mergeTree :: Dendrogram Motif -> PWM
-mergeTree t = case t of
-    Branch _ _ left right -> f (mergeTree left) $ mergeTree right
+mergeTree :: AlignFn -> Dendrogram Motif -> PWM
+mergeTree align t = case t of
+    Branch _ _ left right -> f (mergeTree align left) $ mergeTree align right
     Leaf a -> _pwm a
   where
     f a b | isSame = mergePWM (a, b, i)
           | otherwise = mergePWM (a, rcPWM b, i)
-      where (_, (isSame, i)) = alignment a b
+      where (_, (isSame, i)) = align a b
 
-mergeTreeWeighted :: Dendrogram Motif -> (PWM, [Int])
-mergeTreeWeighted t = case t of
-    Branch _ _ left right -> f (mergeTreeWeighted left) $ mergeTreeWeighted right
+mergeTreeWeighted :: AlignFn -> Dendrogram Motif -> (PWM, [Int])
+mergeTreeWeighted align t = case t of
+    Branch _ _ left right -> f (mergeTreeWeighted align left) $
+        mergeTreeWeighted align right
     Leaf a -> (_pwm a, replicate (size $ _pwm a) 1)
   where
     f (a,w1) (b,w2)
         | isSame = mergePWMWeighted (a,w1) (b,w2) i
         | otherwise = mergePWMWeighted (a,w1) (rcPWM b, reverse w2) i
-      where (_, (isSame, i)) = alignment a b
+      where (_, (isSame, i)) = align a b
 {-# INLINE mergeTreeWeighted #-}
 
-iterativeMerge :: Double
+iterativeMerge :: AlignFn
+               -> Double    -- cutoff
                -> [Motif]   -- ^ Motifs to be merged. Motifs must have unique name.
-               -> [(Motif, [Int])]
-iterativeMerge th motifs = runST $ do
-    motifs' <- V.unsafeThaw $ V.fromList $
-               map (\x -> Just (x, replicate (size $ _pwm x) 1)) motifs
-    let n = VM.length motifs'
+               -> [([B.ByteString], PWM, [Int])]
+iterativeMerge align th motifs = runST $ do
+    motifs' <- V.unsafeThaw $ V.fromList $ flip map motifs $ \x ->
+        Just ([_name x], _pwm x, replicate (size $ _pwm x) 1)
 
+    let n = VM.length motifs'
         iter mat = do
             -- retrieve the minimum value
             MS.SymMatrix _ vec <- MS.freeze mat
@@ -108,20 +113,19 @@ iterativeMerge th motifs = runST $ do
                     (comparing (fst . snd)) $ V.map fromJust $ V.filter isJust vec
             if d < th
                 then do
-                    Just (m1,w1) <- VM.unsafeRead motifs' i
-                    Just (m2,w2) <- VM.unsafeRead motifs' j
-                    let merged = (Motif newName pwm', w')
-                        newName = _name m1 `B.append` "+" `B.append` _name m2
-                        (pwm',w') | isSame = mergePWMWeighted (_pwm m1, w1) (_pwm m2, w2) pos
-                                  | otherwise = mergePWMWeighted (_pwm m1, w1)
-                                              (rcPWM $ _pwm m2, reverse w2) pos
+                    Just (nm1, pwm1, w1) <- VM.unsafeRead motifs' i
+                    Just (nm2, pwm2, w2) <- VM.unsafeRead motifs' j
+                    let merged = (nm1 ++ nm2, pwm', w')
+                        (pwm',w') | isSame = mergePWMWeighted (pwm1, w1) (pwm2, w2) pos
+                                  | otherwise = mergePWMWeighted (pwm1, w1)
+                                              (rcPWM $ pwm2, reverse w2) pos
 
                     -- update
                     forM_ [0..n-1] $ \j' -> when (i /= j') $ do
                         x <- VM.unsafeRead motifs' j'
                         case x of
-                            Just (m2',_) -> MSU.unsafeWrite mat (i,j') $ Just $
-                                ((i,j'), alignment pwm' $ _pwm m2')
+                            Just (_, pwm2',_) -> MSU.unsafeWrite mat (i,j') $ Just $
+                                ((i,j'), align pwm' $ pwm2')
                             _ -> return ()
                     forM_ [0..n-1] $ \i' -> MSU.unsafeWrite mat (i',j) Nothing
                     VM.unsafeWrite motifs' i $ Just merged
@@ -132,9 +136,9 @@ iterativeMerge th motifs = runST $ do
     -- initialization
     mat <- MSU.replicate (n,n) Nothing
     forM_ [0..n-1] $ \i -> forM_ [i+1 .. n-1] $ \j -> do
-        Just (m1,_) <- VM.unsafeRead motifs' i
-        Just (m2,_) <- VM.unsafeRead motifs' j
-        MSU.unsafeWrite mat (i,j) $ Just $ ((i,j), alignment (_pwm $ m1) $ _pwm m2)
+        Just (_, pwm1, _) <- VM.unsafeRead motifs' i
+        Just (_, pwm2, _) <- VM.unsafeRead motifs' j
+        MSU.unsafeWrite mat (i,j) $ Just $ ((i,j), align pwm1 pwm2)
 
     iter mat
     results <- V.unsafeFreeze motifs'
@@ -142,10 +146,10 @@ iterativeMerge th motifs = runST $ do
 {-# INLINE iterativeMerge #-}
 
 -- | build a guide tree from a set of motifs
-buildTree :: [Motif] -> Dendrogram Motif
-buildTree motifs = hclust Average (V.fromList motifs) δ
+buildTree :: AlignFn -> [Motif] -> Dendrogram Motif
+buildTree align motifs = hclust Average (V.fromList motifs) δ
   where
-    δ (Motif _ x) (Motif _ y) = fst $ alignment x y
+    δ (Motif _ x) (Motif _ y) = fst $ align x y
 
 cutTreeBy :: Double   -- ^ start
           -> Double   -- ^ step

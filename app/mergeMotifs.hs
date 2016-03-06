@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import           AI.Clustering.Hierarchical hiding (drawDendrogram)
-
+import           Control.Monad              (forM)
 import qualified Data.ByteString.Char8      as B
 import           Data.Default.Class
 import           Data.List
@@ -21,6 +21,7 @@ import           Bio.Motif
 import           Bio.Motif.Alignment
 import           Bio.Motif.Merge
 import           Bio.Seq                    (toBS)
+import           Bio.Utils.Functions
 
 data Options = Options
     { input    :: FilePath
@@ -30,6 +31,7 @@ data Options = Options
     , mode     :: String
     , svg      :: Maybe FilePath
     , dumpDist :: Bool
+    , gap      :: Double
     } deriving (Show)
 
 parser :: Parser Options
@@ -65,27 +67,35 @@ parser = Options
      <*> switch
            ( long "dump-dist"
           <> help "output pairwise distances of original motifs without performing any merging" )
+     <*> option auto
+           ( long "gap"
+          <> short 'g'
+          <> value 0.15
+          <> metavar "GAP_PENALTY"
+          <> help "gap penalty" )
 
 -- | Return pairwise distances
 pairDistance :: [Motif] -> [(B.ByteString, B.ByteString, Double)]
 pairDistance ms = map (\(a,b) -> (_name a, _name b, fst $ alignment (_pwm a) (_pwm b))) $ comb ms
 
-treeMerge :: Double -> String -> [Motif] -> ([Motif], Dendrogram Motif)
-treeMerge th pre ms = (zipWith f [0::Int ..] $ map merge $ tree `cutAt` th, tree)
+treeMerge :: Double -> String -> [Motif] -> Double -> ([Motif], Dendrogram Motif)
+treeMerge th pre ms gap = (zipWith f [0::Int ..] $ map merge $ tree `cutAt` th, tree)
   where
     f i (suffix, pwm) = Motif ((B.pack $ pre ++ "_" ++ show i ++ "_" ++ show (toIUPAC pwm))
                                  `B.append` "("
                                  `B.append` suffix
                                  `B.append` ")" ) pwm
-    merge tr = (B.intercalate "+" $ map _name $ flatten tr, fst $ mergeTreeWeighted tr)
-    tree = buildTree ms
+    merge tr = ( B.intercalate "+" $ map _name $ flatten tr
+               , dilute $ mergeTreeWeighted align tr)
+    tree = buildTree align ms
+    align = alignmentBy jsd $ quadPenal gap
 {-# INLINE treeMerge #-}
 
 getSuffix :: String -> String
 getSuffix = last . splitOn "."
 
 defaultMain :: Options -> IO ()
-defaultMain (Options inFl outFl pre th m svg dump) = do
+defaultMain (Options inFl outFl pre th m svg dump gap) = do
     let readMotif = case getSuffix inFl of
                         "fasta" -> readFasta'
                         _ -> readMEME
@@ -105,7 +115,7 @@ defaultMain (Options inFl outFl pre th m svg dump) = do
 
             motifs' <- case m of
                 "tree" -> do
-                    let (newMotifs, tree) = treeMerge th pre motifs
+                    let (newMotifs, tree) = treeMerge th pre motifs gap
                         fn x = B.unpack (_name x) ++ ": " ++ B.unpack (toBS $ toIUPAC $ _pwm x)
 
                     case svg of
@@ -117,7 +127,11 @@ defaultMain (Options inFl outFl pre th m svg dump) = do
                             -}
                             return newMotifs
                         _ -> return newMotifs
-                "iter" -> return $ fst $ unzip $ iterativeMerge th motifs
+                "iter" -> do
+                    let rs = iterativeMerge (alignmentBy jsd (quadPenal gap)) th motifs
+                    forM rs $ \(nm, pwm, ws) -> do
+                        let pwm' = dilute (pwm, ws)
+                        return $ Motif (B.intercalate "+" nm) pwm
                  -- _ -> error "Unkown mode!"
 
             hPutStrLn stderr $ printf "Write %d motifs" (length motifs')

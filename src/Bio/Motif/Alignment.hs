@@ -9,6 +9,7 @@ module Bio.Motif.Alignment
     , quadPenal
     , cubePenal
     , expPenal
+    , AlignFn
     ) where
 
 import qualified Data.Vector.Generic as G
@@ -24,16 +25,21 @@ type PenalFn = Int -> Double
 type DistanceFn = forall v. (G.Vector v Double, G.Vector v (Double, Double))
                => v Double -> v Double -> Double
 
-alignment :: PWM -> PWM -> (Double, (Bool, Int))
-alignment = alignmentBy jsd quadPenal
+type AlignFn = PWM
+            -> PWM
+            -> (Double, (Bool, Int))  -- ^ (distance, (on same direction,
+                                      -- position w.r.t. the first pwm))
+
+alignment :: AlignFn
+alignment = alignmentBy jsd $ quadPenal 0.15
 
 -- | linear penalty
 linPenal :: PenalFn
 linPenal n = fromIntegral n * 0.3
 
 -- | quadratic penalty
-quadPenal :: PenalFn
-quadPenal n = fromIntegral (n ^ (2 :: Int)) * 0.15
+quadPenal :: Double -> PenalFn
+quadPenal x n = fromIntegral (n ^ (2 :: Int)) * x
 
 -- | cubic penalty
 cubePenal :: PenalFn
@@ -46,10 +52,7 @@ expPenal n = fromIntegral (2^n :: Int) * 0.01
 -- internal gaps are not allowed, larger score means larger distance, so the smaller the better
 alignmentBy :: DistanceFn  -- ^ compute the distance between two aligned pwms
             -> PenalFn     -- ^ gap penalty
-            -> PWM
-            -> PWM
-            -> (Double, (Bool, Int))  -- ^ (distance, (on same direction,
-                                      -- position w.r.t. the first pwm))
+            -> AlignFn
 alignmentBy fn pFn m1 m2
     | fst forwardAlign <= fst reverseAlign =
         (fst forwardAlign, (True, snd forwardAlign))
