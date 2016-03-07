@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Bio.Motif.Merge
     ( mergePWM
     , mergePWMWeighted
@@ -12,14 +13,13 @@ module Bio.Motif.Merge
 
 import           AI.Clustering.Hierarchical    hiding (size)
 import           Control.Monad                 (forM_, when)
-import           Control.Monad.ST              (runST)
+import           Control.Monad.ST              (runST, ST)
 import qualified Data.ByteString.Char8         as B
 import           Data.List                     (dropWhileEnd)
 import qualified Data.Matrix.Symmetric         as MS
 import qualified Data.Matrix.Symmetric.Mutable as MSU
 import qualified Data.Matrix.Unboxed           as MU
 import           Data.Maybe
-import           Data.Ord                      (comparing)
 import qualified Data.Vector                   as V
 import qualified Data.Vector.Mutable           as VM
 import qualified Data.Vector.Unboxed           as U
@@ -108,9 +108,7 @@ iterativeMerge align th motifs = runST $ do
     let n = VM.length motifs'
         iter mat = do
             -- retrieve the minimum value
-            MS.SymMatrix _ vec <- MS.freeze mat
-            let ((i,j), (d, (isSame, pos))) = V.minimumBy
-                    (comparing (fst . snd)) $ V.map fromJust $ V.filter isJust vec
+            ((i, j), (d, (isSame, pos))) <- loop ((-1,-1), (1/0, undefined)) 0 1
             if d < th
                 then do
                     Just (nm1, pwm1, w1) <- VM.unsafeRead motifs' i
@@ -125,20 +123,31 @@ iterativeMerge align th motifs = runST $ do
                         x <- VM.unsafeRead motifs' j'
                         case x of
                             Just (_, pwm2',_) -> MSU.unsafeWrite mat (i,j') $ Just $
-                                ((i,j'), align pwm' $ pwm2')
+                                align pwm' $ pwm2'
                             _ -> return ()
                     forM_ [0..n-1] $ \i' -> MSU.unsafeWrite mat (i',j) Nothing
                     VM.unsafeWrite motifs' i $ Just merged
                     VM.unsafeWrite motifs' j Nothing
                     iter mat
                 else return ()
+          where
+            loop ((i_min, j_min), d_min) i j
+                | i >= n = return ((i_min, j_min), d_min)
+                | j >= n = loop ((i_min, j_min), d_min) (i+1) (i+2)
+                | otherwise = do
+                    x <- MSU.unsafeRead mat (i,j)
+                    case x of
+                        Just d -> if fst d < fst d_min
+                            then loop ((i,j), d) i (j+1)
+                            else loop ((i_min, j_min), d_min) i (j+1)
+                        _ -> loop ((i_min, j_min), d_min) i (j+1)
 
     -- initialization
-    mat <- MSU.replicate (n,n) Nothing
+    mat <- MSU.replicate (n,n) Nothing :: ST s (MSU.SymMMatrix VM.MVector s (Maybe (Double, (Bool, Int))))
     forM_ [0..n-1] $ \i -> forM_ [i+1 .. n-1] $ \j -> do
         Just (_, pwm1, _) <- VM.unsafeRead motifs' i
         Just (_, pwm2, _) <- VM.unsafeRead motifs' j
-        MSU.unsafeWrite mat (i,j) $ Just $ ((i,j), align pwm1 pwm2)
+        MSU.unsafeWrite mat (i,j) $ Just $ align pwm1 pwm2
 
     iter mat
     results <- V.unsafeFreeze motifs'
