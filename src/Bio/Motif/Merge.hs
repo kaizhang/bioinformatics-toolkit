@@ -12,6 +12,7 @@ module Bio.Motif.Merge
     )where
 
 import           AI.Clustering.Hierarchical    hiding (size)
+import Control.Arrow (first)
 import           Control.Monad                 (forM_, when)
 import           Control.Monad.ST              (runST, ST)
 import qualified Data.ByteString.Char8         as B
@@ -29,33 +30,45 @@ import           Bio.Motif.Alignment
 import           Bio.Utils.Functions           (kld)
 
 mergePWM :: (PWM, PWM, Int) -> PWM
-mergePWM (m1, m2, i)
-    | i >= 0 = PWM Nothing (MU.fromRows $ take i s1 ++ zipWith f (drop i s1) s2 ++ drop (n1 - i) s2)
-    | otherwise = PWM Nothing (MU.fromRows $ take (-i) s2 ++ zipWith f (drop (-i) s2) s1 ++ drop (n2 + i) s1)
+mergePWM (m1, m2, shift) | shift >= 0 = merge shift (_mat m1) $ _mat m2
+                         | otherwise = merge (-shift) (_mat m2) $ _mat m1
   where
-    f = U.zipWith (\x y -> (x+y)/2)
-    s1 = MU.toRows . _mat $ m1
-    s2 = MU.toRows . _mat $ m2
-    n1 = length s1
-    n2 = length s2
+    merge s a b = PWM Nothing $ MU.fromRows $ loop 0
+      where
+        n1 = MU.rows a
+        n2 = MU.rows b
+        loop i | i' < 0 || (i < n1 && i' >= n2) = MU.takeRow a i : loop (i+1)
+               | i < n1 && i' < n2 = f (MU.takeRow a i) (MU.takeRow b i') : loop (i+1)
+               | i >= n1 && i' < n2 = MU.takeRow b i' : loop (i+1)
+               | otherwise = []
+          where
+            i' = i - s
+            f = U.zipWith (\x y -> (x+y)/2)
 
 mergePWMWeighted :: (PWM, [Int])  -- ^ pwm and weights at each position
                  -> (PWM, [Int])
                  -> Int                  -- ^ shift
                  -> (PWM, [Int])
-mergePWMWeighted (pwm1, w1) (pwm2, w2) shift
-    | shift >= 0 = mkPWM $ take shift rows1 ++
-                   zipWith f (drop shift rows1) rows2 ++ drop (n1 - shift) rows2
-    | otherwise = mkPWM $ take (-shift) rows2 ++
-                  zipWith f (drop (-shift) rows2) rows1 ++ drop (n2 + shift) rows1
+mergePWMWeighted m1 m2 shift
+    | shift >= 0 = merge shift (first _mat m1) $ first _mat m2
+    | otherwise = merge (-shift) (first _mat m2) $ first _mat m1
+
   where
-    mkPWM xs = let (rs, ws) = unzip xs
-               in (PWM Nothing $ MU.fromRows rs, ws)
-    f (xs, a) (ys, b) = (U.zipWith (\x y -> (fromIntegral a * x + fromIntegral b * y) / fromIntegral (a + b)) xs ys, a + b)
-    rows1 = zip (MU.toRows $ _mat pwm1) w1
-    rows2 = zip (MU.toRows $ _mat pwm2) w2
-    n1 = MU.rows $ _mat pwm1
-    n2 = MU.rows $ _mat pwm2
+    merge s (p1,w1) (p2,w2) = first (PWM Nothing . MU.fromRows) $ unzip $ loop 0
+      where
+        a = V.fromList $ zip (MU.toRows p1) w1
+        b = V.fromList $ zip (MU.toRows p2) w2
+        n1 = V.length a
+        n2 = V.length b
+        loop i | i' < 0 || (i < n1 && i' >= n2) = a V.! i : loop (i+1)
+               | i < n1 && i' < n2 = f (a V.! i) (b V.! i') : loop (i+1)
+               | i >= n1 && i' < n2 = b V.! i' : loop (i+1)
+               | otherwise = []
+          where
+            i' = i - s
+            f (xs, wx) (ys, wy) = (U.zipWith (\x y ->
+                (fromIntegral wx * x + fromIntegral wy * y) /
+                fromIntegral (wx + wy)) xs ys, wx + wy)
 
 -- | dilute positions in a PWM that are associated with low weights
 dilute :: (PWM, [Int]) -> PWM
