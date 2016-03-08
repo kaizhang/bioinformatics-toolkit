@@ -119,15 +119,17 @@ iterativeMerge align th motifs = runST $ do
                                               (rcPWM $ pwm2, reverse w2) pos
 
                     -- update
-                    forM_ [0..n-1] $ \j' -> when (i /= j') $ do
-                        x <- VM.unsafeRead motifs' j'
-                        case x of
-                            Just (_, pwm2',_) -> MSU.unsafeWrite mat (i,j') $ Just $
-                                align pwm' $ pwm2'
-                            _ -> return ()
                     forM_ [0..n-1] $ \i' -> MSU.unsafeWrite mat (i',j) Nothing
                     VM.unsafeWrite motifs' i $ Just merged
                     VM.unsafeWrite motifs' j Nothing
+                    forM_ [0..n-1] $ \j' -> when (i /= j') $ do
+                        x <- VM.unsafeRead motifs' j'
+                        case x of
+                            Just (_, pwm2',_) -> do
+                                let ali | i < j' = Just $ align pwm' pwm2'
+                                        | otherwise = Just $ align pwm2' pwm'
+                                MSU.unsafeWrite mat (i,j') ali
+                            _ -> return ()
                     iter mat
                 else return ()
           where
