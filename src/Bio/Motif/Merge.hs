@@ -17,7 +17,6 @@ import           Control.Monad                 (forM_, when)
 import           Control.Monad.ST              (runST, ST)
 import qualified Data.ByteString.Char8         as B
 import           Data.List                     (dropWhileEnd)
-import qualified Data.Matrix.Symmetric         as MS
 import qualified Data.Matrix.Symmetric.Mutable as MSU
 import qualified Data.Matrix.Unboxed           as MU
 import           Data.Maybe
