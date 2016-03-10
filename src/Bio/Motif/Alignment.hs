@@ -34,20 +34,20 @@ alignment :: AlignFn
 alignment = alignmentBy jsd $ quadPenal 0.15
 
 -- | linear penalty
-linPenal :: PenalFn
-linPenal n = fromIntegral n * 0.3
+linPenal :: Double -> PenalFn
+linPenal x n = fromIntegral n * x
 
 -- | quadratic penalty
 quadPenal :: Double -> PenalFn
 quadPenal x n = fromIntegral (n ^ (2 :: Int)) * x
 
 -- | cubic penalty
-cubePenal :: PenalFn
-cubePenal n = fromIntegral (n ^ (3 :: Int)) * 0.01
+cubePenal :: Double -> PenalFn
+cubePenal x n = fromIntegral (n ^ (3 :: Int)) * x
 
 -- | exponentail penalty
-expPenal :: PenalFn
-expPenal n = fromIntegral (2^n :: Int) * 0.01
+expPenal :: Double -> PenalFn
+expPenal x n = fromIntegral (2^n :: Int) * x
 
 -- internal gaps are not allowed, larger score means larger distance, so the smaller the better
 alignmentBy :: DistanceFn  -- ^ compute the distance between two aligned pwms
