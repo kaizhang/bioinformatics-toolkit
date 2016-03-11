@@ -2,12 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
 module Bio.ChIPSeq
-    ( rpkmBed
+    ( monoColonalize
+    , rpkmBed
     , rpkmSortedBed
-    , monoColonalize
-    , profiling
-    , profilingCoverage
+    , rpkmBinBed
     , rpkmBam
+    , rpgcBinBed
     , tagCountDistr
     , peakCluster
     ) where
@@ -100,11 +100,11 @@ rpkmSortedBed (Sorted regions) = do
 
 -- | divide each region into consecutive bins, and count tags for each bin. The
 -- total number of tags is also returned
-profiling :: (PrimMonad m, G.Vector v Int, BEDLike b)
-          => Int   -- ^ bin size
-          -> [b]   -- ^ regions
-          -> Sink BED m ([v Int], Int)
-profiling k beds = do
+rpkmBinBed :: (Num a, PrimMonad m, G.Vector v a, BEDLike b)
+           => Int   -- ^ bin size
+           -> [b]   -- ^ regions
+           -> Sink BED m ([v a], Int)
+rpkmBinBed k beds = do
     initRC <- lift $ forM beds $ \bed -> do
         let start = chromStart bed
             end = chromEnd bed
@@ -136,15 +136,16 @@ profiling k beds = do
                     return (rc, nTags)
 
     intervalMap = bedToTree (++) $ zip beds $ map return [0..]
-{-# INLINE profiling #-}
+{-# INLINE rpkmBinBed #-}
 
--- | divide each region into consecutive bins, and count tags for each bin. The
--- total number of tags is also returned
-profilingCoverage :: (PrimMonad m, G.Vector v Int, BEDLike b1, BEDLike b2)
+-- | divide each region into consecutive bins, and compute
+-- reads per genome coverage (RPGC) for each bin. The
+-- total number of tags is also returned.
+rpgcBinBed :: (Num a, PrimMonad m, G.Vector v a, BEDLike b1, BEDLike b2)
           => Int   -- ^ bin size
           -> [b1]   -- ^ regions
-          -> Sink b2 m ([v Int], Int)
-profilingCoverage k beds = do
+          -> Sink b2 m ([v a], Int)
+rpgcBinBed k beds = do
     initRC <- lift $ forM beds $ \bed -> do
         let start = chromStart bed
             end = chromEnd bed
@@ -179,7 +180,7 @@ profilingCoverage k beds = do
                     return (rc, nTags)
 
     intervalMap = bedToTree (++) $ zip beds $ map return [0..]
-{-# INLINE profilingCoverage #-}
+{-# INLINE rpgcBinBed #-}
 
 
 -- | calculate RPKM using BAM file (*.bam) and its index file (*.bam.bai), using

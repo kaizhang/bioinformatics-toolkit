@@ -18,6 +18,7 @@ module Bio.Utils.Functions (
     , ihs'
     , scale
     , filterFDR
+    , slideAverage
     , hyperquick
     , kld
     , jsd
@@ -32,7 +33,7 @@ import Data.Ord (comparing)
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
-import Statistics.Sample (meanVarianceUnb)
+import Statistics.Sample (meanVarianceUnb, mean)
 import Statistics.Function (sortBy)
 
 -- | inverse hyperbolic sine transformation
@@ -55,7 +56,10 @@ scale xs = G.map (\x -> (x - m) / sqrt s) xs
 {-# INLINE scale #-}
 
 -- | given the p-values, filter data by controling FDR
-filterFDR :: G.Vector v (a, Double) => Double -> v (a, Double) -> v (a, Double)
+filterFDR :: G.Vector v (a, Double)
+          => Double  -- ^ desired FDR value
+          -> v (a, Double)  -- ^ input data and pvalues
+          -> v (a, Double)
 filterFDR α xs = go n . sortBy (comparing snd) $ xs
   where
     go rank v | rank <= 0 = G.empty
@@ -63,6 +67,19 @@ filterFDR α xs = go n . sortBy (comparing snd) $ xs
               | otherwise = go (rank-1) v
     n = G.length xs
 {-# INLINE filterFDR #-}
+
+-- | Compute the sliding average for each entry in a vector
+slideAverage :: (Fractional a, G.Vector v a)
+             => Int              -- ^ size of HALF sliding window, 2 means a total
+                                 -- window size is 5
+             -> v a
+             -> v a
+slideAverage k xs = G.generate n $ \i -> go xs (max 0 (i-k)) (min (n-1) (i+k))
+  where
+    go v i j = let l = j - i + 1
+               in G.foldl' (+) 0 (G.unsafeSlice i l v) / fromIntegral l
+    n = G.length xs
+{-# INLINE slideAverage #-}
 
 hyperquick :: Int -> Int -> Int -> Int -> Double
 hyperquick x m _n _N = loop (m-2) s s (2*e)
@@ -82,28 +99,9 @@ hyperquick x m _n _N = loop (m-2) s s (2*e)
                           ( 1 - fromIntegral (_n-1-x) / fromIntegral (_N-1-m) )
     e = 1e-20
 
-{-
-hyperquick' :: Int -> Int -> Int -> Int -> Double
-hyperquick' x m _n _N = loop (m-2) s s (2*e)
-  where
-    loop !k !ak !bk !epsk
-        | k < _N - (_n-x) - 1 && epsk > e =
-            let ck = ak / bk
-                k' = k + 1
-                jjm = invJm _n x _N k'
-                bk' = bk * jjm + 1
-                ak' = ak * jjm
-                espk' = fromIntegral (_N - (_n - x) - 1 - k') * (ck - ak' / bk')
-            in loop k' ak' bk' espk'
-        | otherwise = 1 - (ak / bk - epsk / 2)
-    s = foldl' (\s' k -> 1 + s' * invJm _n x _N k) 1.0 [x..m-2]
-    invJm _n x _N m = ( 1 - fromIntegral x / fromIntegral (m+1) ) /
-                          ( 1 - fromIntegral (_n-1-x) / fromIntegral (_N-1-m) )
-    e = 1e-200
-    -}
 
 -- | compute the Kullback-Leibler divergence between two valid (not check) probability distributions.
--- kl(X,Y) = \sum_i P(x_i) log_2(P(x_i)\/P(y_i)). 
+-- kl(X,Y) = \sum_i P(x_i) log_2(P(x_i)\/P(y_i)).
 kld :: (G.Vector v Double, G.Vector v (Double, Double)) => v Double -> v Double -> Double
 kld xs ys | G.length xs /= G.length ys = error "Incompitable dimensions"
           | otherwise = G.foldl' f 0 . G.zip xs $ ys
