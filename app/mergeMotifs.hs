@@ -32,6 +32,8 @@ data Options = Options
     , svg      :: Maybe FilePath
     , dumpDist :: Bool
     , gap      :: Double
+    , gapMode  :: String
+    , avgMode  :: String
     } deriving (Show)
 
 parser :: Parser Options
@@ -59,27 +61,38 @@ parser = Options
           <> short 'm'
           <> value "iter"
           <> metavar "MODE"
-          <> help "merging algorithm, could be iter or tree, default is iter" )
+          <> help "Merging algorithm, could be iter or tree, default is iter" )
      <*> (optional . strOption)
            ( long "svg"
           <> metavar "SVG"
-          <> help "draw merging tree in svg format, only available in tree mode" )
+          <> help "Draw merging tree in svg format, only available in tree mode" )
      <*> switch
            ( long "dump-dist"
-          <> help "output pairwise distances of original motifs without performing any merging" )
+          <> help "Output pairwise distances of original motifs without performing any merging" )
      <*> option auto
            ( long "gap"
           <> short 'g'
-          <> value 0.15
+          <> value 0.05
           <> metavar "GAP_PENALTY"
-          <> help "gap penalty" )
+          <> help "Gap penalty, default: 0.05" )
+     <*> strOption
+           ( long "gap_mode"
+          <> value "exp"
+          <> metavar "GAP_MODE"
+          <> help "Gap penalty mode, one of linear, quadratic, cubic, and exp. default: exp." )
+     <*> strOption
+           ( long "avg_mode"
+          <> value "l1"
+          <> metavar "AVERAGE_MODE"
+          <> help "Averaging function, one of l1, l2, l3, max. default: l1." )
 
--- | Return pairwise distances
+
 pairDistance :: [Motif] -> [(B.ByteString, B.ByteString, Double)]
 pairDistance ms = map (\(a,b) -> (_name a, _name b, fst $ alignment (_pwm a) (_pwm b))) $ comb ms
 
-treeMerge :: Double -> String -> [Motif] -> Double -> ([Motif], Dendrogram Motif)
-treeMerge th pre ms gap = (zipWith f [0::Int ..] $ map merge $ tree `cutAt` th, tree)
+treeMerge :: Double -> String -> [Motif] -> Double -> CombineFn
+          -> ([Motif], Dendrogram Motif)
+treeMerge th pre ms gap combFn = (zipWith f [0::Int ..] $ map merge $ tree `cutAt` th, tree)
   where
     f i (suffix, pwm) = Motif ((B.pack $ pre ++ "_" ++ show i ++ "_" ++ show (toIUPAC pwm))
                                  `B.append` "("
@@ -88,14 +101,14 @@ treeMerge th pre ms gap = (zipWith f [0::Int ..] $ map merge $ tree `cutAt` th, 
     merge tr = ( B.intercalate "+" $ map _name $ flatten tr
                , dilute $ mergeTreeWeighted align tr)
     tree = buildTree align ms
-    align = alignmentBy jsd $ quadPenal gap
+    align = alignmentBy jsd (quadPenal gap) combFn
 {-# INLINE treeMerge #-}
 
 getSuffix :: String -> String
 getSuffix = last . splitOn "."
 
 defaultMain :: Options -> IO ()
-defaultMain (Options inFl outFl pre th m svg dump gap) = do
+defaultMain (Options inFl outFl pre th m svg dump gap gapMode avgMode) = do
     let readMotif = case getSuffix inFl of
                         "fasta" -> readFasta'
                         _ -> readMEME
@@ -115,7 +128,7 @@ defaultMain (Options inFl outFl pre th m svg dump gap) = do
 
             motifs' <- case m of
                 "tree" -> do
-                    let (newMotifs, tree) = treeMerge th pre motifs gap
+                    let (newMotifs, tree) = treeMerge th pre motifs gap avgFn
                         fn x = B.unpack (_name x) ++ ": " ++ B.unpack (toBS $ toIUPAC $ _pwm x)
 
                     case svg of
@@ -128,7 +141,7 @@ defaultMain (Options inFl outFl pre th m svg dump gap) = do
                             return newMotifs
                         _ -> return newMotifs
                 "iter" -> do
-                    let rs = iterativeMerge (alignmentBy jsd (quadPenal gap)) th motifs
+                    let rs = iterativeMerge (alignmentBy jsd (pFn gap) avgFn) th motifs
                     forM rs $ \(nm, pwm, ws) -> do
                         let pwm' = dilute (pwm, ws)
                         return $ Motif (B.intercalate "+" nm) pwm
@@ -137,6 +150,19 @@ defaultMain (Options inFl outFl pre th m svg dump gap) = do
             hPutStrLn stderr $ printf "Write %d motifs" (length motifs')
 
             writeMotif outFl motifs'
+  where
+    pFn = case gapMode of
+        "linear" -> linPenal
+        "quadratic" -> quadPenal
+        "cubic" -> cubPenal
+        "exp" -> expPenal
+        _ -> error "Unknown gap mode"
+    avgFn = case avgMode of
+        "l1" -> l1
+        "l2" -> l2
+        "l3" -> l3
+        "max" -> lInf
+        _ -> error "Unknown average mode"
 {-# INLINE defaultMain #-}
 
 comb :: [a] -> [(a,a)]
@@ -150,4 +176,4 @@ main = execParser opts >>= defaultMain
     opts = info (helper <*> parser)
             ( fullDesc
            <> header (printf "Merge similar PWMs, version %s" v))
-    v = "0.2.0" :: String
+    v = "0.2.0beta6" :: String
