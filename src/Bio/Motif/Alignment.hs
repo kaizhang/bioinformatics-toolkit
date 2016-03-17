@@ -60,7 +60,7 @@ cubPenal x nGap nMatch = fromIntegral (nGap ^ (3 :: Int)) * x / fromIntegral nMa
 
 -- | exponentail penalty
 expPenal :: Double -> PenalFn
-expPenal x nGap nMatch = fromIntegral (2^nGap :: Int) * x / fromIntegral nMatch
+expPenal x nGap nMatch = fromIntegral (2^nGap - 1 :: Int) * x / fromIntegral nMatch
 {-# INLINE expPenal #-}
 
 l1 :: CombineFn
