@@ -33,7 +33,7 @@ import Data.Ord (comparing)
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
-import Statistics.Sample (meanVarianceUnb, mean)
+import Statistics.Sample (meanVarianceUnb)
 import Statistics.Function (sortBy)
 
 -- | inverse hyperbolic sine transformation

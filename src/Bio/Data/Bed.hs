@@ -388,21 +388,13 @@ instance BEDLike BED where
 
 -- | retreive sequences
 fetchSeq :: (BioSeq DNA a, MonadIO m) => Genome -> Conduit BED m (Either String (DNA a))
-fetchSeq g = do gH <- liftIO $ gHOpen g
-                table <- liftIO $ readIndex gH
-                conduitWith gH table
-                liftIO $ gHClose gH
+fetchSeq g = mapMC f
   where
-    conduitWith h index' = do
-        bed <- await
-        case bed of
-            Just (BED chr start end _ _ isForward) -> do
-                dna <- liftIO $ getSeq h index' (chr, start, end)
-                case isForward of
-                    Just False -> yield $ fmap rc dna
-                    _ -> yield dna
-                conduitWith h index'
-            _ -> return ()
+    f (BED chr start end _ _ isForward) = do
+        dna <- liftIO $ getSeq g (chr, start, end)
+        return $ case isForward of
+            Just False -> rc <$> dna
+            _ -> dna
 {-# INLINE fetchSeq #-}
 
 fetchSeq' :: (BioSeq DNA a, MonadIO m) => Genome -> [BED] -> m [Either String (DNA a)]

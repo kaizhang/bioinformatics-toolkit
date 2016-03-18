@@ -2,13 +2,10 @@
 
 module Bio.Seq.IO
     ( Genome
-    , GenomeH
-    , gHOpen
-    , gHClose
-    , pack
-    , getSeqs
+    , openGenome
+    , closeGenome
+    , withGenome
     , getSeq
-    , readIndex
     , getChrom
     , getChrSizes
     , mkIndex
@@ -16,6 +13,7 @@ module Bio.Seq.IO
 
 import Bio.Seq
 import Bio.Utils.Misc (readInt)
+import Control.Exception (bracket)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.HashMap.Lazy as M
 import Data.List.Split
@@ -24,9 +22,9 @@ import System.IO
 -- | The first 2048 bytes are header. Header consists of a magic string,
 -- followed by chromosome information. Example:
 -- <HASKELLBIOINFORMATICS>\nCHR1 START SIZE
-newtype Genome = G FilePath
+data Genome = Genome !Handle !IndexTable
 
-newtype GenomeH = GH Handle
+type IndexTable = M.HashMap B.ByteString (Int, Int)
 
 headerSize :: Int
 headerSize = 2048
@@ -34,66 +32,56 @@ headerSize = 2048
 magic :: String
 magic = "<HASKELLBIOINFORMATICS>"
 
-pack :: FilePath -> IO Genome
-pack fl = withFile fl ReadMode f
-  where f h = do l <- hGetLine h
-                 if l == magic
-                    then return $ G fl
-                    else error "Bio.Seq.Query.pack: Incorrect format"
+openGenome :: FilePath -> IO Genome
+openGenome fl = do
+    h <- openFile fl ReadMode
+    sig <- hGetLine h
+    if sig == magic
+        then Genome h <$> readIndex h
+        else error "Bio.Seq.Query.openGenome: Incorrect format"
+  where
+    readIndex h = do
+        header <- B.hGetLine h
+        return $ M.fromList . map f . chunksOf 3 . B.words $ header
+      where
+        f [k, v, l] = (k, (readInt v, readInt l))
+        f _ = error "error"
+{-# INLINE openGenome #-}
 
-gHOpen :: Genome -> IO GenomeH
-gHOpen (G fl) = do h <- openFile fl ReadMode
-                   return $ GH h
+closeGenome :: Genome -> IO ()
+closeGenome (Genome h _) = hClose h
+{-# INLINE closeGenome #-}
 
-gHClose :: GenomeH -> IO ()
-gHClose (GH h) = hClose h
-
-type IndexTable = M.HashMap B.ByteString (Int, Int)
+withGenome :: FilePath -> (Genome -> IO a) -> IO a
+withGenome fl fn = bracket (openGenome fl) closeGenome fn
+{-# INLINE withGenome #-}
 
 type Query = (B.ByteString, Int, Int) -- (chr, start, end), zero-based index, half-close-half-open
 
-getSeqs :: BioSeq s a => Genome -> [Query] -> IO [Either String (s a)]
-getSeqs g querys = do gH <- gHOpen g
-                      index <- readIndex gH
-                      r <- mapM (getSeq gH index) querys
-                      gHClose gH
-                      return r
-{-# INLINE getSeqs #-}
-
-getSeq :: BioSeq s a => GenomeH -> IndexTable -> Query -> IO (Either String (s a))
-getSeq (GH h) index (chr, start, end) = case M.lookup chr index of
-    Just (chrStart, chrSize) -> if end > chrSize
-        then return $ Left $ "Bio.Seq.getSeq: out of index: " ++
-                 show end ++ ">" ++ show chrSize
-        else do
-            hSeek h AbsoluteSeek $ fromIntegral $ headerSize + chrStart + start
-            (Right . fromBS) <$> B.hGet h (end - start)
+getSeq :: BioSeq s a => Genome -> Query -> IO (Either String (s a))
+getSeq (Genome h index) (chr, start, end) = case M.lookup chr index of
+    Just (chrStart, chrSize) ->
+        if end > chrSize
+            then return $ Left $ "Bio.Seq.getSeq: out of index: " ++ show end ++
+                ">" ++ show chrSize
+            else do
+                hSeek h AbsoluteSeek $ fromIntegral $ headerSize + chrStart + start
+                (Right . fromBS) <$> B.hGet h (end - start)
     _ -> return $ Left $ "Bio.Seq.getSeq: Cannot find " ++ show chr
 {-# INLINE getSeq #-}
 
-getChrom :: Genome -> B.ByteString -> IO (Maybe (DNA IUPAC))
+getChrom :: Genome -> B.ByteString -> IO (Either String (DNA IUPAC))
 getChrom g chr = do
-    chrSize <- getChrSizes g
     case lookup chr chrSize of
-        Just s -> do [Right dna] <- getSeqs g [(chr, 0, s)]
-                     return $ Just dna
-        _ -> return Nothing
+        Just s -> getSeq g (chr, 0, s)
+        _ -> return $ Left "Unknown chromosome"
+  where
+    chrSize = getChrSizes g
 {-# INLINE getChrom #-}
 
-getChrSizes :: Genome -> IO [(B.ByteString, Int)]
-getChrSizes g = do gh <- gHOpen g
-                   table <- readIndex gh
-                   gHClose gh
-                   return . map (\(k, (_, l)) -> (k, l)) . M.toList $ table
+getChrSizes :: Genome -> [(B.ByteString, Int)]
+getChrSizes (Genome h table) = map (\(k, (_, l)) -> (k, l)) . M.toList $ table
 {-# INLINE getChrSizes #-}
-
-readIndex :: GenomeH -> IO IndexTable
-readIndex (GH h) = do header <- B.hGetLine h >> B.hGetLine h
-                      return $ M.fromList . map f . chunksOf 3 . B.words $ header
-  where
-    f [k, v, l] = (k, (readInt v, readInt l))
-    f _ = error "error"
-{-# INLINE readIndex #-}
 
 -- | indexing a genome.
 mkIndex :: [FilePath]    -- ^ fasta files representing individual chromosomes
