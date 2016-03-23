@@ -71,10 +71,9 @@ getSeq (Genome h index) (chr, start, end) = case M.lookup chr index of
 {-# INLINE getSeq #-}
 
 getChrom :: Genome -> B.ByteString -> IO (Either String (DNA IUPAC))
-getChrom g chr = do
-    case lookup chr chrSize of
-        Just s -> getSeq g (chr, 0, s)
-        _ -> return $ Left "Unknown chromosome"
+getChrom g chr = case lookup chr chrSize of
+    Just s -> getSeq g (chr, 0, s)
+    _ -> return $ Left "Unknown chromosome"
   where
     chrSize = getChrSizes g
 {-# INLINE getChrom #-}
@@ -87,19 +86,16 @@ getChrSizes (Genome h table) = map (\(k, (_, l)) -> (k, l)) . M.toList $ table
 mkIndex :: [FilePath]    -- ^ fasta files representing individual chromosomes
         -> FilePath      -- ^ output file
         -> IO ()
-mkIndex fls outFl = do
-    outH <- openFile outFl WriteMode
+mkIndex fls outFl = withFile outFl WriteMode $ \outH -> do
     hPutStr outH $ magic ++ "\n" ++ replicate 2024 '#'  -- header size: 1024
     chrs <- mapM (write outH) fls
     hSeek outH AbsoluteSeek 24
     B.hPutStrLn outH $ mkHeader chrs
-    hClose outH
   where
-    write handle fl = do h <- openFile fl ReadMode
-                         fastaHeader <- B.hGetLine h
-                         n <- loop 0 h
-                         hClose h
-                         return (B.tail fastaHeader, n)
+    write handle fl = withFile fl ReadMode $ \h -> do
+        fastaHeader <- B.hGetLine h
+        n <- loop 0 h
+        return (B.tail fastaHeader, n)
       where
         loop !n h' = do eof <- hIsEOF h'
                         if eof then return n
