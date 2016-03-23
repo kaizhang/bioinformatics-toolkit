@@ -34,6 +34,10 @@ data CMD = Merge { mergeInput  :: FilePath
                 , inputB      :: Maybe FilePath
                 , alignOption :: AlignOption
                 }
+         | Cluster { clusterInput :: !FilePath
+                   , cutoff :: !Double
+                   , alignOption :: !AlignOption
+                   }
 
 mergeParser :: Parser CMD
 mergeParser = Merge
@@ -56,6 +60,27 @@ mergeParser = Merge
        <> short 'o'
        <> value "merged_output.meme"
        <> metavar "OUTPUT" )
+
+distParser :: Parser CMD
+distParser = Dist
+    <$> strOption
+           ( short 'a'
+          <> metavar "INPUT_A" )
+    <*> (optional . strOption)
+           ( short 'b'
+          <> metavar "INPUT_B" )
+    <*> alignParser
+
+clusterParser :: Parser CMD
+clusterParser = Cluster
+    <$> argument str (metavar "INPUT")
+    <*> option auto
+        ( long "height"
+       <> short 'h'
+       <> value 0.2
+       <> metavar "HEIGHT"
+       <> help "Cut hierarchical tree at given height. Default: 0.2" )
+    <*> alignParser
 
 data AlignOption = AlignOption
     { gap     :: Double
@@ -81,16 +106,6 @@ alignParser = AlignOption
           <> value "l1"
           <> metavar "AVERAGE_MODE"
           <> help "Averaging function, one of l1, l2, l3, max. default: l1." )
-
-distParser :: Parser CMD
-distParser = Dist
-    <$> strOption
-           ( short 'a'
-          <> metavar "INPUT_A" )
-    <*> (optional . strOption)
-           ( short 'b'
-          <> metavar "INPUT_B" )
-    <*> alignParser
 
 treeMerge :: Double -> String -> [Motif] -> AlignOption
           -> ([Motif], Dendrogram Motif)
@@ -151,6 +166,7 @@ defaultMain (Dist a b alignOpt) = do
         B.putStrLn $ B.intercalate "\t" [_name x, _name y, toShortest d]
   where
     alignFn = mkAlignFn alignOpt
+
 defaultMain (Merge inFl m th alignOpt outFl)= do
     motifs <- readMotif inFl
     let motifNumber = length motifs
@@ -182,6 +198,13 @@ defaultMain (Merge inFl m th alignOpt outFl)= do
     hPutStrLn stderr $ printf "Write %d motifs" (length motifs')
 
     writeMotif outFl motifs'
+
+defaultMain (Cluster inFl c alignOpt) = do
+    motifs <- readMotif inFl
+    let tree = buildTree align motifs
+        align = mkAlignFn alignOpt
+    forM_ (tree `cutAt` c) $ \t ->
+        B.putStrLn $ B.intercalate "\t" $ map _name $ flatten t
 {-# INLINE defaultMain #-}
 
 comb :: [a] -> [(a,a)]
@@ -195,10 +218,12 @@ main = execParser opts >>= defaultMain
     opts = info (helper <*> parser)
             ( fullDesc
            <> header (printf "Compare, align and merge motifs, version %s" v))
-    v = "0.2.0beta7" :: String
+    v = "0.2.0" :: String
     parser = subparser $ (
         command "merge" (info (helper <*> mergeParser) $
-            fullDesc <> progDesc "Align and merge motifs")
+            fullDesc <> progDesc "Merge motifs")
      <> command "dist" (info (helper <*> distParser) $
             fullDesc <> progDesc "Align and compute pairwise distances")
+     <> command "cluster" (info (helper <*> clusterParser) $
+            fullDesc <> progDesc "Perform hierarchical clustering on motifs")
      )
