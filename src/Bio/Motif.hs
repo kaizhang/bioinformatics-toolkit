@@ -350,7 +350,7 @@ fromMEME meme = evalState (go $ B.lines meme) (0, [])
               1 -> do when (startOfPwm x) $ put (2, str ++ [B.words x !! 7])
                       go xs
               2 -> let x' = B.dropWhile (== ' ') x
-                   in if B.null x'
+                   in if B.null x' || "URL" `B.isPrefixOf` x'
                          then do put (0, [])
                                  r <- go xs
                                  return (toMotif str : r)
