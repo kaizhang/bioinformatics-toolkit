@@ -63,7 +63,7 @@ library
     , containers >=0.5
     , data-default-class
     , double-conversion
-    , http-conduit
+    , http-conduit >=2.1.8
     , hexpat
     , matrices >=0.4.3
     , mtl >=2.1.3.1
