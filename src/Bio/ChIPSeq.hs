@@ -246,7 +246,7 @@ peakCluster peaks r th = mergeBedWith mergeFn peaks' $= filterC g
     peaks' = map f peaks
     f b = let chr = chrom b
               c = (chromStart b + chromEnd b) `div` 2
-          in asBed chr (c-r) (c+r)
+          in BED3 chr (c-r) (c+r)
     mergeFn xs = BED (chrom $ head xs) lo hi Nothing (Just $ fromIntegral $ length xs) Nothing
       where
         lo = minimum . map chromStart $ xs

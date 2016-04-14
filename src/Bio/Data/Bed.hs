@@ -281,7 +281,7 @@ mergeBed = mergeSortedBed . sortBed
 {-# INLINE mergeBed #-}
 
 mergeBedWith :: (BEDLike b, Monad m)
-              => ([b] -> b) -> [b] -> Source m b
+              => ([b] -> a) -> [b] -> Source m a
 mergeBedWith f = mergeSortedBedWith f . sortBed
 {-# INLINE mergeBedWith #-}
 
@@ -295,7 +295,7 @@ mergeSortedBed = mergeSortedBedWith f
 {-# INLINE mergeSortedBed #-}
 
 mergeSortedBedWith :: (BEDLike b, Monad m)
-                   => ([b] -> b) -> Sorted (V.Vector b) -> Source m b
+                   => ([b] -> a) -> Sorted (V.Vector b) -> Source m a
 mergeSortedBedWith mergeFn (Sorted beds) = do
     (_, r) <- V.foldM' f acc0 . V.tail $ beds
     yield $ mergeFn r
