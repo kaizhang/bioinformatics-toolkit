@@ -18,6 +18,8 @@ module Bio.Data.Bed
     , BEDTree
     , bedToTree
     , sortedBedToTree
+    , intersecting
+    , isIntersected
     , splitBed
     , splitBedBySize
     , splitBedBySizeLeft
@@ -169,6 +171,17 @@ bedToTree f xs =
         I.sortBy (compareBed `on` fst) v
         return v
 {-# INLINE bedToTree #-}
+
+intersecting :: BEDLike b => BEDTree a -> b -> IM.IntervalMap Int a
+intersecting tree x = IM.intersecting (M.lookupDefault IM.empty chr tree) interval
+  where
+    chr = chrom x
+    interval = IM.IntervalCO (chromStart x) $ chromEnd x
+{-# INLINE intersecting #-}
+
+isIntersected :: BEDLike b => BEDTree a -> b -> Bool
+isIntersected tree = not . IM.null . intersecting tree
+{-# INLINE isIntersected #-}
 
 -- | split a bed region into k consecutive subregions, discarding leftovers
 splitBed :: BEDLike b => Int -> b -> [b]
