@@ -50,7 +50,7 @@ findTFBSTest :: Assertion
 findTFBSTest = do
     ms <- motifs
     let (Motif _ pwm) = head ms
-    expect <- findTFBS def pwm dna (0.6 * optimalScore def pwm) $$ CL.consume
+    expect <- findTFBS def pwm dna (0.6 * optimalScore def pwm) True $$ CL.consume
     actual <- findTFBSSlow def pwm dna (0.6 * optimalScore def pwm) $$ CL.consume
     assertEqual "findTFBS" expect actual
 

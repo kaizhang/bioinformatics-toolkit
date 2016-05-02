@@ -3,6 +3,7 @@ import qualified Tests.Bam as Bam
 import qualified Tests.Motif as Motif
 import qualified Tests.ChIPSeq as ChIPSeq
 import qualified Tests.Seq as Seq
+import qualified Tests.GREAT as GREAT
 import Test.Tasty
 
 main :: IO ()
@@ -12,4 +13,5 @@ main = defaultMain $ testGroup "Main"
     , Seq.tests
     , ChIPSeq.tests
     , Motif.tests
+    , GREAT.tests
     ]
