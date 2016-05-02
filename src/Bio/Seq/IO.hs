@@ -79,7 +79,7 @@ getChrom g chr = case lookup chr chrSize of
 {-# INLINE getChrom #-}
 
 getChrSizes :: Genome -> [(B.ByteString, Int)]
-getChrSizes (Genome h table) = map (\(k, (_, l)) -> (k, l)) . M.toList $ table
+getChrSizes (Genome _ table) = map (\(k, (_, l)) -> (k, l)) . M.toList $ table
 {-# INLINE getChrSizes #-}
 
 -- | indexing a genome.

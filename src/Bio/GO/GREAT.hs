@@ -5,22 +5,22 @@ module Bio.GO.GREAT
     , enrichedTerms
     ) where
 
-import Control.Monad.Primitive
-import qualified Data.ByteString.Char8 as B
-import Conduit
-import Data.Default.Class
-import qualified Data.HashMap.Strict as M
-import qualified Data.IntervalMap as IM
-import qualified Data.Vector as V
-import Data.Vector.Algorithms.Intro (sortBy)
-import Data.List (sort, group)
-import Data.Ord (comparing)
-import Data.IntervalMap.Interval (lowerBound, upperBound)
-import Data.Maybe
+import           Conduit
+import           Control.Monad.Primitive
+import qualified Data.ByteString.Char8        as B
+import           Data.Default.Class
+import           Data.Function                (on)
+import qualified Data.HashMap.Strict          as M
+import qualified Data.IntervalMap             as IM
+import           Data.List                    (foldl', group, sort, sortBy)
+import           Data.Maybe
+import           Data.Ord                     (comparing)
+import qualified Data.Vector                  as V
+import qualified Data.Vector.Algorithms.Intro as I
 
-import Bio.Data.Bed
-import Bio.GO
-import Bio.Utils.Functions
+import           Bio.Data.Bed
+import           Bio.GO
+import           Bio.Utils.Functions
 
 -- | how to associate genomic regions with genes
 data AssocRule = BasalPlusExtension Int Int Int
@@ -28,33 +28,31 @@ data AssocRule = BasalPlusExtension Int Int Int
                | OneNearest
 
 instance Default AssocRule where
-    def = BasalPlusExtension 5000 1000 50000
+    def = BasalPlusExtension 5000 1000 1000000
 
-type Gene = ( B.ByteString  -- ^ chromosome
-            , Int           -- ^ tss
-            , Bool          -- ^ is forward stranded
-            , [GOId]
-            )
+type Gene a = ( ( B.ByteString  -- ^ chromosome
+              , Int           -- ^ tss
+              , Bool          -- ^ is forward stranded
+              ), a)
 
 -- | given a gene list and the rule, compute the rulatory domain for each gene
-getRegulatoryDomains :: AssocRule -> [Gene] -> BEDTree [GOId]
-getRegulatoryDomains (BasalPlusExtension up dw ext) gs =
-    bedToTree undefined $ flip map basal $ \(BED3 chr s e, go) ->
-        let intervals = fromJust . M.lookup chr $ basalTree
-            s' = let im = IM.intersecting intervals $ IM.OpenInterval (s-ext) s
-                 in if IM.null im
-                     then s - ext
-                     else min s $ maximum $ map upperBound $ IM.keys im
-            e' = let im = IM.intersecting intervals $ IM.OpenInterval e (e+ext)
-                 in if IM.null im
-                     then e + ext
-                     else max e $ minimum $ map lowerBound $ IM.keys im
-        in (BED3 chr s' e', go)
+getRegulatoryDomains :: AssocRule -> [Gene a] -> [(BED3, a)]
+getRegulatoryDomains (BasalPlusExtension up dw ext) genes = (extendTail r ext, a) : rs
   where
-    basalTree = bedToTree (error "encounter redundant regions") basal
-    basal = flip map gs $ \(chr,tss,str,go) ->
-        if str then (BED3 chr (tss - up) (tss + dw), go)
-               else (BED3 chr (tss - dw) (tss + up), go)
+    (rs, Just (r,a)) = foldl' f ([], Nothing) $ sortBy (compareBed `on` fst) basal
+    f (acc, Nothing) (b,x) = (acc, Just (extendHead b ext, x))
+    f (acc, Just (b', x')) (b,x)
+        | chrom b' /= chrom b = ( (extendTail b' ext, x') : acc
+                                , Just (extendHead b ext, x) )
+        | chromEnd b' >= chromStart b = ((b',x') : acc, Just (b,x))
+        | otherwise = let ext' = min ext $ (chromStart b - chromEnd b') `div` 2
+                      in ((extendTail b' ext', x') : acc, Just (extendHead b ext', x))
+    extendHead (BED3 chr s e) l | s - l >= 0 = BED3 chr (s-l) e
+                                | otherwise = BED3 chr 0 e
+    extendTail (BED3 chr s e) l = BED3 chr s (e+l)
+    basal = flip map genes $ \((chr, tss, str), x) ->
+        if str then (BED3 chr (tss - up) (tss + dw), x)
+               else (BED3 chr (tss - dw) (tss + up), x)
 getRegulatoryDomains _ _ = undefined
 {-# INLINE getRegulatoryDomains #-}
 
@@ -130,5 +128,5 @@ enrichedTerms fg bg tree = do
     v <- V.unsafeThaw $ V.fromList $ M.toList $ flip M.mapWithKey table1 $ \t c ->
         let k = fromMaybe (error "x") $ M.lookup t table2
         in (1 - hyperquick c k n1 n2, fromIntegral (c*n2) / fromIntegral (n1*k))
-    sortBy (comparing snd) v
+    I.sortBy (comparing snd) v
     V.unsafeFreeze v
