@@ -5,4 +5,4 @@ packages:
 extra-deps:
     - samtools-0.2.4.1
 
-resolver: nightly-2016-04-25
+resolver: lts-5.5

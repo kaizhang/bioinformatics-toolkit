@@ -39,8 +39,10 @@ module Bio.Data.Bed
     , BED(..)
     -- * BED3 format
     , BED3(..)
+    -- * Utilities
     , fetchSeq
     , fetchSeq'
+    , motifScan
     , compareBed
     , convert
     ) where
@@ -60,6 +62,8 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Intro as I
 import System.IO
 
+import Bio.Motif hiding (_name)
+import Bio.Motif.Search
 import Bio.Seq
 import Bio.Seq.IO
 import Bio.Utils.Misc ( binBySizeLeft, binBySize, binBySizeOverlap, bins
@@ -399,21 +403,6 @@ instance BEDLike BED where
     chromStart = _chromStart
     chromEnd = _chromEnd
 
--- | retreive sequences
-fetchSeq :: (BioSeq DNA a, MonadIO m) => Genome -> Conduit BED m (Either String (DNA a))
-fetchSeq g = mapMC f
-  where
-    f (BED chr start end _ _ isForward) = do
-        dna <- liftIO $ getSeq g (chr, start, end)
-        return $ case isForward of
-            Just False -> rc <$> dna
-            _ -> dna
-{-# INLINE fetchSeq #-}
-
-fetchSeq' :: (BioSeq DNA a, MonadIO m) => Genome -> [BED] -> m [Either String (DNA a)]
-fetchSeq' g beds = yieldMany beds $= fetchSeq g $$ sinkList
-{-# INLINE fetchSeq' #-}
-
 -- * BED3 format
 
 data BED3 = BED3 !B.ByteString !Int !Int deriving (Eq, Show, Read)
@@ -439,3 +428,47 @@ instance BEDLike BED3 where
 convert :: (BEDLike b1, BEDLike b2) => b1 -> b2
 convert b = asBed (chrom b) (chromStart b) (chromEnd b)
 {-# INLINE convert #-}
+
+-- | retreive sequences
+fetchSeq :: (BioSeq DNA a, MonadIO m) => Genome -> Conduit BED m (Either String (DNA a))
+fetchSeq g = mapMC f
+  where
+    f (BED chr start end _ _ isForward) = do
+        dna <- liftIO $ getSeq g (chr, start, end)
+        return $ case isForward of
+            Just False -> rc <$> dna
+            _ -> dna
+{-# INLINE fetchSeq #-}
+
+fetchSeq' :: (BioSeq DNA a, MonadIO m) => Genome -> [BED] -> m [Either String (DNA a)]
+fetchSeq' g beds = yieldMany beds $= fetchSeq g $$ sinkList
+{-# INLINE fetchSeq' #-}
+
+motifScan :: (BEDLike b, MonadIO m)
+          => Genome -> [Motif] -> Bkgd -> Double -> Conduit b m BED
+motifScan g motifs bg p = do
+    x <- await
+    case x of
+        Nothing -> return ()
+        Just bed -> do
+            let chr = chrom bed
+                s = chromStart bed
+                e = chromEnd bed
+            r <- liftIO $ getSeq g (chr, s, e)
+            case r of
+                Left _ -> return ()
+                Right dna -> mapM_ (getTFBS dna (chr, s)) motifs'
+  where
+    getTFBS dna (chr, s) (nm, (pwm, cutoff), (pwm', cutoff')) = toProducer
+        ( (findTFBS bg pwm (dna :: DNA IUPAC) cutoff True =$=
+            mapC (\i -> BED chr (s+i) (s+i+n) (Just nm) Nothing $ Just True)) >>
+          (findTFBS bg pwm' dna cutoff' True =$=
+            mapC (\i -> BED chr (s+i) (s+i+n) (Just nm) Nothing $ Just False)) )
+      where
+        n = Bio.Motif.size pwm
+    motifs' = flip map motifs $ \(Motif nm pwm) ->
+        let cutoff = pValueToScore p bg pwm
+            cutoff' = pValueToScore p bg pwm'
+            pwm' = rcPWM pwm
+        in (nm, (pwm, cutoff), (pwm', cutoff'))
+{-# INLINE motifScan #-}
