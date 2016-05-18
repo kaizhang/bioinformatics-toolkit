@@ -446,19 +446,20 @@ fetchSeq' g beds = yieldMany beds $= fetchSeq g $$ sinkList
 
 motifScan :: (BEDLike b, MonadIO m)
           => Genome -> [Motif] -> Bkgd -> Double -> Conduit b m BED
-motifScan g motifs bg p = do
-    x <- await
-    case x of
-        Nothing -> return ()
-        Just bed -> do
-            let chr = chrom bed
-                s = chromStart bed
-                e = chromEnd bed
-            r <- liftIO $ getSeq g (chr, s, e)
-            case r of
-                Left _ -> return ()
-                Right dna -> mapM_ (getTFBS dna (chr, s)) motifs'
+motifScan g motifs bg p = conduit
   where
+    conduit = do
+        x <- await
+        case x of
+            Nothing -> return ()
+            Just bed -> do
+                let chr = chrom bed
+                    s = chromStart bed
+                    e = chromEnd bed
+                r <- liftIO $ getSeq g (chr, s, e)
+                case r of
+                    Left _ -> conduit
+                    Right dna -> mapM_ (getTFBS dna (chr, s)) motifs' >> conduit
     getTFBS dna (chr, s) (nm, (pwm, cutoff), (pwm', cutoff')) = toProducer
         ( (findTFBS bg pwm (dna :: DNA IUPAC) cutoff True =$=
             mapC (\i -> BED chr (s+i) (s+i+n) (Just nm) Nothing $ Just True)) >>
