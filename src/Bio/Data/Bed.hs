@@ -15,6 +15,14 @@
 
 module Bio.Data.Bed
     ( BEDLike(..)
+
+    -- * BED6 format
+    , BED(..)
+    -- * BED3 format
+    , BED3(..)
+    -- * NarrowPeak format
+    , NarrowPeak(..)
+
     , BEDTree
     , bedToTree
     , sortedBedToTree
@@ -35,16 +43,20 @@ module Bio.Data.Bed
     , mergeBedWith
     , mergeSortedBed
     , mergeSortedBedWith
-    -- * BED6 format
-    , BED(..)
-    -- * BED3 format
-    , BED3(..)
+    , hReadBed
+    , hReadBed'
+    , readBed
+    , readBed'
+    , hWriteBed
+    , hWriteBed'
+    , writeBed
+    , writeBed'
+
     -- * Utilities
     , fetchSeq
     , fetchSeq'
     , motifScan
     , compareBed
-    , convert
     ) where
 
 import Control.Arrow ((***))
@@ -57,10 +69,12 @@ import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as M
 import qualified Data.IntervalMap.Strict as IM
 import Data.List (groupBy)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, fromJust)
 import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Intro as I
 import System.IO
+import Data.ByteString.Lex.Integral (packDecimal)
+import Data.Double.Conversion.ByteString (toShortest)
 
 import Bio.Motif hiding (_name)
 import Bio.Motif.Search
@@ -69,77 +83,186 @@ import Bio.Seq.IO
 import Bio.Utils.Misc ( binBySizeLeft, binBySize, binBySizeOverlap, bins
                       , readInt, readDouble )
 
--- | a class representing BED-like data, e.g., BED3, BED6 and BED12. BED format
+-- | A class representing BED-like data, e.g., BED3, BED6 and BED12. BED format
 -- uses 0-based index (see documentation).
 class BEDLike b where
-    -- | construct bed record from chromsomoe, start location and end location
+    -- | Construct bed record from chromsomoe, start location and end location
     asBed :: B.ByteString -> Int -> Int -> b
 
-    -- | convert bytestring to bed format
+    -- | Convert bytestring to bed format
     fromLine :: B.ByteString -> b
 
-    -- | convert bed to bytestring
+    -- | Convert bed to bytestring
     toLine :: b -> B.ByteString
 
-    -- | field accessor
+    -- | Field accessor
     chrom :: b -> B.ByteString
     chromStart :: b -> Int
     chromEnd :: b -> Int
+    bedName :: b -> Maybe B.ByteString
+    bedScore :: b -> Maybe Double
+    bedStrand :: b -> Maybe Bool
 
-    toBed3 :: b -> BED3
-    toBed3 bed = BED3 (chrom bed) (chromStart bed) (chromEnd bed)
+    convert :: BEDLike b' => b' -> b
 
-    -- | return the size of a bed region
-    size :: b -> Int
-    size bed = chromEnd bed - chromStart bed
+    -- | Return the size of a bed region.
+    bedSize :: b -> Int
+    bedSize bed = chromEnd bed - chromStart bed
 
-    hReadBed :: MonadIO m => Handle -> Source m b
-    hReadBed h = do eof <- liftIO $ hIsEOF h
-                    unless eof $ do
-                        line <- liftIO $ B.hGetLine h
-                        yield $ fromLine line
-                        hReadBed h
-    {-# INLINE hReadBed #-}
+    {-# MINIMAL asBed, fromLine, toLine, chrom, chromStart, chromEnd,
+                bedName, bedScore, bedStrand, convert #-}
 
-    -- | non-streaming version
-    hReadBed' :: MonadIO m => Handle -> m [b]
-    hReadBed' h = hReadBed h $$ sinkList
-    {-# INLINE hReadBed' #-}
+-- * BED6 format
 
-    readBed :: MonadIO m => FilePath -> Source m b
-    readBed fl = do handle <- liftIO $ openFile fl ReadMode
-                    hReadBed handle
-                    liftIO $ hClose handle
-    {-# INLINE readBed #-}
+-- | BED6 format, as described in http://genome.ucsc.edu/FAQ/FAQformat.html#format1.7
+data BED = BED
+    { _chrom :: !B.ByteString
+    , _chromStart :: {-# UNPACK #-} !Int
+    , _chromEnd :: {-# UNPACK #-} !Int
+    , _name :: !(Maybe B.ByteString)
+    , _score :: !(Maybe Double)
+    , _strand :: !(Maybe Bool)  -- ^ True: "+", False: "-"
+    } deriving (Eq, Show, Read)
 
-    -- | non-streaming version
-    readBed' :: MonadIO m => FilePath -> m [b]
-    readBed' fl = readBed fl $$ sinkList
-    {-# INLINE readBed' #-}
+instance Default BED where
+    def = BED
+        { _chrom = ""
+        , _chromStart = 0
+        , _chromEnd = 0
+        , _name = Nothing
+        , _score = Nothing
+        , _strand = Nothing
+        }
 
-    hWriteBed :: MonadIO m => Handle -> Sink b m ()
-    hWriteBed handle = do
-        x <- await
-        case x of
-            Nothing -> return ()
-            Just bed -> (liftIO . B.hPutStrLn handle . toLine) bed >> hWriteBed handle
-    {-# INLINE hWriteBed #-}
+instance BEDLike BED where
+    asBed chr s e = BED chr s e Nothing Nothing Nothing
 
-    hWriteBed' :: MonadIO m => Handle -> [b] -> m ()
-    hWriteBed' handle beds = yieldMany beds $$ hWriteBed handle
-    {-# INLINE hWriteBed' #-}
+    fromLine l = evalState (f (B.split '\t' l)) 1
+      where
+        f :: [B.ByteString] -> State Int BED
+        f [] = do i <- get
+                  if i <= 3 then error "Read BED fail: Incorrect number of fields"
+                            else return def
+        f (x:xs) = do
+            i <- get
+            put (i+1)
+            bed <- f xs
+            case i of
+                1 -> return $ bed {_chrom = x}
+                2 -> return $ bed {_chromStart = readInt x}
+                3 -> return $ bed {_chromEnd = readInt x}
+                4 -> return $ bed {_name = guard' x}
+                5 -> return $ bed {_score = getScore x}
+                6 -> return $ bed {_strand = getStrand x}
+                _ -> return def
 
-    writeBed :: MonadIO m => FilePath -> Sink b m ()
-    writeBed fl = do handle <- liftIO $ openFile fl WriteMode
-                     hWriteBed handle
-                     liftIO $ hClose handle
-    {-# INLINE writeBed #-}
+        guard' x | x == "." = Nothing
+                 | otherwise = Just x
+        getScore x | x == "." = Nothing
+                   | otherwise = Just . readDouble $ x
+        getStrand str | str == "-" = Just False
+                      | str == "+" = Just True
+                      | otherwise = Nothing
+    {-# INLINE fromLine #-}
 
-    writeBed' :: MonadIO m => FilePath -> [b] -> m ()
-    writeBed' fl beds = yieldMany beds $$ writeBed fl
-    {-# INLINE writeBed' #-}
+    toLine (BED f1 f2 f3 f4 f5 f6) = B.intercalate "\t"
+        [ f1, (B.pack.show) f2, (B.pack.show) f3, fromMaybe "." f4, score'
+        , strand' ]
+      where
+        strand' | f6 == Just True = "+"
+                | f6 == Just False = "-"
+                | otherwise = "."
+        score' = case f5 of
+                     Just x -> (B.pack.show) x
+                     _ -> "."
+    {-# INLINE toLine #-}
 
-    {-# MINIMAL asBed, fromLine, toLine, chrom, chromStart, chromEnd #-}
+    chrom = _chrom
+    chromStart = _chromStart
+    chromEnd = _chromEnd
+    bedName = _name
+    bedScore = _score
+    bedStrand = _strand
+
+    convert bed = BED (chrom bed) (chromStart bed) (chromEnd bed) (bedName bed)
+                      (bedScore bed) (bedStrand bed)
+
+-- * BED3 format
+
+data BED3 = BED3 !B.ByteString !Int !Int deriving (Eq, Show, Read)
+
+instance BEDLike BED3 where
+    asBed = BED3
+
+    fromLine l = case B.split '\t' l of
+                    (a:b:c:_) -> BED3 a (readInt b) $ readInt c
+                    _ -> error "Read BED fail: Incorrect number of fields"
+    {-# INLINE fromLine #-}
+
+    toLine (BED3 a b c) = B.intercalate "\t"
+        [a, fromJust $ packDecimal b, fromJust $ packDecimal c]
+    {-# INLINE toLine #-}
+
+    chrom (BED3 f1 _ _) = f1
+    chromStart (BED3 _ f2 _) = f2
+    chromEnd (BED3 _ _ f3) = f3
+    bedName = const Nothing
+    bedScore = const Nothing
+    bedStrand = const Nothing
+
+    convert bed = BED3 (chrom bed) (chromStart bed) (chromEnd bed)
+
+-- | ENCODE narrowPeak format: https://genome.ucsc.edu/FAQ/FAQformat.html#format12
+data NarrowPeak = NarrowPeak
+    { _npChrom :: !B.ByteString
+    , _npStart :: !Int
+    , _npEnd :: !Int
+    , _npName :: !(Maybe B.ByteString)
+    , _npScore :: !Double
+    , _npStrand :: !(Maybe Bool)
+    , _npSigal :: !Double
+    , _npPvalue :: !(Maybe Double)
+    , _npQvalue :: !(Maybe Double)
+    , npPeak :: !(Maybe Int)
+    } deriving (Eq, Show, Read)
+
+instance BEDLike NarrowPeak where
+    asBed chr s e = NarrowPeak chr s e Nothing 0 Nothing 0 Nothing Nothing Nothing
+
+    fromLine l = NarrowPeak a (readInt b) (readInt c)
+        (if d == "." then Nothing else Just d)
+        (readDouble e)
+        (if f == "." then Nothing else if f == "+" then Just True else Just False)
+        (readDouble g)
+        (if readDouble h < 0 then Nothing else Just $ readDouble h)
+        (if readDouble i < 0 then Nothing else Just $ readDouble i)
+        (if readInt j < 0 then Nothing else Just $ readInt j)
+      where
+        (a:b:c:d:e:f:g:h:i:j:_) = B.split '\t' l
+    {-# INLINE fromLine #-}
+
+    toLine (NarrowPeak a b c d e f g h i j) = B.intercalate "\t"
+        [ a, fromJust $ packDecimal b, fromJust $ packDecimal c, fromMaybe "." d
+        , toShortest e
+        , case f of
+            Nothing -> "."
+            Just True -> "+"
+            _ -> "-"
+        , toShortest g, fromMaybe "-1" $ fmap toShortest h
+        , fromMaybe "-1" $ fmap toShortest i
+        , fromMaybe "-1" $ fmap (fromJust . packDecimal) j
+        ]
+    {-# INLINE toLine #-}
+
+    chrom = _npChrom
+    chromStart = _npStart
+    chromEnd = _npEnd
+    bedName = _npName
+    bedScore = Just . _npScore
+    bedStrand = _npStrand
+
+    convert bed = NarrowPeak (chrom bed) (chromStart bed) (chromEnd bed) (bedName bed)
+        (fromMaybe 0 $ bedScore bed) (bedStrand bed) 0 Nothing Nothing Nothing
 
 type BEDTree a = M.HashMap B.ByteString (IM.IntervalMap Int a)
 
@@ -330,104 +453,53 @@ mergeSortedBedWith mergeFn (Sorted beds) = do
         e' = chromEnd bed
 {-# INLINE mergeSortedBedWith #-}
 
--- * BED6 format
+-- | Read records from a bed file handler in a streaming fashion.
+hReadBed :: (BEDLike b, MonadIO m) => Handle -> Source m b
+hReadBed h = do eof <- liftIO $ hIsEOF h
+                unless eof $ do
+                    line <- liftIO $ B.hGetLine h
+                    yield $ fromLine line
+                    hReadBed h
+{-# INLINE hReadBed #-}
 
--- | BED6 format, as described in http://genome.ucsc.edu/FAQ/FAQformat.html#format1.7
-data BED = BED
-    { _chrom :: !B.ByteString
-    , _chromStart :: {-# UNPACK #-} !Int
-    , _chromEnd :: {-# UNPACK #-} !Int
-    , _name :: !(Maybe B.ByteString)
-    , _score :: !(Maybe Double)
-    , _strand :: !(Maybe Bool)  -- ^ True: "+", False: "-"
-    } deriving (Eq, Show, Read)
+-- | Non-streaming version.
+hReadBed' :: (BEDLike b, MonadIO m) => Handle -> m [b]
+hReadBed' h = hReadBed h $$ sinkList
+{-# INLINE hReadBed' #-}
 
-instance Default BED where
-    def = BED
-        { _chrom = ""
-        , _chromStart = 0
-        , _chromEnd = 0
-        , _name = Nothing
-        , _score = Nothing
-        , _strand = Nothing
-        }
+-- | Read records from a bed file in a streaming fashion.
+readBed :: (BEDLike b, MonadIO m) => FilePath -> Source m b
+readBed fl = do handle <- liftIO $ openFile fl ReadMode
+                hReadBed handle
+                liftIO $ hClose handle
+{-# INLINE readBed #-}
 
-instance BEDLike BED where
-    asBed chr s e = BED chr s e Nothing Nothing Nothing
+-- | Non-streaming version.
+readBed' :: (BEDLike b, MonadIO m) => FilePath -> m [b]
+readBed' fl = readBed fl $$ sinkList
+{-# INLINE readBed' #-}
 
-    fromLine l = evalState (f (B.split '\t' l)) 1
-      where
-        f :: [B.ByteString] -> State Int BED
-        f [] = do i <- get
-                  if i <= 3 then error "Read BED fail: Incorrect number of fields"
-                            else return def
-        f (x:xs) = do
-            i <- get
-            put (i+1)
-            bed <- f xs
-            case i of
-                1 -> return $ bed {_chrom = x}
-                2 -> return $ bed {_chromStart = readInt x}
-                3 -> return $ bed {_chromEnd = readInt x}
-                4 -> return $ bed {_name = guard' x}
-                5 -> return $ bed {_score = getScore x}
-                6 -> return $ bed {_strand = getStrand x}
-                _ -> return def
+hWriteBed :: (BEDLike b, MonadIO m) => Handle -> Sink b m ()
+hWriteBed handle = do
+    x <- await
+    case x of
+        Nothing -> return ()
+        Just bed -> (liftIO . B.hPutStrLn handle . toLine) bed >> hWriteBed handle
+{-# INLINE hWriteBed #-}
 
-        guard' x | x == "." = Nothing
-                 | otherwise = Just x
-        getScore x | x == "." = Nothing
-                   | otherwise = Just . readDouble $ x
-        getStrand str | str == "-" = Just False
-                      | str == "+" = Just True
-                      | otherwise = Nothing
-    {-# INLINE fromLine #-}
+hWriteBed' :: (BEDLike b, MonadIO m) => Handle -> [b] -> m ()
+hWriteBed' handle beds = yieldMany beds $$ hWriteBed handle
+{-# INLINE hWriteBed' #-}
 
-    toLine (BED f1 f2 f3 f4 f5 f6) = B.intercalate "\t" [ f1
-                                                        , (B.pack.show) f2
-                                                        , (B.pack.show) f3
-                                                        , fromMaybe "." f4
-                                                        , score'
-                                                        , strand'
-                                                        ]
-      where
-        strand' | f6 == Just True = "+"
-                | f6 == Just False = "-"
-                | otherwise = "."
-        score' = case f5 of
-                     Just x -> (B.pack.show) x
-                     _ -> "."
-    {-# INLINE toLine #-}
+writeBed :: (BEDLike b, MonadIO m) => FilePath -> Sink b m ()
+writeBed fl = do handle <- liftIO $ openFile fl WriteMode
+                 hWriteBed handle
+                 liftIO $ hClose handle
+{-# INLINE writeBed #-}
 
-    chrom = _chrom
-    chromStart = _chromStart
-    chromEnd = _chromEnd
-
--- * BED3 format
-
-data BED3 = BED3 !B.ByteString !Int !Int deriving (Eq, Show, Read)
-
-instance Default BED3 where
-    def = BED3 "" 0 0
-
-instance BEDLike BED3 where
-    asBed = BED3
-
-    fromLine l = case B.split '\t' l of
-                    (a:b:c:_) -> BED3 a (readInt b) $ readInt c
-                    _ -> error "Read BED fail: Incorrect number of fields"
-    {-# INLINE fromLine #-}
-
-    toLine (BED3 f1 f2 f3) = B.intercalate "\t" [f1, (B.pack.show) f2, (B.pack.show) f3]
-    {-# INLINE toLine #-}
-
-    chrom (BED3 f1 _ _) = f1
-    chromStart (BED3 _ f2 _) = f2
-    chromEnd (BED3 _ _ f3) = f3
-
-convert :: (BEDLike b1, BEDLike b2) => b1 -> b2
-convert b = asBed (chrom b) (chromStart b) (chromEnd b)
-{-# INLINE convert #-}
+writeBed' :: (BEDLike b, MonadIO m) => FilePath -> [b] -> m ()
+writeBed' fl beds = yieldMany beds $$ writeBed fl
+{-# INLINE writeBed' #-}
 
 -- | retreive sequences
 fetchSeq :: (BioSeq DNA a, MonadIO m) => Genome -> Conduit BED m (Either String (DNA a))

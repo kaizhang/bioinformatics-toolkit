@@ -79,7 +79,7 @@ rpkmSortedBed (Sorted regions) = do
     vec <- lift $ GM.replicate l 0
     n <- foldMC (count vec) (0 :: Int)
     let factor = fromIntegral n / 1e9
-    lift $ liftM (G.imap (\i x -> x / factor / (fromIntegral . size) (regions V.! i)))
+    lift $ liftM (G.imap (\i x -> x / factor / (fromIntegral . bedSize) (regions V.! i)))
          $ G.unsafeFreeze vec
   where
     count v nTags tag = do
