@@ -267,7 +267,7 @@ scoreCDF (BG (a,c,g,t)) pwm = toCDF $ loop (V.singleton 1, const 0) 0
     loop (prev,scFn) i
         | i < n =
             let (lo,hi) = minMax (1/0,-1/0) 0
-                nBin' = min 100000 $ ceiling $ (hi - lo) / precision
+                nBin' = min 200000 $ ceiling $ (hi - lo) / precision
                 step = (hi - lo) / fromIntegral nBin'
                 idx x = let j = truncate $ (x - lo) / step
                         in if j >= nBin' then nBin' - 1 else j
@@ -299,7 +299,7 @@ scoreCDF (BG (a,c,g,t)) pwm = toCDF $ loop (V.singleton 1, const 0) 0
                  in minMax (foldr min l [s1,s2,s3,s4],foldr max h [s1,s2,s3,s4]) (x+1)
             | otherwise = minMax (l,h) (x+1)
     toCDF (v, scFn) = CDF $ V.imap (\i x -> (scFn i, x)) $ V.scanl1 (+) v
-    precision = 0.002
+    precision = 1e-4
     n = size pwm
     log' x | x == 0 = log 0.001
            | otherwise = log x

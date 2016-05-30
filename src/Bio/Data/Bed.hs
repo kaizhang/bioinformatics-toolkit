@@ -223,7 +223,7 @@ data NarrowPeak = NarrowPeak
     , _npSigal :: !Double
     , _npPvalue :: !(Maybe Double)
     , _npQvalue :: !(Maybe Double)
-    , npPeak :: !(Maybe Int)
+    , _npPeak :: !(Maybe Int)
     } deriving (Eq, Show, Read)
 
 instance BEDLike NarrowPeak where
