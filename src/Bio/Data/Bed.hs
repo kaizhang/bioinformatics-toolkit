@@ -43,6 +43,7 @@ module Bio.Data.Bed
     , mergeBedWith
     , mergeSortedBed
     , mergeSortedBedWith
+    , splitOverlapped
     , hReadBed
     , hReadBed'
     , readBed
@@ -68,13 +69,14 @@ import Data.Function (on)
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as M
 import qualified Data.IntervalMap.Strict as IM
-import Data.List (groupBy)
+import Data.List (groupBy, sortBy)
 import Data.Maybe (fromMaybe, fromJust)
 import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Intro as I
 import System.IO
 import Data.ByteString.Lex.Integral (packDecimal)
 import Data.Double.Conversion.ByteString (toShortest)
+import Data.Ord (comparing)
 
 import Bio.Motif hiding (_name)
 import Bio.Motif.Search
@@ -104,13 +106,15 @@ class BEDLike b where
     bedStrand :: b -> Maybe Bool
 
     convert :: BEDLike b' => b' -> b
+    convert bed = asBed (chrom bed) (chromStart bed) (chromEnd bed)
+    {-# INLINE convert #-}
 
     -- | Return the size of a bed region.
     bedSize :: b -> Int
     bedSize bed = chromEnd bed - chromStart bed
 
     {-# MINIMAL asBed, fromLine, toLine, chrom, chromStart, chromEnd,
-                bedName, bedScore, bedStrand, convert #-}
+                bedName, bedScore, bedStrand #-}
 
 -- * BED6 format
 
@@ -209,8 +213,6 @@ instance BEDLike BED3 where
     bedName = const Nothing
     bedScore = const Nothing
     bedStrand = const Nothing
-
-    convert bed = BED3 (chrom bed) (chromStart bed) (chromEnd bed)
 
 -- | ENCODE narrowPeak format: https://genome.ucsc.edu/FAQ/FAQformat.html#format12
 data NarrowPeak = NarrowPeak
@@ -421,7 +423,7 @@ mergeBed = mergeSortedBed . sortBed
 {-# INLINE mergeBed #-}
 
 mergeBedWith :: (BEDLike b, Monad m)
-              => ([b] -> a) -> [b] -> Source m a
+             => ([b] -> a) -> [b] -> Source m a
 mergeBedWith f = mergeSortedBedWith f . sortBed
 {-# INLINE mergeBedWith #-}
 
@@ -452,6 +454,28 @@ mergeSortedBedWith mergeFn (Sorted beds) = do
         s' = chromStart bed
         e' = chromEnd bed
 {-# INLINE mergeSortedBedWith #-}
+
+-- | Split overlapped regions into non-overlapped regions. The input must be overlapped.
+-- This function is usually used with `mergeBedWith`.
+splitOverlapped :: BEDLike b => ([b] -> a) -> [b] -> [(BED3, a)]
+splitOverlapped fun xs = filter ((>0) . bedSize . fst) $
+    evalState (F.foldrM f [] $ init xs') x0
+  where
+    x0 = (\(a,b) -> (fromEither a, M.singleton (chromStart b, chromEnd b) b)) $ last xs'
+    xs' = sortBy (comparing (fromEither . fst)) $ concatMap
+        ( \x -> [(Left $ chromStart x, x), (Right $ chromEnd x, x)] ) xs
+    f (i, x) acc = do
+        (j, set) <- get
+        let bed = (BED3 chr (fromEither i) j, fun $ M.elems set)
+            set' = case i of
+                Left _ -> M.delete (chromStart x, chromEnd x) set
+                Right _ -> M.insert (chromStart x, chromEnd x) x set
+        put (fromEither i, set')
+        return (bed:acc)
+    fromEither (Left x) = x
+    fromEither (Right x) = x
+    chr = chrom $ head xs
+{-# INLINE splitOverlapped #-}
 
 -- | Read records from a bed file handler in a streaming fashion.
 hReadBed :: (BEDLike b, MonadIO m) => Handle -> Source m b
