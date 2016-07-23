@@ -57,6 +57,8 @@ module Bio.Data.Bed
     , fetchSeq
     , fetchSeq'
     , motifScan
+    , getMotifScore
+    , getMotifPValue
     , compareBed
     ) where
 
@@ -540,22 +542,18 @@ fetchSeq' :: (BioSeq DNA a, MonadIO m) => Genome -> [BED] -> m [Either String (D
 fetchSeq' g beds = yieldMany beds $= fetchSeq g $$ sinkList
 {-# INLINE fetchSeq' #-}
 
+-- | Identify motif binding sites
 motifScan :: (BEDLike b, MonadIO m)
           => Genome -> [Motif] -> Bkgd -> Double -> Conduit b m BED
-motifScan g motifs bg p = conduit
+motifScan g motifs bg p = awaitForever $ \bed -> do
+    let chr = chrom bed
+        s = chromStart bed
+        e = chromEnd bed
+    r <- liftIO $ getSeq g (chr, s, e)
+    case r of
+        Left _ -> return ()
+        Right dna -> mapM_ (getTFBS dna (chr, s)) motifs'
   where
-    conduit = do
-        x <- await
-        case x of
-            Nothing -> return ()
-            Just bed -> do
-                let chr = chrom bed
-                    s = chromStart bed
-                    e = chromEnd bed
-                r <- liftIO $ getSeq g (chr, s, e)
-                case r of
-                    Left _ -> conduit
-                    Right dna -> mapM_ (getTFBS dna (chr, s)) motifs' >> conduit
     getTFBS dna (chr, s) (nm, (pwm, cutoff), (pwm', cutoff')) = toProducer
         ( (findTFBS bg pwm (dna :: DNA IUPAC) cutoff True =$=
             mapC (\i -> BED chr (s+i) (s+i+n) (Just nm) Nothing $ Just True)) >>
@@ -569,3 +567,37 @@ motifScan g motifs bg p = conduit
             pwm' = rcPWM pwm
         in (nm, (pwm, cutoff), (pwm', cutoff'))
 {-# INLINE motifScan #-}
+
+-- | Retrieve motif matching scores
+getMotifScore :: MonadIO m
+              => Genome -> [Motif] -> Bkgd -> Conduit BED m BED
+getMotifScore g motifs bg = awaitForever $ \(BED chr s e (Just nm) _ isForward) -> do
+    r <- liftIO $ getSeq g (chr, s, e)
+    let r' = case isForward of
+            Just False -> rc <$> r
+            _ -> r
+    case r' of
+        Left _ -> return ()
+        Right dna -> do
+            let pwm = M.lookupDefault (error "can't find motif with given name")
+                      nm motifMap
+                sc = score bg pwm (dna :: DNA IUPAC)
+            yield $ BED chr s e (Just nm) (Just sc) isForward
+  where
+    motifMap = M.fromListWith (error "found motif with same name") $
+        map (\(Motif nm pwm) -> (nm, pwm)) motifs
+{-# INLINE getMotifScore #-}
+
+getMotifPValue :: MonadIO m
+               => [Motif] -> Bkgd -> Conduit BED m BED
+getMotifPValue motifs bg = awaitForever $ \bed -> do
+    let sc = fromJust $ _score bed
+        nm = fromJust $ _name bed
+        d = M.lookupDefault (error "can't find motif with given name")
+                nm motifMap
+        p = 1 - cdf d sc
+    yield bed{_score = Just p}
+  where
+    motifMap = M.fromListWith (error "found motif with same name") $
+        map (\(Motif nm pwm) -> (nm, scoreCDF bg pwm)) motifs
+{-# INLINE getMotifPValue #-}
