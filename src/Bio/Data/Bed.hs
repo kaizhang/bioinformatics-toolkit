@@ -588,16 +588,17 @@ getMotifScore g motifs bg = awaitForever $ \(BED chr s e (Just nm) _ isForward) 
         map (\(Motif nm pwm) -> (nm, pwm)) motifs
 {-# INLINE getMotifScore #-}
 
-getMotifPValue :: MonadIO m
-               => [Motif] -> Bkgd -> Conduit BED m BED
-getMotifPValue motifs bg = awaitForever $ \bed -> do
-    let sc = fromJust $ _score bed
-        nm = fromJust $ _name bed
-        d = M.lookupDefault (error "can't find motif with given name")
+getMotifPValue :: [Motif] -> Bkgd -> [BED] -> [BED]
+getMotifPValue motifs bg beds = flip concatMap beds' $ \bs ->
+    let nm = fromJust $ bedName $ head bs
+        pwm = M.lookupDefault (error "can't find motif with given name")
                 nm motifMap
-        p = 1 - cdf d sc
-    yield bed{_score = Just p}
+        d = scoreCDF bg pwm
+    in flip map bs $ \bed -> let sc = fromJust $ _score bed
+                                 p = 1 - cdf d sc
+                             in bed{_score = Just p}
   where
     motifMap = M.fromListWith (error "found motif with same name") $
-        map (\(Motif nm pwm) -> (nm, scoreCDF bg pwm)) motifs
+        map (\(Motif nm pwm) -> (nm, pwm)) motifs
+    beds' = groupBy ((==) `on` bedName) $ sortBy (comparing bedName) beds
 {-# INLINE getMotifPValue #-}
