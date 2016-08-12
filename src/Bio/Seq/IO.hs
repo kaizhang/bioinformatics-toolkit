@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Bio.Seq.IO
     ( Genome
@@ -11,45 +12,45 @@ module Bio.Seq.IO
     , mkIndex
     ) where
 
-import Bio.Seq
-import Bio.Utils.Misc (readInt)
 import Control.Exception (bracket)
+import Conduit
 import qualified Data.ByteString.Char8 as B
 import qualified Data.HashMap.Lazy as M
 import Data.List.Split
 import System.IO
 
+import Bio.Seq
+import Bio.Utils.Misc (readInt)
+import Bio.Data.Fasta (fastaReader)
+
 -- | The first 2048 bytes are header. Header consists of a magic string,
 -- followed by chromosome information. Example:
 -- <HASKELLBIOINFORMATICS>\nCHR1 START SIZE
-data Genome = Genome !Handle !IndexTable
+data Genome = Genome !Handle !IndexTable !Int
 
 type IndexTable = M.HashMap B.ByteString (Int, Int)
 
-headerSize :: Int
-headerSize = 2048
-
-magic :: String
-magic = "<HASKELLBIOINFORMATICS>"
+magic :: B.ByteString
+magic = "<HASKELLBIOINFORMATICS_7d2c5gxhg934>"
 
 openGenome :: FilePath -> IO Genome
 openGenome fl = do
     h <- openFile fl ReadMode
-    sig <- hGetLine h
+    sig <- B.hGetLine h
     if sig == magic
-        then Genome h <$> readIndex h
+        then do
+            header <- B.hGetLine h
+            return $ Genome h (getIndex header) (B.length sig + B.length header + 2)
         else error "Bio.Seq.Query.openGenome: Incorrect format"
   where
-    readIndex h = do
-        header <- B.hGetLine h
-        return $ M.fromList . map f . chunksOf 3 . B.words $ header
+    getIndex = M.fromList . map f . chunksOf 3 . B.words
       where
         f [k, v, l] = (k, (readInt v, readInt l))
         f _ = error "error"
 {-# INLINE openGenome #-}
 
 closeGenome :: Genome -> IO ()
-closeGenome (Genome h _) = hClose h
+closeGenome (Genome h _ _) = hClose h
 {-# INLINE closeGenome #-}
 
 withGenome :: FilePath -> (Genome -> IO a) -> IO a
@@ -59,7 +60,7 @@ withGenome fl fn = bracket (openGenome fl) closeGenome fn
 type Query = (B.ByteString, Int, Int) -- (chr, start, end), zero-based index, half-close-half-open
 
 getSeq :: BioSeq s a => Genome -> Query -> IO (Either String (s a))
-getSeq (Genome h index) (chr, start, end) = case M.lookup chr index of
+getSeq (Genome h index headerSize) (chr, start, end) = case M.lookup chr index of
     Just (chrStart, chrSize) ->
         if end > chrSize
             then return $ Left $ "Bio.Seq.getSeq: out of index: " ++ show end ++
@@ -79,29 +80,24 @@ getChrom g chr = case lookup chr chrSize of
 {-# INLINE getChrom #-}
 
 getChrSizes :: Genome -> [(B.ByteString, Int)]
-getChrSizes (Genome _ table) = map (\(k, (_, l)) -> (k, l)) . M.toList $ table
+getChrSizes (Genome _ table _) = map (\(k, (_, l)) -> (k, l)) . M.toList $ table
 {-# INLINE getChrSizes #-}
 
--- | indexing a genome.
-mkIndex :: [FilePath]    -- ^ fasta files representing individual chromosomes
+-- | Indexing a genome.
+mkIndex :: [FilePath]    -- ^ A list of fasta files. Each file can have multiple
+                         -- chromosomes.
         -> FilePath      -- ^ output file
         -> IO ()
 mkIndex fls outFl = withFile outFl WriteMode $ \outH -> do
-    hPutStr outH $ magic ++ "\n" ++ replicate 2024 '#'  -- header size: 1024
-    chrs <- mapM (write outH) fls
-    hSeek outH AbsoluteSeek 24
-    B.hPutStrLn outH $ mkHeader chrs
+    (chrs, dnas) <- (unzip . concat) <$> mapM readSeq fls
+    B.hPutStr outH $ B.unlines [magic, mkHeader chrs]
+    mapM_ (B.hPutStr outH) dnas
   where
-    write handle fl = withFile fl ReadMode $ \h -> do
-        fastaHeader <- B.hGetLine h
-        n <- loop 0 h
-        return (B.tail fastaHeader, n)
+    readSeq fl = runResourceT $ fastaReader fl =$= conduit $$ sinkList
       where
-        loop !n h' = do eof <- hIsEOF h'
-                        if eof then return n
-                               else do l <- B.hGetLine h'
-                                       B.hPutStr handle l
-                                       loop (n + B.length l) h'
+        conduit = awaitForever $ \(chrName, seqs) -> do
+            let dna = B.concat seqs
+            yield ((head $ B.words chrName, B.length dna), dna)
 {-# INLINE mkIndex #-}
 
 mkHeader :: [(B.ByteString, Int)] -> B.ByteString
