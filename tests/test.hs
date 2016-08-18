@@ -4,6 +4,7 @@ import qualified Tests.Motif as Motif
 import qualified Tests.ChIPSeq as ChIPSeq
 import qualified Tests.Seq as Seq
 import qualified Tests.GREAT as GREAT
+import qualified Tests.Tools as Tools
 import Test.Tasty
 
 main :: IO ()
@@ -14,4 +15,5 @@ main = defaultMain $ testGroup "Main"
     , ChIPSeq.tests
     , Motif.tests
     , GREAT.tests
+    , Tools.tests
     ]

@@ -25,6 +25,7 @@ module Bio.Utils.Functions (
     , binarySearch
     , binarySearchBy
     , binarySearchByBounds
+    , quantileNormalization
 ) where
 
 import Data.Bits (shiftR)
@@ -33,7 +34,8 @@ import Data.Ord (comparing)
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
-import Statistics.Sample (meanVarianceUnb)
+import qualified Data.Matrix.Unboxed as MU
+import Statistics.Sample (meanVarianceUnb, mean)
 import Statistics.Function (sortBy)
 
 -- | inverse hyperbolic sine transformation
@@ -163,3 +165,21 @@ cdf xs = let f = empiricalCDF xs
                | otherwise -> x) f
 {-# INLINE cdf #-}
 -}
+
+-- | Columns are samples, rows are features / genes.
+-- TODO: handle ties.
+quantileNormalization :: MU.Matrix Double -> MU.Matrix Double
+quantileNormalization mat = fromColumns $
+    map (snd . (U.unzip :: U.Vector (Int, Double) -> (U.Vector Int, U.Vector Double)) . sortBy (comparing fst)) $ MU.toColumns $
+    fromRows $ map f $ MU.toRows $ fromColumns $
+    map (sortBy (comparing snd) . U.zip (U.enumFromN 0 n)) $ MU.toColumns mat
+  where
+    n = MU.rows mat
+    f xs = let m = mean $ snd $ U.unzip xs
+           in U.map (\(i,_) -> (i,m)) xs
+
+fromRows :: U.Unbox a => [U.Vector a] -> MU.Matrix a
+fromRows = MU.fromRows
+
+fromColumns :: U.Unbox a => [U.Vector a] -> MU.Matrix a
+fromColumns = MU.fromColumns
