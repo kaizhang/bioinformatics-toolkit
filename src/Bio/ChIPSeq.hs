@@ -5,9 +5,9 @@ module Bio.ChIPSeq
     ( monoColonalize
     , rpkmBed
     , rpkmSortedBed
-    , rpkmBinBed
     , rpkmBam
-    , rpgcBinBed
+    , countTagsBinBed
+    , countTagsBinBed'
     , tagCountDistr
     , peakCluster
     ) where
@@ -98,13 +98,15 @@ rpkmSortedBed (Sorted regions) = do
     l = G.length regions
 {-# INLINE rpkmSortedBed #-}
 
--- | divide each region into consecutive bins, and count tags for each bin. The
--- total number of tags is also returned
-rpkmBinBed :: (Num a, PrimMonad m, G.Vector v a, BEDLike b)
+-- | divide each region into consecutive bins, and count tags for each bin and
+-- return the number of all tags. Note: a tag is considered to be overlapped
+-- with a region only if the starting position of the tag is in the region. For
+-- the common sense overlapping, use countTagsBinBed'.
+countTagsBinBed :: (Integral a, PrimMonad m, G.Vector v a, BEDLike b)
            => Int   -- ^ bin size
            -> [b]   -- ^ regions
            -> Sink BED m ([v a], Int)
-rpkmBinBed k beds = do
+countTagsBinBed k beds = do
     initRC <- lift $ forM beds $ \bed -> do
         let start = chromStart bed
             end = chromEnd bed
@@ -136,16 +138,15 @@ rpkmBinBed k beds = do
                     return (rc, nTags)
 
     intervalMap = bedToTree (++) $ zip beds $ map return [0..]
-{-# INLINE rpkmBinBed #-}
+{-# INLINE countTagsBinBed #-}
 
--- | divide each region into consecutive bins, and compute
--- reads per genome coverage (RPGC) for each bin. The
--- total number of tags is also returned.
-rpgcBinBed :: (Num a, PrimMonad m, G.Vector v a, BEDLike b1, BEDLike b2)
-          => Int   -- ^ bin size
-          -> [b1]   -- ^ regions
-          -> Sink b2 m ([v a], Int)
-rpgcBinBed k beds = do
+-- | Same as countTagsBinBed, except that tags are treated as complete intervals
+-- instead of single points.
+countTagsBinBed' :: (Integral a, PrimMonad m, G.Vector v a, BEDLike b1, BEDLike b2)
+                 => Int   -- ^ bin size
+                 -> [b1]   -- ^ regions
+                 -> Sink b2 m ([v a], Int)
+countTagsBinBed' k beds = do
     initRC <- lift $ forM beds $ \bed -> do
         let start = chromStart bed
             end = chromEnd bed
@@ -180,7 +181,7 @@ rpgcBinBed k beds = do
                     return (rc, nTags)
 
     intervalMap = bedToTree (++) $ zip beds $ map return [0..]
-{-# INLINE rpgcBinBed #-}
+{-# INLINE countTagsBinBed' #-}
 
 
 -- | calculate RPKM using BAM file (*.bam) and its index file (*.bam.bai), using
