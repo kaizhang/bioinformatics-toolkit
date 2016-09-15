@@ -28,6 +28,7 @@ module Bio.Data.Bed
     , sortedBedToTree
     , intersecting
     , isIntersected
+    , sizeOverlapped
     , splitBed
     , splitBedBySize
     , splitBedBySizeLeft
@@ -313,6 +314,20 @@ intersecting tree x = IM.intersecting (M.lookupDefault IM.empty chr tree) interv
 isIntersected :: BEDLike b => BEDTree a -> b -> Bool
 isIntersected tree = not . IM.null . intersecting tree
 {-# INLINE isIntersected #-}
+
+sizeOverlapped :: (BEDLike b1, BEDLike b2) => b1 -> b2 -> Int
+sizeOverlapped x y | chr1 /= chr2 = 0
+                   | overlap < 0 = 0
+                   | otherwise = overlap
+  where
+    overlap = minimum [e1 - s2, e2 - s1, e1 - s1, e2 - s2]
+    chr1 = chrom x
+    s1 = chromStart x
+    e1 = chromEnd x
+    chr2 = chrom y
+    s2 = chromStart y
+    e2 = chromEnd y
+
 
 -- | split a bed region into k consecutive subregions, discarding leftovers
 splitBed :: BEDLike b => Int -> b -> [b]
