@@ -455,9 +455,11 @@ mergeSortedBed = mergeSortedBedWith f
 
 mergeSortedBedWith :: (BEDLike b, Monad m)
                    => ([b] -> a) -> Sorted (V.Vector b) -> Source m a
-mergeSortedBedWith mergeFn (Sorted beds) = do
-    (_, r) <- V.foldM' f acc0 . V.tail $ beds
-    yield $ mergeFn r
+mergeSortedBedWith mergeFn (Sorted beds)
+    | V.null beds = return ()
+    | otherwise = do
+        (_, r) <- V.foldM' f acc0 . V.tail $ beds
+        yield $ mergeFn r
   where
     x0 = V.head beds
     acc0 = ((chrom x0, chromStart x0, chromEnd x0), [x0])
