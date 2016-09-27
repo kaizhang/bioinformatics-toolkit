@@ -605,17 +605,15 @@ getMotifScore g motifs bg = awaitForever $ \(BED chr s e (Just nm) _ isForward) 
         map (\(Motif nm pwm) -> (nm, pwm)) motifs
 {-# INLINE getMotifScore #-}
 
-getMotifPValue :: [Motif] -> Bkgd -> [BED] -> [BED]
-getMotifPValue motifs bg beds = flip concatMap beds' $ \bs ->
-    let nm = fromJust $ bedName $ head bs
-        pwm = M.lookupDefault (error "can't find motif with given name")
+getMotifPValue :: Monad m => [Motif] -> Bkgd -> Conduit BED m BED
+getMotifPValue motifs bg = mapC $ \bed ->
+    let nm = fromJust $ bedName bed
+        sc = fromJust $ bedScore bed
+        d = M.lookupDefault (error "can't find motif with given name")
                 nm motifMap
-        d = scoreCDF bg pwm
-    in flip map bs $ \bed -> let sc = fromJust $ _score bed
-                                 p = 1 - cdf d sc
-                             in bed{_score = Just p}
+        p = 1 - cdf d sc
+     in bed{_score = Just p}
   where
-    motifMap = M.fromListWith (error "found motif with same name") $
-        map (\(Motif nm pwm) -> (nm, pwm)) motifs
-    beds' = groupBy ((==) `on` bedName) $ sortBy (comparing bedName) beds
+    motifMap = M.fromListWith (error "getMotifPValue: found motif with same name") $
+        map (\(Motif nm pwm) -> (nm, scoreCDF bg pwm)) motifs
 {-# INLINE getMotifPValue #-}

@@ -1,5 +1,5 @@
+{-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE BangPatterns #-}
 module Bio.Motif
     ( PWM(..)
     , size
@@ -31,31 +31,30 @@ module Bio.Motif
     -- $references
     ) where
 
-import Prelude hiding (sum)
-import Control.Arrow ((&&&))
-import Control.Monad.State.Lazy
-import qualified Data.ByteString.Char8 as B
-import Conduit
-import Data.Double.Conversion.ByteString (toShortest)
-import Data.Default.Class
-import Data.List (sortBy, foldl')
-import Data.Maybe (fromJust, isNothing)
-import Data.Ord (comparing)
-import qualified Data.Vector as V
-import qualified Data.Vector.Mutable as VM
-import qualified Data.Vector.Unboxed as U
-import qualified Data.Vector.Algorithms.Intro as I
-import qualified Data.Matrix.Unboxed as M
-import Text.Printf (printf)
+import           Conduit
+import           Control.Arrow                     ((&&&))
+import           Control.Monad.State.Lazy
+import qualified Data.ByteString.Char8             as B
+import           Data.Default.Class
+import           Data.Double.Conversion.ByteString (toShortest)
+import           Data.List                         (foldl', sortBy)
+import qualified Data.Matrix.Unboxed               as M
+import           Data.Maybe                        (fromJust, isNothing)
+import           Data.Ord                          (comparing)
+import qualified Data.Vector.Algorithms.Intro      as I
+import qualified Data.Vector.Unboxed               as U
+import qualified Data.Vector.Unboxed.Mutable       as UM
+import           Prelude                           hiding (sum)
+import           Text.Printf                       (printf)
 
-import Bio.Seq
-import Bio.Utils.Misc (readDouble, readInt)
-import Bio.Utils.Functions (binarySearchBy)
+import           Bio.Seq
+import           Bio.Utils.Functions               (binarySearchBy)
+import           Bio.Utils.Misc                    (readDouble, readInt)
 
 -- | k x 4 position weight matrix for motifs
 data PWM = PWM
     { _nSites :: !(Maybe Int)  -- ^ number of sites used to generate this matrix
-    , _mat :: !(M.Matrix Double)
+    , _mat    :: !(M.Matrix Double)
     } deriving (Show, Read)
 
 size :: PWM -> Int
@@ -89,7 +88,7 @@ gcContentPWM (PWM _ mat) = loop 0 0 / fromIntegral m
 
 data Motif = Motif
     { _name :: !B.ByteString
-    , _pwm :: !PWM
+    , _pwm  :: !PWM
     } deriving (Show, Read)
 
 -- | background model which consists of single nucletide frequencies, and di-nucletide
@@ -224,22 +223,22 @@ pValueToScoreExact p bg pwm = go 0 0 . sort' . map ((scoreHelp bg pwm &&& pBkgd 
 pValueToScore :: Double -> Bkgd -> PWM -> Double
 pValueToScore p bg pwm = cdf' (scoreCDF bg pwm) $ 1 - p
 
-newtype CDF = CDF (V.Vector (Double, Double)) deriving (Read, Show)
+newtype CDF = CDF (U.Vector (Double, Double)) deriving (Read, Show)
 
 -- P(X <= x)
 cdf :: CDF -> Double -> Double
 cdf (CDF v) x = let i = binarySearchBy cmp v x
                 in case () of
-                    _ | i >= n -> snd $ V.last v
-                      | i == 0 -> if x == fst (V.head v) then snd (V.head v) else 0.0
-                      | otherwise -> let (a, a') = v V.! (i-1)
-                                         (b, b') = v V.! i
+                    _ | i >= n -> snd $ U.last v
+                      | i == 0 -> if x == fst (U.head v) then snd (U.head v) else 0.0
+                      | otherwise -> let (a, a') = v U.! (i-1)
+                                         (b, b') = v U.! i
                                          α = (b - x) / (b - a)
                                          β = (x - a) / (b - a)
                                      in α * a' + β * b'
   where
     cmp (a,_) = compare a
-    n = V.length v
+    n = U.length v
 {-# INLINE cdf #-}
 
 -- the inverse of cdf
@@ -249,20 +248,20 @@ cdf' (CDF v) p
     | otherwise = let i = binarySearchBy cmp v p
                   in case () of
                       _ | i >= n -> 1/0
-                        | i == 0 -> if p == snd (V.head v) then fst (V.head v) else undefined
-                        | otherwise -> let (a, a') = v V.! (i-1)
-                                           (b, b') = v V.! i
+                        | i == 0 -> if p == snd (U.head v) then fst (U.head v) else undefined
+                        | otherwise -> let (a, a') = v U.! (i-1)
+                                           (b, b') = v U.! i
                                            α = (b' - p) / (b' - a')
                                            β = (p - a') / (b' - a')
                                        in α * a + β * b
   where
     cmp (_,a) = compare a
-    n = V.length v
+    n = U.length v
 {-# INLINE cdf' #-}
 
 -- approximate the cdf of motif matching scores
 scoreCDF :: Bkgd -> PWM -> CDF
-scoreCDF (BG (a,c,g,t)) pwm = toCDF $ loop (V.singleton 1, const 0) 0
+scoreCDF (BG (a,c,g,t)) pwm = toCDF $ loop (U.singleton 1, const 0) 0
   where
     loop (prev,scFn) i
         | i < n =
@@ -271,26 +270,26 @@ scoreCDF (BG (a,c,g,t)) pwm = toCDF $ loop (V.singleton 1, const 0) 0
                 step = (hi - lo) / fromIntegral nBin'
                 idx x = let j = truncate $ (x - lo) / step
                         in if j >= nBin' then nBin' - 1 else j
-                v = V.create $ do
-                    new <- VM.replicate nBin' 0
-                    V.sequence_ $ flip V.imap prev $ \x p ->
+                v = U.create $ do
+                    new <- UM.replicate nBin' 0
+                    flip U.imapM_ prev $ \x p ->
                         when (p /= 0) $ do
                             let idx_a = idx $ sc + log' (M.unsafeIndex (_mat pwm) (i,0)) - log a
                                 idx_c = idx $ sc + log' (M.unsafeIndex (_mat pwm) (i,1)) - log c
                                 idx_g = idx $ sc + log' (M.unsafeIndex (_mat pwm) (i,2)) - log g
                                 idx_t = idx $ sc + log' (M.unsafeIndex (_mat pwm) (i,3)) - log t
                                 sc = scFn x
-                            new `VM.read` idx_a >>= VM.write new idx_a . (a * p + )
-                            new `VM.read` idx_c >>= VM.write new idx_c . (c * p + )
-                            new `VM.read` idx_g >>= VM.write new idx_g . (g * p + )
-                            new `VM.read` idx_t >>= VM.write new idx_t . (t * p + )
+                            new `UM.read` idx_a >>= UM.write new idx_a . (a * p + )
+                            new `UM.read` idx_c >>= UM.write new idx_c . (c * p + )
+                            new `UM.read` idx_g >>= UM.write new idx_g . (g * p + )
+                            new `UM.read` idx_t >>= UM.write new idx_t . (t * p + )
                     return new
             in loop (v, \x -> (fromIntegral x + 0.5) * step + lo) (i+1)
         | otherwise = (prev, scFn)
       where
         minMax (l,h) x
-            | x >= V.length prev = (l,h)
-            | prev V.! x /= 0 =
+            | x >= U.length prev = (l,h)
+            | prev U.! x /= 0 =
                 let sc = scFn x
                     s1 = sc + log' (M.unsafeIndex (_mat pwm) (i,0)) - log a
                     s2 = sc + log' (M.unsafeIndex (_mat pwm) (i,1)) - log c
@@ -298,7 +297,7 @@ scoreCDF (BG (a,c,g,t)) pwm = toCDF $ loop (V.singleton 1, const 0) 0
                     s4 = sc + log' (M.unsafeIndex (_mat pwm) (i,3)) - log t
                  in minMax (foldr min l [s1,s2,s3,s4],foldr max h [s1,s2,s3,s4]) (x+1)
             | otherwise = minMax (l,h) (x+1)
-    toCDF (v, scFn) = CDF $ V.imap (\i x -> (scFn i, x)) $ V.scanl1 (+) v
+    toCDF (v, scFn) = CDF $ U.imap (\i x -> (scFn i, x)) $ U.scanl1 (+) v
     precision = 1e-4
     n = size pwm
     log' x | x == 0 = log 0.001
