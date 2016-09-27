@@ -111,6 +111,7 @@ executable mergeMotifs
     , bytestring
     , clustering
     , data-default-class
+    , double-conversion
     , split
     , optparse-applicative
 --    , haskell-plot >=0.2.0.0
