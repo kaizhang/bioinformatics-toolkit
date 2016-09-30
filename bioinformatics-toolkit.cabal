@@ -38,6 +38,7 @@ library
     Bio.RealWorld.BioGRID
     Bio.RealWorld.ENCODE
     Bio.RealWorld.Ensembl
+    Bio.RealWorld.GENCODE
     Bio.RealWorld.ID
     Bio.RealWorld.UCSC
     Bio.Seq
