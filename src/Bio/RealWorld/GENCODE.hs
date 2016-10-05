@@ -10,11 +10,12 @@ module Bio.RealWorld.GENCODE
 import           Conduit
 import qualified Data.ByteString.Char8 as B
 import           Data.Maybe            (fromJust)
+import           Data.CaseInsensitive  (CI, mk)
 
 import           Bio.Utils.Misc        (readInt)
 
 data Gene = Gene
-    { geneName   :: !B.ByteString
+    { geneName   :: !(CI B.ByteString)
     , geneId     :: !B.ByteString
     , geneChrom  :: !B.ByteString
     , geneStart  :: !Int
@@ -33,7 +34,7 @@ parseGenes :: Monad m => Conduit B.ByteString m Gene
 parseGenes = linesUnboundedAsciiC =$= concatMapC f
   where
     f l | B.head l == '#' || f3 /= "gene" = Nothing
-        | otherwise = Just $ Gene (getField "gene_name") (getField "gene_id") f1
+        | otherwise = Just $ Gene (mk $ getField "gene_name") (getField "gene_id") f1
             (readInt f4) (readInt f5) (f7=="+")
       where
         [f1,_,f3,f4,f5,_,f7,_,f9] = B.split '\t' l

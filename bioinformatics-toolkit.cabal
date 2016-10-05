@@ -9,7 +9,7 @@ license:             MIT
 license-file:        LICENSE
 author:              Kai Zhang
 maintainer:          kai@kzhang.org
-copyright:           (c) 2014 Kai Zhang
+copyright:           (c) 2014-2016 Kai Zhang
 category:            Bio
 build-type:          Simple
 extra-source-files:  README.md
@@ -58,6 +58,7 @@ library
     , binary
     , bytestring >=0.10
     , bytestring-lexing >=0.5
+    , case-insensitive
     , clustering
     , colour
     , conduit-combinators
