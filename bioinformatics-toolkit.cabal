@@ -2,7 +2,7 @@
 -- further documentation, see http://haskell.org/cabal/users-guide/
 
 name:                bioinformatics-toolkit
-version:             0.2.3.0
+version:             0.2.3
 synopsis:            A collection of bioinformatics tools
 description:         A collection of bioinformatics tools
 license:             MIT
@@ -14,11 +14,16 @@ category:            Bio
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.18
--- data-files:
---    data/*.fasta
+data-files:
+  tests/data/*.bed
+  tests/data/*.sorted.bed
+  tests/data/*.bam
+  tests/data/*.bam.bai
+  tests/data/*.meme
+  tests/data/*.fasta
 
 library
-  hs-source-dirs:   src
+  hs-source-dirs: src
   ghc-options: -Wall
 
   exposed-modules:

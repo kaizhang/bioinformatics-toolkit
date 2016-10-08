@@ -2,18 +2,20 @@
 
 module Tests.Bed (tests) where
 
-import Bio.Data.Bed
-import Data.List (sortBy)
-import Data.Function (on)
-import Test.Tasty
-import Test.Tasty.HUnit
-import qualified Data.Vector as V
+import           Bio.Data.Bed
+import           Conduit
+import           Data.Function    (on)
+import           Data.List        (sortBy)
+import qualified Data.Vector      as V
+import           Test.Tasty
+import           Test.Tasty.HUnit
 
 tests :: TestTree
 tests = testGroup "Test: Bio.Data.Bed"
     [ testCase "sortBed" sortBedTest
     , testCase "split" splitBedTest
     , testCase "splitOverlapped" splitOverlappedTest
+    , testCase "intersectBed" intersectBedTest
     ]
 
 sortBedTest :: Assertion
@@ -59,3 +61,10 @@ splitOverlappedTest = expect @=? result
         , ((200, 220), 1)
         ]
     result = sortBy (compareBed `on` fst) $ splitOverlapped length input
+
+intersectBedTest :: Assertion
+intersectBedTest = do
+    expect <- readBed' "tests/data/example_intersect_peaks.bed" :: IO [BED]
+    peaks <- readBed' "tests/data/peaks.bed" :: IO [BED]
+    result <- readBed "tests/data/example.bed" =$= intersectBed peaks $$ sinkList
+    expect @=? result

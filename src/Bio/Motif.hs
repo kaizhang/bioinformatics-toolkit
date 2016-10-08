@@ -52,8 +52,6 @@ import           Bio.Seq
 import           Bio.Utils.Functions               (binarySearchBy)
 import           Bio.Utils.Misc                    (readDouble, readInt)
 
-import           Debug.Trace
-
 -- | k x 4 position weight matrix for motifs
 data PWM = PWM
     { _nSites :: !(Maybe Int)  -- ^ number of sites used to generate this matrix
@@ -301,9 +299,8 @@ scoreCDF (BG (a,c,g,t)) pwm = toCDF $ loop (U.singleton 1, const 0) 0
                  in minMax (foldr min l [s1,s2,s3,s4],foldr max h [s1,s2,s3,s4]) (x+1)
             | otherwise = minMax (l,h) (x+1)
     toCDF (v, scFn) = CDF $ compressCDF $ U.imap (\i x -> (scFn i, x)) $ U.scanl1 (+) v
-    compressCDF v = traceShow (U.length v, U.length v') v'
+    compressCDF v = U.ifilter f v
       where
-        v' = U.ifilter f v
         len = U.length v
         f i (_, x) | i == 0 || i == len = True
                    | otherwise = x - snd (v `U.unsafeIndex` (i-1)) > m_epsilon ||
