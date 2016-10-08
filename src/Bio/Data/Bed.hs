@@ -387,41 +387,34 @@ sortBed beds = Sorted $ V.create $ do
 {-# INLINE sortBed #-}
 
 -- | return records in A that are overlapped with records in B
-intersectBed :: (BEDLike b1, BEDLike b2) => [b1] -> [b2] -> [b1]
-intersectBed a b = intersectSortedBed a b'
+intersectBed :: (BEDLike b1, BEDLike b2, Monad m) => [b2] -> Conduit b1 m b1
+intersectBed b = intersectSortedBed b'
   where
     b' = sortBed b
 {-# INLINE intersectBed #-}
 
 -- | return records in A that are overlapped with records in B
-intersectSortedBed :: (BEDLike b1, BEDLike b2)
-                   => [b1] -> Sorted (V.Vector b2) -> [b1]
-intersectSortedBed a (Sorted b) = filter (not . IM.null . f) a
+intersectSortedBed :: (BEDLike b1, BEDLike b2, Monad m)
+                   => Sorted (V.Vector b2) -> Conduit b1 m b1
+intersectSortedBed (Sorted b) = filterC (not . IM.null . intersecting tree)
   where
-    f bed = let chr = chrom bed
-                interval = IM.IntervalCO (chromStart bed) $ chromEnd bed
-            in IM.intersecting (M.lookupDefault IM.empty chr tree) interval
-    tree = sortedBedToTree (\_ _ -> False) . Sorted . zip (V.toList b) . repeat $ False
+    tree = sortedBedToTree (\_ _ -> ()) . Sorted $ V.map (\x -> (x,())) b
 {-# INLINE intersectSortedBed #-}
 
-intersectBedWith :: (BEDLike b1, BEDLike b2)
+intersectBedWith :: (BEDLike b1, BEDLike b2, Monad m)
                  => ([b2] -> a)
-                 -> [b1]
                  -> [b2]
-                 -> [(b1, a)]
-intersectBedWith fn a = intersectSortedBedWith fn a . sortBed
+                 -> Conduit b1 m (b1, a)
+intersectBedWith fn = intersectSortedBedWith fn . sortBed
 {-# INLINE intersectBedWith #-}
 
-intersectSortedBedWith :: (BEDLike b1, BEDLike b2)
+intersectSortedBedWith :: (BEDLike b1, BEDLike b2, Monad m)
                        => ([b2] -> a)
-                       -> [b1]
                        -> Sorted (V.Vector b2)
-                       -> [(b1, a)]
-intersectSortedBedWith fn a (Sorted b) = map f a
+                       -> Conduit b1 m (b1, a)
+intersectSortedBedWith fn (Sorted b) = mapC f
   where
-    f bed = let chr = chrom bed
-                interval = IM.IntervalCO (chromStart bed) $ chromEnd bed
-            in (bed, fn $ IM.elems $ IM.intersecting (M.lookupDefault IM.empty chr tree) interval)
+    f bed = (bed, fn $ IM.elems $ intersecting tree bed)
     tree = sortedBedToTree const . Sorted . V.toList . V.zip b $ b
 {-# INLINE intersectSortedBedWith #-}
 

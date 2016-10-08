@@ -44,12 +44,15 @@ import           Data.Ord                          (comparing)
 import qualified Data.Vector.Algorithms.Intro      as I
 import qualified Data.Vector.Unboxed               as U
 import qualified Data.Vector.Unboxed.Mutable       as UM
+import           Numeric.MathFunctions.Constants   (m_epsilon)
 import           Prelude                           hiding (sum)
 import           Text.Printf                       (printf)
 
 import           Bio.Seq
 import           Bio.Utils.Functions               (binarySearchBy)
 import           Bio.Utils.Misc                    (readDouble, readInt)
+
+import           Debug.Trace
 
 -- | k x 4 position weight matrix for motifs
 data PWM = PWM
@@ -297,7 +300,14 @@ scoreCDF (BG (a,c,g,t)) pwm = toCDF $ loop (U.singleton 1, const 0) 0
                     s4 = sc + log' (M.unsafeIndex (_mat pwm) (i,3)) - log t
                  in minMax (foldr min l [s1,s2,s3,s4],foldr max h [s1,s2,s3,s4]) (x+1)
             | otherwise = minMax (l,h) (x+1)
-    toCDF (v, scFn) = CDF $ U.imap (\i x -> (scFn i, x)) $ U.scanl1 (+) v
+    toCDF (v, scFn) = CDF $ compressCDF $ U.imap (\i x -> (scFn i, x)) $ U.scanl1 (+) v
+    compressCDF v = traceShow (U.length v, U.length v') v'
+      where
+        v' = U.ifilter f v
+        len = U.length v
+        f i (_, x) | i == 0 || i == len = True
+                   | otherwise = x - snd (v `U.unsafeIndex` (i-1)) > m_epsilon ||
+                        snd (v `U.unsafeIndex` (i+1)) - x > m_epsilon
     precision = 1e-4
     n = size pwm
     log' x | x == 0 = log 0.001
