@@ -35,7 +35,7 @@ parseGenes = linesUnboundedAsciiC =$= concatMapC f
   where
     f l | B.head l == '#' || f3 /= "gene" = Nothing
         | otherwise = Just $ Gene (mk $ getField "gene_name") (getField "gene_id") f1
-            (readInt f4) (readInt f5) (f7=="+")
+            (readInt f4 - 1) (readInt f5 - 1) (f7=="+")
       where
         [f1,_,f3,f4,f5,_,f7,_,f9] = B.split '\t' l
         fields = map (B.break (==' ') . strip) $ B.split ';' f9
