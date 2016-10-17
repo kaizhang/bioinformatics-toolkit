@@ -3,6 +3,7 @@ packages:
     - '.'
 
 extra-deps:
-    - samtools-0.2.4.1
+    - hexpat-0.20.9
+    - List-0.5.2
 
-resolver: nightly-2016-07-09
+resolver: lts-7.3

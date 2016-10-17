@@ -2,18 +2,20 @@
 
 module Tests.Motif (tests) where
 
-import Test.Tasty
-import Test.Tasty.HUnit
-import System.Random
-import Data.Default.Class
-import qualified Data.Conduit.List as CL
 import qualified Data.ByteString.Char8 as B
-import Data.Conduit
+import           Data.Conduit
+import qualified Data.Conduit.List     as CL
+import           Data.Default.Class
+import           System.Random
+import           Test.Tasty
+import           Test.Tasty.HUnit
 
-import Bio.Seq
-import Bio.Motif
-import Bio.Motif.Search
-import Bio.Data.Fasta
+import           Bio.Data.Fasta
+import           Bio.Motif
+import           Bio.Motif.Search
+import           Bio.Seq
+
+import qualified Data.Vector.Unboxed as U
 
 dna :: DNA Basic
 dna = fromBS $ B.pack $ map f $ take 5000 $ randomRs (0, 3) (mkStdGen 2)
@@ -35,6 +37,7 @@ tests = testGroup "Test: Bio.Motif"
       testCase "TFBS scanning" findTFBSTest
     , testCase "Max matching score" maxScTest
     , testCase "pValue calculation" pValueTest
+    , testCase "CDF truncate test" cdfTruncateTest
     ]
 
 
@@ -69,3 +72,12 @@ pValueTest = do
     assertEqual "pValueToScore" expect actual
   where
     approx x = round $ 10 * x
+
+cdfTruncateTest :: Assertion
+cdfTruncateTest = do
+    ms <- motifs
+    let expect = map (pValueToScore 1e-4 def . _pwm) ms
+        actual = map (pValueToScore' 1e-4 def . _pwm) ms
+    assertEqual "CDF truncate" expect actual
+  where
+    pValueToScore' p bg pwm = cdf' (truncateCDF 0.999 $ scoreCDF bg pwm) $ 1 - p

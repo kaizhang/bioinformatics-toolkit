@@ -1,19 +1,17 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
+
 module Bio.ChIPSeq
     ( monoColonalize
     , rpkmBed
     , rpkmSortedBed
-    , rpkmBam
     , countTagsBinBed
     , countTagsBinBed'
     , tagCountDistr
     , peakCluster
     ) where
 
-import Bio.SamTools.Bam
-import qualified Bio.SamTools.BamIndex as BI
 import Control.Monad (liftM, forM_, forM)
 import Control.Monad.Primitive (PrimMonad)
 import Conduit
@@ -28,7 +26,6 @@ import qualified Data.Vector.Algorithms.Intro as I
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable as GM
 
-import Bio.Data.Bam
 import Bio.Data.Bed
 
 -- | process a sorted BED stream, keep only mono-colonal tags
@@ -184,6 +181,7 @@ countTagsBinBed' k beds = do
 {-# INLINE countTagsBinBed' #-}
 
 
+{-
 -- | calculate RPKM using BAM file (*.bam) and its index file (*.bam.bai), using
 -- constant space
 rpkmBam :: BEDLike b => FilePath -> Conduit b IO Double
@@ -214,6 +212,7 @@ rpkmBam fl = do
                                    else if l <= p1 && p1 < u then acc + 1
                                                              else acc
 {-# INLINE rpkmBam #-}
+-}
 
 tagCountDistr :: PrimMonad m => G.Vector v Int => Sink BED m (v Int)
 tagCountDistr = loop M.empty

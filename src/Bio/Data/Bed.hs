@@ -598,8 +598,12 @@ getMotifScore g motifs bg = awaitForever $ \(BED chr s e (Just nm) _ isForward) 
         map (\(Motif nm pwm) -> (nm, pwm)) motifs
 {-# INLINE getMotifScore #-}
 
-getMotifPValue :: Monad m => [Motif] -> Bkgd -> Conduit BED m BED
-getMotifPValue motifs bg = mapC $ \bed ->
+getMotifPValue :: Monad m
+               => Maybe Double   -- ^ whether to truncate the motif score CDF.
+                                 -- Doing this will significantly reduce memory
+                                 -- usage without sacrifice accuracy.
+               -> [Motif] -> Bkgd -> Conduit BED m BED
+getMotifPValue truncation motifs bg = mapC $ \bed ->
     let nm = fromJust $ bedName bed
         sc = fromJust $ bedScore bed
         d = M.lookupDefault (error "can't find motif with given name")
@@ -608,5 +612,8 @@ getMotifPValue motifs bg = mapC $ \bed ->
      in bed{_score = Just p}
   where
     motifMap = M.fromListWith (error "getMotifPValue: found motif with same name") $
-        map (\(Motif nm pwm) -> (nm, scoreCDF bg pwm)) motifs
+        map (\(Motif nm pwm) -> (nm, compressCDF $ scoreCDF bg pwm)) motifs
+    compressCDF = case truncation of
+        Nothing -> id
+        Just x -> truncateCDF x
 {-# INLINE getMotifPValue #-}

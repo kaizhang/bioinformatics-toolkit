@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
+
 module Bio.Motif
     ( PWM(..)
     , size
@@ -17,6 +18,7 @@ module Bio.Motif
     , CDF(..)
     , cdf
     , cdf'
+    , truncateCDF
     , scoreCDF
     , pValueToScore
     , pValueToScoreExact
@@ -224,6 +226,7 @@ pValueToScoreExact p bg pwm = go 0 0 . sort' . map ((scoreHelp bg pwm &&& pBkgd 
 pValueToScore :: Double -> Bkgd -> PWM -> Double
 pValueToScore p bg pwm = cdf' (scoreCDF bg pwm) $ 1 - p
 
+-- | The cumulative distribution function in the form of (x, P(X <= x))
 newtype CDF = CDF (U.Vector (Double, Double)) deriving (Read, Show)
 
 -- P(X <= x)
@@ -259,6 +262,11 @@ cdf' (CDF v) p
     cmp (_,a) = compare a
     n = U.length v
 {-# INLINE cdf' #-}
+
+-- | Truncate the CDF by a value, in order to reduce the memory usage.
+truncateCDF :: Double -> CDF -> CDF
+truncateCDF x (CDF v) = CDF $ U.filter ((>=x) . snd) v
+{-# INLINE truncateCDF #-}
 
 -- approximate the cdf of motif matching scores
 scoreCDF :: Bkgd -> PWM -> CDF
