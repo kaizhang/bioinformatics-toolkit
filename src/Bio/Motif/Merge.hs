@@ -9,6 +9,7 @@ module Bio.Motif.Merge
     , mergeTreeWeighted
     , iterativeMerge
     , buildTree
+    , cutTreeBy
     )where
 
 import           AI.Clustering.Hierarchical    hiding (size)

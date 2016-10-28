@@ -57,8 +57,11 @@ withGenome :: FilePath -> (Genome -> IO a) -> IO a
 withGenome fl fn = bracket (openGenome fl) closeGenome fn
 {-# INLINE withGenome #-}
 
-type Query = (B.ByteString, Int, Int) -- (chr, start, end), zero-based index, half-close-half-open
+-- | A query is represented by a tuple: (chr, start, end) and is
+-- zero-based index, half-close-half-open
+type Query = (B.ByteString, Int, Int)
 
+-- | Retrieve sequence.
 getSeq :: BioSeq s a => Genome -> Query -> IO (Either String (s a))
 getSeq (Genome h index headerSize) (chr, start, end) = case M.lookup chr index of
     Just (chrStart, chrSize) ->
@@ -71,6 +74,7 @@ getSeq (Genome h index headerSize) (chr, start, end) = case M.lookup chr index o
     _ -> return $ Left $ "Bio.Seq.getSeq: Cannot find " ++ show chr
 {-# INLINE getSeq #-}
 
+-- | Retrieve whole chromosome.
 getChrom :: Genome -> B.ByteString -> IO (Either String (DNA IUPAC))
 getChrom g chr = case lookup chr chrSize of
     Just s -> getSeq g (chr, 0, s)
@@ -79,6 +83,7 @@ getChrom g chr = case lookup chr chrSize of
     chrSize = getChrSizes g
 {-# INLINE getChrom #-}
 
+-- | Retrieve chromosome size information.
 getChrSizes :: Genome -> [(B.ByteString, Int)]
 getChrSizes (Genome _ table _) = map (\(k, (_, l)) -> (k, l)) . M.toList $ table
 {-# INLINE getChrSizes #-}

@@ -27,7 +27,7 @@ lookup xs = do
 
 lookupHelp :: [EnsemblID] -> IO (Either String Object)
 lookupHelp xs = do
-    initReq <- parseUrl url
+    initReq <- parseRequest url
     let request = initReq { method = "POST"
                           , requestHeaders = [("Content-type", "application/json")]
                           , requestBody = body

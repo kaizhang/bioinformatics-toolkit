@@ -78,7 +78,7 @@ parseAsTab2 l = TAB2 (BL.toStrict $ xs!!0)
 -- | retreive first 10,000 records
 fetchByGeneNames :: [String] -> IO [TAB2]
 fetchByGeneNames genes = do
-    initReq <- parseUrl $ intercalate "&" [url, geneList, tax, accessKey]
+    initReq <- parseRequest $ intercalate "&" [url, geneList, tax, accessKey]
     let request = initReq { method = "GET"
                           , requestHeaders = [("Content-type", "text/plain")]
                           }

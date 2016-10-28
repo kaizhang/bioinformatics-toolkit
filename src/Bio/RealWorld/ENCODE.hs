@@ -78,7 +78,7 @@ base = "https://www.encodeproject.org/"
 -- search ["chip", "sp1"] ["type=experiment"]
 search :: KeyWords -> IO (Either String [Value])
 search kw = do
-    initReq <- parseUrl url
+    initReq <- parseRequest url
     let request = initReq { method = "GET"
                           , requestHeaders = [("accept", "application/json")]
                           }
@@ -116,7 +116,7 @@ getFile out url = openUrl (base ++ url) "application/octet-stream" >>=
 
 openUrl :: String -> String -> IO B.ByteString
 openUrl url datatype = do
-    initReq <- parseUrl url
+    initReq <- parseRequest url
     let request = initReq { method = "GET"
                           , requestHeaders = [("accept", BS.pack datatype)]
                           }
