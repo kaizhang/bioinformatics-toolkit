@@ -1,53 +1,35 @@
---------------------------------------------------------------------------------
--- |
--- Module      :  $Header$
--- Copyright   :  (c) 2014 Kai Zhang
--- License     :  MIT
-
--- Maintainer  :  kai@kzhang.org
--- Stability   :  experimental
--- Portability :  portable
-
--- functions for processing BED files
---------------------------------------------------------------------------------
-
+{-# LANGUAGE FlexibleContexts #-}
 module Bio.Data.Bam
-    ( readBam
+    ( Bam
+    , HeaderState
+    , runBam
+    , readBam
+    , writeBam
     , bamToBed
-    , viewBam
     ) where
 
-import Bio.SamTools.Bam
-import Bio.SamTools.BamIndex
-import Control.Monad.Trans.Class (lift)
-import qualified Data.ByteString.Char8 as B
-import Conduit (Source, Conduit, yield, concatMapC)
-import Data.Maybe (fromJust)
-import Bio.Data.Bed
+import           Bio.Data.Bed
+import           Bio.HTS
+import           Bio.HTS.Types             (Bam, FileHeader (..))
+import           Conduit
+import           Control.Monad.State (get, lift)
 
-readBam :: FilePath -> Source IO Bam1
-readBam fl = do handle <- lift $ openBamInFile fl
-                go handle
+bamToBed :: Conduit Bam HeaderState BED
+bamToBed = mapMC f =$= concatC
   where
-    go h = do x <- lift $ get1 h
-              case x of
-                  Nothing -> lift $ closeInHandle h
-                  Just bam -> yield bam >> go h
-{-# INLINE readBam #-}
-
-bamToBed :: Monad m => Conduit Bam1 m BED
-bamToBed = concatMapC f
-  where
-    f bam =case targetName bam of
-        Just chr ->
-            let start = fromIntegral . fromJust . position $ bam
-                end = start + (fromIntegral . fromJust . queryLength) bam
-                nm = Just . queryName $ bam
-                strand = Just . not . isReverse $ bam
-            in Just $ BED chr start end nm Nothing strand
-        _ -> Nothing
+    f bam = do
+        BamHeader hdr <- lift get
+        case getChr hdr bam of
+            Just chr ->
+                let start = fromIntegral $ position bam
+                    end = fromIntegral $ endPos bam
+                    nm = Just $ qName bam
+                    strand = Just $ not $ isRev bam
+                in return $ Just $ BED chr start end nm Nothing strand
+            _ -> return Nothing
 {-# INLINE bamToBed #-}
 
+{-
 viewBam :: IdxHandle -> (B.ByteString, Int, Int) -> Source IO Bam1
 viewBam handle (chr, s, e) = case lookupTarget (idxHeader handle) chr of
     Nothing -> return ()
@@ -60,3 +42,4 @@ viewBam handle (chr, s, e) = case lookupTarget (idxHeader handle) chr of
                    Nothing -> return ()
                    Just bam -> yield bam >> go q'
 {-# INLINE viewBam #-}
+-}

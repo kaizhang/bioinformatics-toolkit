@@ -2,7 +2,7 @@
 -- further documentation, see http://haskell.org/cabal/users-guide/
 
 name:                bioinformatics-toolkit
-version:             0.2.4
+version:             0.3.0
 synopsis:            A collection of bioinformatics tools
 description:         A collection of bioinformatics tools
 license:             MIT
@@ -17,7 +17,7 @@ cabal-version:       >=1.18
 data-files:
   tests/data/*.bed
   tests/data/*.sorted.bed
---  tests/data/*.bam
+  tests/data/*.bam
 --  tests/data/*.bam.bai
   tests/data/*.meme
   tests/data/*.fasta
@@ -31,7 +31,7 @@ library
     Bio.ChIPSeq.FragLen
     Bio.Data.Bed
 --    Bio.Data.BigWig
---    Bio.Data.Bam
+    Bio.Data.Bam
     Bio.Data.Fasta
     Bio.GO
     Bio.GO.Parser
@@ -70,6 +70,7 @@ library
     , containers >=0.5
     , data-default-class
     , double-conversion
+    , HsHTSLib
     , http-conduit >=2.1.8
     , hexpat
     , matrices >=0.4.3
@@ -148,6 +149,7 @@ test-suite tests
   main-is: test.hs
   other-modules:
       Tests.Bed
+    , Tests.Bam
     , Tests.Motif
     , Tests.Seq
     , Tests.GREAT

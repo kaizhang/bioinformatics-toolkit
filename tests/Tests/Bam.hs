@@ -2,12 +2,11 @@
 
 module Tests.Bam (tests) where
 
-import Bio.Data.Bed
-import Bio.Data.Bam
-import Conduit
-import Test.Tasty
-import Test.Tasty.HUnit
-import qualified Data.Vector as V
+import           Bio.Data.Bam
+import           Bio.Data.Bed
+import           Conduit
+import           Test.Tasty
+import           Test.Tasty.HUnit
 
 tests :: TestTree
 tests = testGroup "Test: Bio.Data.Bam"
@@ -17,5 +16,5 @@ tests = testGroup "Test: Bio.Data.Bam"
 bamToBedTest :: Assertion
 bamToBedTest = do
     bed <- readBed' "tests/data/example.bed"
-    bed' <- readBam "tests/data/example.bam" =$= bamToBed $$ sinkList
+    bed' <- runBam $ readBam "tests/data/example.bam" =$= bamToBed $$ sinkList
     bed @=? bed'
