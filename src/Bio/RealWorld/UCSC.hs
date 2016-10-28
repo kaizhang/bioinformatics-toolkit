@@ -1,17 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
---------------------------------------------------------------------------------
--- |
--- Module      :  $Header$
--- Description :  Search and download data from ENCODE project
--- Copyright   :  (c) Kai Zhang
--- License     :  MIT
-
--- Maintainer  :  kai@kzhang.org
--- Stability   :  experimental
--- Portability :  portable
-
--- resources from UCSC
---------------------------------------------------------------------------------
 
 module Bio.RealWorld.UCSC
     ( UCSCGene(..)

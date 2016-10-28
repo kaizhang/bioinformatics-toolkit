@@ -7,10 +7,10 @@ module Bio.Utils.Misc
     , binBySizeOverlap
     ) where
 
-import Data.ByteString.Char8 (ByteString)
-import Data.ByteString.Lex.Fractional (readSigned, readExponential)
-import Data.ByteString.Lex.Integral (readDecimal)
-import Data.Maybe (fromMaybe)
+import           Data.ByteString.Char8          (ByteString)
+import           Data.ByteString.Lex.Fractional (readExponential, readSigned)
+import           Data.ByteString.Lex.Integral   (readDecimal)
+import           Data.Maybe                     (fromMaybe)
 
 readInt :: ByteString -> Int
 readInt x = fst . fromMaybe errMsg . readSigned readDecimal $ x

@@ -1,17 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
---------------------------------------------------------------------------------
--- |
--- Module      :  $Header$
--- Copyright   :  (c) 2014 Kai Zhang
--- License     :  MIT
-
--- Maintainer  :  kai@kzhang.org
--- Stability   :  experimental
--- Portability :  portable
-
--- some useful functions
---------------------------------------------------------------------------------
 
 module Bio.Utils.Functions (
       ihs

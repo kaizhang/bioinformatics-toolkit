@@ -1,17 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
---------------------------------------------------------------------------------
--- |
--- Module      :  $Header$
--- Description :  Search and download data from ENCODE project
--- Copyright   :  (c) Kai Zhang
--- License     :  MIT
-
--- Maintainer  :  kai@kzhang.org
--- Stability   :  experimental
--- Portability :  portable
-
--- Search and download data from ENCODE project
---------------------------------------------------------------------------------
 
 module Bio.RealWorld.ENCODE
     ( KeyWords(..)
@@ -53,8 +40,8 @@ import Data.Default.Class
 
 import Bio.RealWorld.ID
 
-data KeyWords = KeyWords (S.Seq String)  -- ^ terms
-                         (S.Seq String)  -- ^ constraints
+-- | Terms and constraints.
+data KeyWords = KeyWords (S.Seq String) (S.Seq String)
 
 instance Default KeyWords where
     def = KeyWords S.empty $ S.fromList ["frame=object", "limit=all"]

@@ -4,16 +4,16 @@ module Bio.Utils.Overlap
     , coverage
     ) where
 
-import qualified Data.ByteString.Char8 as B
-import qualified Data.IntervalMap.Strict as IM
-import qualified Data.HashMap.Strict as M
-import qualified Data.Vector.Unboxed as V
+import           Bio.Data.Bed
+import           Conduit
+import           Control.Monad
+import qualified Data.ByteString.Char8       as B
+import           Data.Function
+import qualified Data.HashMap.Strict         as M
+import qualified Data.IntervalMap.Strict     as IM
+import           Data.List
+import qualified Data.Vector.Unboxed         as V
 import qualified Data.Vector.Unboxed.Mutable as VM
-import Data.List
-import Data.Function
-import Bio.Data.Bed
-import Control.Monad
-import Conduit
 
 -- | convert lines of a BED file into a data structure - A hashmap of which the
 -- | chromosomes, and values are interval maps.

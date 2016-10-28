@@ -1,17 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
---------------------------------------------------------------------------------
--- |
--- Module      :  $Header$
--- Copyright   :  (c) 2014 Kai Zhang
--- License     :  MIT
-
--- Maintainer  :  kai@kzhang.org
--- Stability   :  experimental
--- Portability :  portable
-
--- functions for processing BED files
---------------------------------------------------------------------------------
 
 module Bio.Data.Bed
     ( BEDLike(..)

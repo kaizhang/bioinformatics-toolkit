@@ -30,10 +30,8 @@ data AssocRule = BasalPlusExtension Int Int Int
 instance Default AssocRule where
     def = BasalPlusExtension 5000 1000 1000000
 
-type Gene a = ( ( B.ByteString  -- ^ chromosome
-              , Int           -- ^ tss
-              , Bool          -- ^ is forward stranded
-              ), a)
+-- | A Gene consists of the chromosome name, TSS, strandness and an associated value.
+type Gene a = ((B.ByteString, Int, Bool), a)
 
 -- | given a gene list and the rule, compute the rulatory domain for each gene
 getRegulatoryDomains :: AssocRule -> [Gene a] -> [(BED3, a)]

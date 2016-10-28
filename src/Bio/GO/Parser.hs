@@ -4,16 +4,16 @@ module Bio.GO.Parser
     , readOWLAsMap
     ) where
 
-import Control.Arrow ((&&&))
+import           Control.Arrow              ((&&&))
 import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.HashMap.Strict as M
-import Data.Maybe
-import qualified Data.Text as T
-import Data.Text.Encoding (encodeUtf8)
-import Text.XML.Expat.Proc
-import Text.XML.Expat.Tree
+import qualified Data.HashMap.Strict        as M
+import           Data.Maybe
+import qualified Data.Text                  as T
+import           Data.Text.Encoding         (encodeUtf8)
+import           Text.XML.Expat.Proc
+import           Text.XML.Expat.Tree
 
-import Bio.GO
+import           Bio.GO
 
 readOWL :: FilePath -> IO [GO]
 readOWL fl = do

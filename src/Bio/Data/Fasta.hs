@@ -1,17 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
---------------------------------------------------------------------------------
--- |
--- Module      :  $Header$
--- Copyright   :  (c) 2014 Kai Zhang
--- License     :  MIT
-
--- Maintainer  :  kai@kzhang.org
--- Stability   :  experimental
--- Portability :  portable
-
--- Functions for processing Fasta files
---------------------------------------------------------------------------------
 
 module Bio.Data.Fasta
     ( FastaLike(..)
@@ -24,10 +12,9 @@ import qualified Data.ByteString.Char8 as B
 import Conduit
 
 class FastaLike f where
-    fromFastaRecord :: ( B.ByteString    -- ^ record header
-                       , [B.ByteString]  -- ^ record body
-                       )
-                    -> f
+    -- | Convert a FASTA record, consisting of a record header and a record body,
+    -- to a specific data type
+    fromFastaRecord :: (B.ByteString, [B.ByteString]) -> f
 
     readFasta :: FilePath -> Source (ResourceT IO) f
     readFasta fl = fastaReader fl =$= mapC fromFastaRecord
@@ -35,7 +22,6 @@ class FastaLike f where
     -- | non-stream version, read whole file in memory
     readFasta' :: FilePath -> IO [f]
     readFasta' fl = runResourceT $ readFasta fl $$ sinkList
---    writeFasta :: FilePath -> [f] -> IO ()
     {-# MINIMAL fromFastaRecord #-}
 
 instance BioSeq s a => FastaLike (s a) where
