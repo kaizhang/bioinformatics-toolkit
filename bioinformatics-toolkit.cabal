@@ -1,5 +1,5 @@
 name:                bioinformatics-toolkit
-version:             0.3.1
+version:             0.3.2
 synopsis:            A collection of bioinformatics tools
 description:         A collection of bioinformatics tools
 license:             MIT
@@ -104,6 +104,7 @@ test-suite tests
   other-modules:
       Tests.Bed
     , Tests.Bam
+    , Tests.ChIPSeq
     , Tests.Motif
     , Tests.Seq
     , Tests.GREAT

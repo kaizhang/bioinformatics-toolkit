@@ -259,8 +259,8 @@ instance BEDLike NarrowPeak where
 
 type BEDTree a = M.HashMap B.ByteString (IM.IntervalMap Int a)
 
--- | convert a set of bed records to interval tree, with combining function for
--- equal keys
+-- | Convert a set of sorted bed records to interval tree, with combining
+-- function for equal keys.
 sortedBedToTree :: (BEDLike b, F.Foldable f)
                 => (a -> a -> a)
                 -> Sorted (f (b, a))
@@ -402,8 +402,8 @@ intersectSortedBedWith :: (BEDLike b1, BEDLike b2, Monad m)
                        -> Conduit b1 m (b1, a)
 intersectSortedBedWith fn (Sorted b) = mapC f
   where
-    f bed = (bed, fn $ IM.elems $ intersecting tree bed)
-    tree = sortedBedToTree const . Sorted . V.toList . V.zip b $ b
+    f bed = (bed, fn $ concat $ IM.elems $ intersecting tree bed)
+    tree = sortedBedToTree (++) $ Sorted $ V.map (\x -> (x, [x])) b
 {-# INLINE intersectSortedBedWith #-}
 
 isOverlapped :: (BEDLike b1, BEDLike b2) => b1 -> b2 -> Bool
