@@ -119,6 +119,10 @@ data BED = BED
     , _strand :: !(Maybe Bool)  -- ^ True: "+", False: "-"
     } deriving (Eq, Show, Read)
 
+instance Ord BED where
+    compare (BED x1 x2 x3 x4 x5 x6) (BED y1 y2 y3 y4 y5 y6) =
+        compare (x1,x2,x3,x4,x5,x6) (y1,y2,y3,y4,y5,y6)
+
 instance Default BED where
     def = BED
         { _chrom = ""
@@ -185,6 +189,9 @@ instance BEDLike BED where
 -- * BED3 format
 
 data BED3 = BED3 !B.ByteString !Int !Int deriving (Eq, Show, Read)
+
+instance Ord BED3 where
+    compare (BED3 x1 x2 x3) (BED3 y1 y2 y3) = compare (x1,x2,x3) (y1,y2,y3)
 
 instance BEDLike BED3 where
     asBed = BED3
@@ -359,6 +366,9 @@ splitBedBySizeOverlap k o bed = map (uncurry (asBed chr)) .
 -- | a type to imply that underlying data structure is sorted
 newtype Sorted b = Sorted {fromSorted :: b} deriving (Show, Read, Eq)
 
+-- | Compare bed records using only the chromosome, start and end positions.
+-- Unlike the ``compare'' from the Ord type class, this function can compare
+-- different types of BED data types.
 compareBed :: (BEDLike b1, BEDLike b2) => b1 -> b2 -> Ordering
 compareBed x y = compare x' y'
   where
