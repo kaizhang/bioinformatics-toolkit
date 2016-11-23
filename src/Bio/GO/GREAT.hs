@@ -9,6 +9,7 @@ module Bio.GO.GREAT
     ) where
 
 import           Conduit
+import           Control.Monad                (forM_)
 import           Control.Monad.Primitive
 import qualified Data.ByteString.Char8        as B
 import           Data.Function                (on)
@@ -69,18 +70,26 @@ read3DContact input = sourceFileBS input =$= linesUnboundedAsciiC =$= mapC f
     f x = let (chr1:s1:e1:chr2:s2:e2:_) = B.split '\t' x
           in (BED3 chr1 (readInt s1) (readInt e1), BED3 chr2 (readInt s2) (readInt e2))
 
+-- | 3D regulatory domains of a gene include the gene's promoter and regions
+-- that contact with the gene's promoter.
 get3DRegulatoryDomains :: Monad m
                        => [Gene a]   -- ^ Genes
                        -> Int        -- ^ Upstream
                        -> Int        -- ^ Downstream
                        -> Conduit (BED3, BED3) m (BED3, a)
-get3DRegulatoryDomains genes up dw = concatMapC $ \(locA, locB) ->
-    map ((,) locB) (IM.elems $ intersecting basal locA) ++
-    map ((,) locA) (IM.elems $ intersecting basal locB)
+get3DRegulatoryDomains genes up dw = concatRegions >> promoters
   where
+    promoters = forM_ genes $ \((chr, tss, str), x) ->
+        if str then yield (BED3 chr (gateZero $ tss - up) (tss + dw), x)
+               else yield (BED3 chr (gateZero $ tss - dw) (tss + up), x)
+    concatRegions = concatMapC $ \(locA, locB) ->
+        map ((,) locB) (IM.elems $ intersecting basal locA) ++
+        map ((,) locA) (IM.elems $ intersecting basal locB)
     basal = bedToTree undefined $ flip map genes $ \((chr, tss, str), x) ->
         if str then (BED3 chr (tss - up) (tss + dw), x)
                else (BED3 chr (tss - dw) (tss + up), x)
+    gateZero x | x < 0 = 0
+               | otherwise = x
 {-# INLINE get3DRegulatoryDomains #-}
 
 -- | how many times a particular GO term is hit by given regions
