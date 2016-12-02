@@ -4,49 +4,57 @@ module Bio.GO
     , GOId
     , GOMap
     , getParentById
+    , addTerm
+    , enrichment
     ) where
 
-import qualified Data.Text as T
-import Data.Text.Encoding (decodeUtf8)
+import           Bio.Utils.Functions   (hyperquick)
 import qualified Data.ByteString.Char8 as B
-import qualified Data.HashMap.Strict as M
-import Data.Maybe
+import qualified Data.HashMap.Strict   as M
+import           Data.Maybe
+import qualified Data.Text             as T
+import           Data.Text.Encoding    (decodeUtf8)
+import qualified Data.HashSet as S
 
 data GO = GO
-    { _oboId :: !GOId
-    , _label :: !T.Text
+    { _oboId        :: !GOId
+    , _label        :: !T.Text
     , _subProcessOf :: !(Maybe GOId)
-    , _oboNS :: !T.Text
-    }
+    , _oboNS        :: !T.Text
+    } deriving (Show, Read)
 
-instance Show GO where
-    show (GO a b c d) = T.unpack $ T.intercalate "\t"
-        [decodeUtf8 a, b, decodeUtf8 $ fromMaybe "" c, d]
-
-type GOId = B.ByteString
+type GOId = Int
 
 type GOMap = M.HashMap GOId GO
+
+type TermCount = M.HashMap GOId Int
 
 getParentById :: GOId -> GOMap -> Maybe GO
 getParentById gid goMap = M.lookup gid goMap >>= _subProcessOf
                                              >>= (`M.lookup` goMap)
 {-# INLINE getParentById #-}
 
-{-
-buildGOTree :: GOMap -> [Tree GO]
-buildGOTree goMap = map build roots
+-- | Add a GO term to the count table. Term counts will propogate from child to
+-- its parents. This function works for cyclical graph as well.
+addTerm :: GO -> GOMap -> TermCount -> TermCount
+addTerm g m t = loop S.empty g t
   where
-    build = unfoldTree $ \x -> (x, M.lookupDefault [] (_oboId x) childrenMap)
+    loop visited go table
+        | _oboId go `S.member` visited = table
+        | otherwise = case _subProcessOf go of
+            Nothing -> table'
+            Just gid -> loop (S.insert (_oboId go) visited)
+                (M.lookupDefault undefined gid m) table'
+      where
+        table' = M.insertWith (+) (_oboId go) 1 table
 
-    childrenMap = foldl' f M.empty goMap
-      where
-        f m go = case _subProcessOf go of
-            Just x -> M.insertWith (++) x [go] m
-            _ -> m
-    roots = mapMaybe f . M.keys $ childrenMap
-      where
-        f x = do g <- M.lookup x goMap
-                 if isNothing $ _subProcessOf g
-                    then Nothing
-                    else Just g
-                    -}
+enrichment :: (TermCount, Int)  -- ^ Background frequency and the total number
+           -> (TermCount, Int)  -- ^ Foreground
+           -> [(GOId, Double, Double)]
+enrichment (bg, bg_total) (fg, fg_total) =
+    flip map (M.toList fg) $ \(gid, fg_count) ->
+        let enrich = fromIntegral (fg_count * bg_total) /
+                     fromIntegral (fg_total * bg_count)
+            bg_count = M.lookupDefault undefined gid bg
+            p = 1 - hyperquick fg_count bg_count fg_total bg_total
+        in (gid, enrich, p)
