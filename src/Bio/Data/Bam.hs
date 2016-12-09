@@ -24,10 +24,15 @@ bamToBed = mapMC bamToBed1 =$= concatC
 -- e.g., using "samtools sort -n". This condition is checked from Bam header.
 sortedBamToBedPE :: Conduit Bam HeaderState (BED, BED)
 sortedBamToBedPE = do
-    sortOrd <- getSortOrder <$> lift get
-    case sortOrd of
-        Queryname -> loopBedPE =$= concatC
-        _ -> error "Bam file must be sorted by NAME."
+    maybeBam <- await
+    case maybeBam of
+        Nothing -> return ()
+        Just b' -> do
+            leftover b'
+            sortOrd <- getSortOrder <$> lift get
+            case sortOrd of
+                Queryname -> loopBedPE =$= concatC
+                _ -> error "Bam file must be sorted by NAME."
   where
     loopBedPE :: Conduit Bam HeaderState (Maybe (BED, BED))
     loopBedPE = do

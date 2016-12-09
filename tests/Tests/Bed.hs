@@ -64,7 +64,7 @@ splitOverlappedTest = expect @=? result
 
 intersectBedTest :: Assertion
 intersectBedTest = do
-    expect <- readBed' "tests/data/example_intersect_peaks.bed" :: IO [BED]
-    peaks <- readBed' "tests/data/peaks.bed" :: IO [BED]
+    expect <- readBed' "tests/data/example_intersect_peaks.bed" :: IO [BED3]
+    peaks <- readBed' "tests/data/peaks.bed" :: IO [BED3]
     result <- readBed "tests/data/example.bed" =$= intersectBed peaks $$ sinkList
     expect @=? result

@@ -12,13 +12,14 @@ build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.18
 data-files:
-  tests/data/*.bed
-  tests/data/*.sorted.bed
-  tests/data/*.bam
---  tests/data/*.bam.bai
-  tests/data/*.meme
-  tests/data/*.fasta
-
+  tests/data/example.bam
+  tests/data/example.bed
+  tests/data/pairedend.bam
+  tests/data/pairedend.bedpe
+  tests/data/peaks.bed
+  tests/data/peaks.sorted.bed
+  tests/data/example_intersect_peaks.bed
+  tests/data/motifs.fasta
 library
   hs-source-dirs: src
   ghc-options: -Wall
