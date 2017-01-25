@@ -7,4 +7,4 @@ extra-deps:
     - List-0.5.2
     - HsHTSLib-1.3.2.0
 
-resolver: lts-7.3
+resolver: nightly-2017-01-25

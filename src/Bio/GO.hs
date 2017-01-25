@@ -8,13 +8,10 @@ module Bio.GO
     , enrichment
     ) where
 
-import           Bio.Utils.Functions   (hyperquick)
-import qualified Data.ByteString.Char8 as B
-import qualified Data.HashMap.Strict   as M
-import           Data.Maybe
-import qualified Data.Text             as T
-import           Data.Text.Encoding    (decodeUtf8)
-import qualified Data.HashSet as S
+import           Bio.Utils.Functions (hyperquick)
+import qualified Data.HashMap.Strict as M
+import qualified Data.HashSet        as S
+import qualified Data.Text           as T
 
 data GO = GO
     { _oboId        :: !GOId
