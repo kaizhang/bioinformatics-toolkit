@@ -60,6 +60,7 @@ library
     , clustering
     , conduit-combinators
     , containers >=0.5
+    , data-ordlist
     , data-default-class
     , double-conversion
     , HsHTSLib

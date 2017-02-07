@@ -8,14 +8,15 @@ module Bio.GO.GREAT
     ) where
 
 import           Conduit
-import           Control.Monad                (forM_)
-import qualified Data.ByteString.Char8        as B
-import           Data.Function                (on)
-import qualified Data.IntervalMap             as IM
-import           Data.List                    (foldl', sortBy)
+import           Control.Monad         (forM_)
+import qualified Data.ByteString.Char8 as B
+import           Data.Function         (on)
+import qualified Data.IntervalMap      as IM
+import           Data.List             (foldl', sortBy)
+import           Data.List.Ordered     (nubSort)
 
 import           Bio.Data.Bed
-import           Bio.Utils.Misc               (readInt)
+import           Bio.Utils.Misc        (readInt)
 
 -- | How to associate genomic regions with genes
 data AssocRule =
@@ -63,7 +64,7 @@ read3DContact input = sourceFileBS input =$= linesUnboundedAsciiC =$= mapC f
 
 -- | 3D regulatory domains of a gene include the gene's promoter and regions
 -- that contact with the gene's promoter.
-get3DRegulatoryDomains :: Monad m
+get3DRegulatoryDomains :: (Monad m, Ord a)
                        => [Gene a]   -- ^ Genes
                        -> Int        -- ^ Upstream
                        -> Int        -- ^ Downstream
@@ -74,11 +75,11 @@ get3DRegulatoryDomains genes up dw = concatRegions >> promoters
         if str then yield (BED3 chr (gateZero $ tss - up) (tss + dw), x)
                else yield (BED3 chr (gateZero $ tss - dw) (tss + up), x)
     concatRegions = concatMapC $ \(locA, locB) ->
-        map ((,) locB) (IM.elems $ intersecting basal locA) ++
-        map ((,) locA) (IM.elems $ intersecting basal locB)
-    basal = bedToTree undefined $ flip map genes $ \((chr, tss, str), x) ->
-        if str then (BED3 chr (tss - up) (tss + dw), x)
-               else (BED3 chr (tss - dw) (tss + up), x)
+        map ((,) locB) (intersect locA) ++ map ((,) locA) (intersect locB)
+    basal = bedToTree (++) $ flip map genes $ \((chr, tss, str), x) ->
+        if str then (BED3 chr (tss - up) (tss + dw), [x])
+               else (BED3 chr (tss - dw) (tss + up), [x])
+    intersect = nubSort . concat . IM.elems . intersecting basal
     gateZero x | x < 0 = 0
                | otherwise = x
 {-# INLINE get3DRegulatoryDomains #-}
