@@ -30,6 +30,17 @@ executable motifscan
                      , optparse-applicative
   default-language:    Haskell2010
 
+executable motifScore
+  hs-source-dirs:      app
+  main-is:             motifScore.hs
+  ghc-options:         -threaded -Wall -optl-static -optc-static -optl-pthread
+  build-depends:       base
+                     , bioinformatics-toolkit
+                     , conduit-combinators
+                     , data-default
+                     , optparse-applicative
+  default-language:    Haskell2010
+
 executable mkindex
   hs-source-dirs:      app
   main-is:             mkindex.hs
