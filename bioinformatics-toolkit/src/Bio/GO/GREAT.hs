@@ -34,6 +34,7 @@ type Gene a = ((B.ByteString, Int, Bool), a)
 
 -- | Given a gene list and the rule, compute the rulatory domain for each gene
 getRegulatoryDomains :: AssocRule -> [Gene a] -> [(BED3, a)]
+getRegulatoryDomains _ [] = error "No gene available for domain assignment!"
 getRegulatoryDomains (BasalPlusExtension up dw ext) genes = (extendTail r ext, a) : rs
   where
     (rs, Just (r,a)) = foldl' f ([], Nothing) $ sortBy (compareBed `on` fst) basal
