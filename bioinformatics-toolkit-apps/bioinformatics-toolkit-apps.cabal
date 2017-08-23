@@ -22,7 +22,8 @@ library
 executable motifscan
   hs-source-dirs:      app
   main-is:             motifscan.hs
-  ghc-options:         -threaded -Wall -optl-static -optc-static -optl-pthread
+  -- ghc-options:         -threaded -Wall -optl-static -optc-static -optl-pthread
+  ghc-options:         -threaded -Wall
   build-depends:       base
                      , bioinformatics-toolkit
                      , conduit-combinators
@@ -33,7 +34,8 @@ executable motifscan
 executable motifScore
   hs-source-dirs:      app
   main-is:             motifScore.hs
-  ghc-options:         -threaded -Wall -optl-static -optc-static -optl-pthread
+  -- ghc-options:         -threaded -Wall -optl-static -optc-static -optl-pthread
+  ghc-options:         -threaded -Wall
   build-depends:       base
                      , bioinformatics-toolkit
                      , conduit-combinators
@@ -44,7 +46,8 @@ executable motifScore
 executable mkindex
   hs-source-dirs:      app
   main-is:             mkindex.hs
-  ghc-options:         -threaded -Wall -optl-static -optc-static -optl-pthread
+  -- ghc-options:         -threaded -Wall -optl-static -optc-static -optl-pthread
+  ghc-options:         -threaded -Wall
   build-depends:       base
                      , bioinformatics-toolkit
   default-language:    Haskell2010

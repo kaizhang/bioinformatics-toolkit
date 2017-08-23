@@ -25,7 +25,9 @@ class FastaLike f where
     {-# MINIMAL fromFastaRecord #-}
 
 instance BioSeq s a => FastaLike (s a) where
-    fromFastaRecord (_, xs) = fromBS . B.concat $ xs
+    fromFastaRecord (_, xs) = case fromBS (B.concat xs) of
+        Left err -> error err
+        Right x -> x
     {-# INLINE fromFastaRecord #-}
 
 instance FastaLike Motif where

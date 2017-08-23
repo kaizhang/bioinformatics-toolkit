@@ -70,7 +70,7 @@ getSeq (Genome h index headerSize) (chr, start, end) = case M.lookup chr index o
                 ">" ++ show chrSize
             else do
                 hSeek h AbsoluteSeek $ fromIntegral $ headerSize + chrStart + start
-                (Right . fromBS) <$> B.hGet h (end - start)
+                fromBS <$> B.hGet h (end - start)
     _ -> return $ Left $ "Bio.Seq.getSeq: Cannot find " ++ show chr
 {-# INLINE getSeq #-}
 

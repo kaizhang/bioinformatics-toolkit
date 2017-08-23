@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns          #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 module Bio.Seq
     (
     -- * Alphabet
@@ -23,6 +24,7 @@ import qualified Data.ByteString.Char8 as B
 import           Data.Char8            (toUpper)
 import qualified Data.HashMap.Strict   as M
 import qualified Data.HashSet          as S
+import           Data.Proxy            (Proxy (..))
 import           Prelude               hiding (length)
 
 -- | Alphabet defined by http://www.chem.qmul.ac.uk/iupac/
@@ -54,54 +56,54 @@ instance Monoid (DNA a) where
 
 class BioSeq' s where
     toBS :: s a -> B.ByteString
+    unsafeFromBS :: B.ByteString -> s a
 
     slice :: Int -> Int -> s a -> s a
 
     length :: s a -> Int
     length = B.length . toBS
-    {-# MINIMAL toBS, slice #-}
-
+    {-# MINIMAL toBS, slice, unsafeFromBS #-}
 
 instance BioSeq' DNA where
     toBS (DNA s) = s
+    unsafeFromBS = DNA
     slice i l (DNA s) = DNA . B.take l . B.drop i $ s
 
 instance BioSeq' RNA where
     toBS (RNA s) = s
+    unsafeFromBS = RNA
     slice i l (RNA s) = RNA . B.take l . B.drop i $ s
 
 instance BioSeq' Peptide where
     toBS (Peptide s) = s
+    unsafeFromBS = Peptide
     slice i l (Peptide s) = Peptide . B.take l . B.drop i $ s
 
-class BioSeq' s => BioSeq s a where
-    alphabet :: s a -> S.HashSet Char
-    fromBS :: B.ByteString -> s a
+class BioSeq' seq => BioSeq seq alphabet where
+    alphabet :: Proxy (seq alphabet) -> S.HashSet Char
+    fromBS :: B.ByteString -> Either String (seq alphabet)
+    fromBS input = case B.mapAccumL fun Nothing input of
+        (Nothing, r) -> Right $ unsafeFromBS r
+        (Just e, _)  -> Left $ "Bio.Seq.fromBS: unknown character: " ++ [e]
+      where
+        fun (Just e) x = (Just e, x)
+        fun Nothing x = let x' = toUpper x
+                        in if x' `S.member` alphabet (Proxy :: Proxy (seq alphabet))
+                            then (Nothing, x')
+                            else (Just x', x')
+    {-# MINIMAL alphabet #-}
 
 instance BioSeq DNA Basic where
     alphabet _ = S.fromList "ACGT"
-    fromBS = DNA . B.map (f . toUpper)
-      where
-        f x | x `S.member` alphabet (undefined :: DNA Basic) = x
-            | otherwise = error $ "Bio.Seq.fromBS: unknown character: " ++ [x]
 
 instance BioSeq DNA IUPAC where
     alphabet _ = S.fromList "ACGTNVHDBMKWSYR"
-    fromBS = DNA . B.map (f . toUpper)
-      where
-        f x | x `S.member` alphabet (undefined :: DNA IUPAC) = x
-            | otherwise = error $ "Bio.Seq.fromBS: unknown character: " ++ [x]
 
 instance BioSeq DNA Ext where
-    alphabet = undefined
-    fromBS = undefined
+    alphabet _ = undefined
 
 instance BioSeq RNA Basic where
     alphabet _ = S.fromList "ACGU"
-    fromBS = RNA . B.map (f . toUpper)
-      where
-        f x | x `S.member` alphabet (undefined :: RNA Basic) = x
-            | otherwise = error $ "Bio.Seq.fromBS: unknown character: " ++ [x]
 
 -- | O(n) Reverse complementary of DNA sequence.
 rc :: DNA alphabet -> DNA alphabet
@@ -112,7 +114,7 @@ rc (DNA s) = DNA . B.map f . B.reverse $ s
         'C' -> 'G'
         'G' -> 'C'
         'T' -> 'A'
-        _ -> x
+        _   -> x
 
 -- | O(n) Compute GC content.
 gcContent :: DNA alphabet -> Double
@@ -130,13 +132,13 @@ gcContent = (\(a,b) -> a / fromIntegral b) . B.foldl' f (0.0,0::Int) . toBS
                 'B' -> x + 0.75
                 'S' -> x + 1
                 'W' -> x
-                _ -> x + 0.5     -- "NMKYR"
+                _   -> x + 0.5     -- "NMKYR"
         in (x', n+1)
 
 -- | O(n) Compute single nucleotide frequency.
-nucleotideFreq :: BioSeq DNA a => DNA a -> M.HashMap Char Int
+nucleotideFreq :: forall a . BioSeq DNA a => DNA a -> M.HashMap Char Int
 nucleotideFreq dna = B.foldl' f m0 . toBS $ dna
   where
-    m0 = M.fromList . zip (S.toList $ alphabet dna) . repeat $ 0
+    m0 = M.fromList . zip (S.toList $ alphabet (Proxy :: Proxy (DNA a))) . repeat $ 0
     f m x = M.adjust (+1) x m
 {-# INLINE nucleotideFreq #-}

@@ -104,7 +104,7 @@ instance Default Bkgd where
 
 -- | Convert pwm to consensus sequence, see D. R. Cavener (1987).
 toIUPAC :: PWM -> DNA IUPAC
-toIUPAC (PWM _ pwm) = fromBS . B.pack . map f $ M.toRows pwm
+toIUPAC (PWM _ pwm) = unsafeFromBS . B.pack . map f $ M.toRows pwm
   where
     f v | snd a > 0.5 && snd a > 2 * snd b = fst a
         | snd a + snd b > 0.75             = iupac (fst a, fst b)
