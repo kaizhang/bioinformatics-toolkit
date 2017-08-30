@@ -5,4 +5,4 @@ packages:
 extra-deps:
     - HsHTSLib-1.3.2.2
 
-resolver: nightly-2017-08-20
+resolver: nightly-2017-08-25
