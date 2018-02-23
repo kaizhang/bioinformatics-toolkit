@@ -22,8 +22,8 @@ library
 executable scan_motif
   hs-source-dirs:      app
   main-is:             MotifScan.hs
-  ghc-options:         -threaded -Wall -optl-static -optc-static -optl-pthread
-  -- ghc-options:         -threaded -Wall
+  -- ghc-options:         -threaded -Wall -optl-static -optc-static -optl-pthread
+  ghc-options:         -threaded -Wall
   build-depends:       base
                      , bioinformatics-toolkit
                      , conduit-combinators
@@ -34,8 +34,8 @@ executable scan_motif
 executable motif_score
   hs-source-dirs:      app
   main-is:             MotifScore.hs
-  ghc-options:         -threaded -Wall -optl-static -optc-static -optl-pthread
-  -- ghc-options:         -threaded -Wall
+  -- ghc-options:         -threaded -Wall -optl-static -optc-static -optl-pthread
+  ghc-options:         -threaded -Wall
   build-depends:       base
                      , bioinformatics-toolkit
                      , conduit-combinators
@@ -46,8 +46,8 @@ executable motif_score
 executable mkindex
   hs-source-dirs:      app
   main-is:             MkIndex.hs
-  ghc-options:         -threaded -Wall -optl-static -optc-static -optl-pthread
-  -- ghc-options:         -threaded -Wall
+  -- ghc-options:         -threaded -Wall -optl-static -optc-static -optl-pthread
+  ghc-options:         -threaded -Wall
   build-depends:       base
                      , bioinformatics-toolkit
   default-language:    Haskell2010
@@ -55,8 +55,8 @@ executable mkindex
 executable merge_motifs
   hs-source-dirs:      app
   main-is:             MergeMotifs.hs
-  ghc-options:         -threaded -Wall -optl-static -optc-static -optl-pthread
-  -- ghc-options:         -threaded -Wall
+  -- ghc-options:         -threaded -Wall -optl-static -optc-static -optl-pthread
+  ghc-options:         -threaded -Wall
   build-depends:       base
                      , bioinformatics-toolkit
                      , bytestring

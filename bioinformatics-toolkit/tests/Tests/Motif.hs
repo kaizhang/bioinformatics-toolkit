@@ -18,7 +18,9 @@ import           Bio.Seq
 import qualified Data.Vector.Unboxed as U
 
 dna :: DNA Basic
-dna = fromBS $ B.pack $ map f $ take 5000 $ randomRs (0, 3) (mkStdGen 2)
+dna = case fromBS (B.pack $ map f $ take 5000 $ randomRs (0, 3) (mkStdGen 2)) of
+    Left msg -> error msg
+    Right x -> x
   where
     f :: Int -> Char
     f x = case x of

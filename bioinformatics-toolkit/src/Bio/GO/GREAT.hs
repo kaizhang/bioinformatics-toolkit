@@ -14,6 +14,7 @@ import           Data.Function         (on)
 import qualified Data.IntervalMap      as IM
 import           Data.List             (foldl', sortBy)
 import           Data.List.Ordered     (nubSort)
+import           Data.Maybe            (fromJust, isNothing)
 
 import           Bio.Data.Bed
 import           Bio.Utils.Misc        (readInt)
@@ -35,22 +36,22 @@ type Gene a = ((B.ByteString, Int, Bool), a)
 -- | Given a gene list and the rule, compute the rulatory domain for each gene
 getRegulatoryDomains :: AssocRule -> [Gene a] -> [(BED3, a)]
 getRegulatoryDomains _ [] = error "No gene available for domain assignment!"
-getRegulatoryDomains (BasalPlusExtension up dw ext) genes = (extendTail r ext, a) : rs
+getRegulatoryDomains (BasalPlusExtension up dw ext) genes = zip
+    (loop $ [Nothing] ++ map Just basal ++ [Nothing]) names
   where
-    (rs, Just (r,a)) = foldl' f ([], Nothing) $ sortBy (compareBed `on` fst) basal
-    f (acc, Nothing) (b,x) = (acc, Just (extendHead b ext, x))
-    f (acc, Just (b', x')) (b,x)
-        | chrom b' /= chrom b = ( (extendTail b' ext, x') : acc
-                                , Just (extendHead b ext, x) )
-        | chromEnd b' >= chromStart b = ((b',x') : acc, Just (b,x))
-        | otherwise = let ext' = min ext $ (chromStart b - chromEnd b') `div` 2
-                      in ((extendTail b' ext', x') : acc, Just (extendHead b ext', x))
-    extendHead (BED3 chr s e) l | s - l >= 0 = BED3 chr (s-l) e
-                                | otherwise = BED3 chr 0 e
-    extendTail (BED3 chr s e) l = BED3 chr s (e+l)
-    basal = flip map genes $ \((chr, tss, str), x) ->
-        if str then (BED3 chr (tss - up) (tss + dw), x)
-               else (BED3 chr (tss - dw) (tss + up), x)
+    loop (a:b:c:rest) = fn a b c : loop (b:c:rest)
+    loop _            = []
+    fn left (Just (BED3 chr s e)) right = BED3 chr leftPos rightPos
+      where
+        leftPos
+            | isNothing left || chr /= chrom (fromJust left) = max (s - ext) 0
+            | otherwise = min s $ max (s - ext) $ chromEnd $ fromJust left
+        rightPos
+            | isNothing right || chr /= chrom (fromJust right) = e + ext   -- TODO: bound check
+            | otherwise = max e $ min (e + ext) $ chromStart $ fromJust right
+    (basal, names) = unzip $ sortBy (compareBed `on` fst) $ flip map genes $
+        \((chr, tss, str), x) -> if str then (BED3 chr (tss - up) (tss + dw), x)
+                                        else (BED3 chr (tss - dw) (tss + up), x)
 getRegulatoryDomains _ _ = undefined
 {-# INLINE getRegulatoryDomains #-}
 
