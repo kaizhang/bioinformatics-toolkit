@@ -498,7 +498,7 @@ hReadBed h = do eof <- liftIO $ hIsEOF h
 
 -- | Non-streaming version.
 hReadBed' :: (BEDLike b, MonadIO m) => Handle -> m [b]
-hReadBed' h = hReadBed h $$ sinkList
+hReadBed' h = runConduit $ hReadBed h .| sinkList
 {-# INLINE hReadBed' #-}
 
 -- | Read records from a bed file in a streaming fashion.
@@ -510,7 +510,7 @@ readBed fl = do handle <- liftIO $ openFile fl ReadMode
 
 -- | Non-streaming version.
 readBed' :: (BEDLike b, MonadIO m) => FilePath -> m [b]
-readBed' fl = readBed fl $$ sinkList
+readBed' fl = runConduit $ readBed fl .| sinkList
 {-# INLINE readBed' #-}
 
 hWriteBed :: (BEDLike b, MonadIO m) => Handle -> Sink b m ()
@@ -522,7 +522,7 @@ hWriteBed handle = do
 {-# INLINE hWriteBed #-}
 
 hWriteBed' :: (BEDLike b, MonadIO m) => Handle -> [b] -> m ()
-hWriteBed' handle beds = yieldMany beds $$ hWriteBed handle
+hWriteBed' handle beds = runConduit $ yieldMany beds .| hWriteBed handle
 {-# INLINE hWriteBed' #-}
 
 writeBed :: (BEDLike b, MonadIO m) => FilePath -> Sink b m ()
@@ -547,7 +547,7 @@ fetchSeq g = mapMC f
 {-# INLINE fetchSeq #-}
 
 fetchSeq' :: (BioSeq DNA a, MonadIO m) => Genome -> [BED] -> m [Either String (DNA a)]
-fetchSeq' g beds = yieldMany beds $= fetchSeq g $$ sinkList
+fetchSeq' g beds = runConduit $ yieldMany beds .| fetchSeq g .| sinkList
 {-# INLINE fetchSeq' #-}
 
 -- | Identify motif binding sites

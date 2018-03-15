@@ -2,7 +2,7 @@
 module Bio.Data.Bam
     ( Bam
     , HeaderState
-    , runBam
+    , withBamFile
     , readBam
     , writeBam
     , bamToBed
@@ -13,11 +13,11 @@ import           Bio.Data.Bed
 import           Bio.HTS
 import           Bio.HTS.Types             (Bam, FileHeader (..))
 import           Conduit
-import           Control.Monad.State (get, lift)
+import           Control.Monad.Reader (ask, lift)
 
 -- | Convert bam record to bed record. Unmapped reads will be discarded.
 bamToBed :: Conduit Bam HeaderState BED
-bamToBed = mapMC bamToBed1 =$= concatC
+bamToBed = mapMC bamToBed1 .| concatC
 {-# INLINE bamToBed #-}
 
 -- | Convert pairedend bam file to bed. the bam file must be sorted by names,
@@ -29,9 +29,9 @@ sortedBamToBedPE = do
         Nothing -> return ()
         Just b' -> do
             leftover b'
-            sortOrd <- getSortOrder <$> lift get
+            sortOrd <- getSortOrder <$> lift ask
             case sortOrd of
-                Queryname -> loopBedPE =$= concatC
+                Queryname -> loopBedPE .| concatC
                 _ -> error "Bam file must be sorted by NAME."
   where
     loopBedPE :: Conduit Bam HeaderState (Maybe (BED, BED))
@@ -54,7 +54,7 @@ sortedBamToBedPE = do
 
 bamToBed1 :: Bam -> HeaderState (Maybe BED)
 bamToBed1 bam = do
-    BamHeader hdr <- lift get
+    BamHeader hdr <- lift ask
     return $ (\chr -> BED chr start end nm sc strand) <$> getChr hdr bam
   where
     start = fromIntegral $ position bam

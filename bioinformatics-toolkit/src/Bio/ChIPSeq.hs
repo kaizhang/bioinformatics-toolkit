@@ -241,7 +241,7 @@ peakCluster :: (BEDLike b, Monad m)
             -> Int   -- ^ radius
             -> Int   -- ^ cutoff
             -> Source m BED
-peakCluster peaks r th = mergeBedWith mergeFn peaks' $= filterC g
+peakCluster peaks r th = mergeBedWith mergeFn peaks' .| filterC g
   where
     peaks' = map f peaks
     f b = let chr = chrom b

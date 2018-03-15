@@ -3,6 +3,7 @@ packages:
     - 'bioinformatics-toolkit-apps'
 
 extra-deps:
-    - HsHTSLib-1.3.2.2
+    - '../htslib'
+    - clustering-0.4.0
 
-resolver: nightly-2017-08-25
+resolver: lts-11.0

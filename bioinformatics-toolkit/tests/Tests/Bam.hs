@@ -24,21 +24,23 @@ bamIOTest :: TestTree
 bamIOTest = do
     goldenVsFile "BAM Read/Write Test" input output io
   where
-    io = runBam $ readBam input $$ writeBam output
+    io = withBamFile input $ \h -> runConduit $ readBam h .| writeBam output
     input = "tests/data/example.bam"
     output = "tests/data/example_copy.bam"
 
 bamToBedTest :: Assertion
 bamToBedTest = do
     bed <- readBed' "tests/data/example.bed"
-    bed' <- runBam $ readBam "tests/data/example.bam" =$= bamToBed $$ sinkList
+    bed' <- withBamFile "tests/data/example.bam" $ \h ->
+        runConduit $ readBam h .| bamToBed .| sinkList
     (bed == bed') @? "bamToBedTest"
 
 sortedBamToBedPETest :: Assertion
 sortedBamToBedPETest = do
     bedpe <- readBedPE "tests/data/pairedend.bedpe"
-    bedpe' <- runBam $ readBam "tests/data/pairedend.bam" =$= sortedBamToBedPE =$=
-        mapC (\(x,y) -> (convert x, convert y)) $$ sinkList
+    bedpe' <- withBamFile "tests/data/pairedend.bam" $ \h -> runConduit $
+        readBam h .| sortedBamToBedPE .|
+        mapC (\(x,y) -> (convert x, convert y)) .| sinkList
     forM_ (zip bedpe bedpe') $ \(b1, b2) -> (b1 == b2 || b1 == swap b2) @? show (b1,b2)
   where
     readBedPE fl = do
