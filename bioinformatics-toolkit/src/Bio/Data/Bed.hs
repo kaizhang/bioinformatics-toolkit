@@ -2,8 +2,18 @@
 {-# LANGUAGE OverloadedStrings     #-}
 
 module Bio.Data.Bed
-    ( module Bio.Data.Bed.Types
+    ( BEDLike(..)
+    , BEDConvert(..)
+    , BED
+    , BED3
+    , NarrowPeak
+    , npSignal
+    , npPvalue
+    , npQvalue
+    , npPeak
+    , BEDExt(..)
 
+    , BEDTree
     , bedToTree
     , sortedBedToTree
     , intersecting
@@ -193,18 +203,18 @@ isOverlapped :: (BEDLike b1, BEDLike b2) => b1 -> b2 -> Bool
 isOverlapped b1 b2 = b1^.chrom == b2^.chrom &&
     not (b1^.chromEnd <= b2^.chromStart || b2^.chromEnd <= b1^.chromStart)
 
-mergeBed :: (BEDConvert b, Monad m) => [b] -> ConduitT Void b m ()
+mergeBed :: (BEDConvert b, Monad m) => [b] -> ConduitT i b m ()
 mergeBed = mergeSortedBed . sortBed
 {-# INLINE mergeBed #-}
 
 mergeBedWith :: (BEDLike b, Monad m)
-             => ([b] -> a) -> [b] -> ConduitT Void a m ()
+             => ([b] -> a) -> [b] -> ConduitT i a m ()
 mergeBedWith f = mergeSortedBedWith f . sortBed
 {-# INLINE mergeBedWith #-}
 
 mergeSortedBed :: (BEDConvert b, Monad m)
                => Sorted (V.Vector b)
-               -> ConduitT Void b m ()
+               -> ConduitT i b m ()
 mergeSortedBed = mergeSortedBedWith f
   where
     f xs = asBed (head xs ^. chrom) lo hi
@@ -214,7 +224,7 @@ mergeSortedBed = mergeSortedBedWith f
 {-# INLINE mergeSortedBed #-}
 
 mergeSortedBedWith :: (BEDLike b, Monad m)
-                   => ([b] -> a) -> Sorted (V.Vector b) -> ConduitT Void a m ()
+                   => ([b] -> a) -> Sorted (V.Vector b) -> ConduitT i a m ()
 mergeSortedBedWith mergeFn (Sorted beds)
     | V.null beds = return ()
     | otherwise = do
@@ -257,7 +267,7 @@ splitOverlapped fun xs = filter ((>0) . size . fst) $
 {-# INLINE splitOverlapped #-}
 
 -- | Read records from a bed file handler in a streaming fashion.
-hReadBed :: (BEDConvert b, MonadIO m) => Handle -> ConduitT () b m ()
+hReadBed :: (BEDConvert b, MonadIO m) => Handle -> ConduitT i b m ()
 hReadBed h = do eof <- liftIO $ hIsEOF h
                 unless eof $ do
                     line <- liftIO $ B.hGetLine h
@@ -271,7 +281,7 @@ hReadBed' h = runConduit $ hReadBed h .| sinkList
 {-# INLINE hReadBed' #-}
 
 -- | Read records from a bed file in a streaming fashion.
-readBed :: (BEDConvert b, MonadIO m) => FilePath -> ConduitT () b m ()
+readBed :: (BEDConvert b, MonadIO m) => FilePath -> ConduitT i b m ()
 readBed fl = do handle <- liftIO $ openFile fl ReadMode
                 hReadBed handle
                 liftIO $ hClose handle
@@ -282,7 +292,7 @@ readBed' :: (BEDConvert b, MonadIO m) => FilePath -> m [b]
 readBed' fl = runConduit $ readBed fl .| sinkList
 {-# INLINE readBed' #-}
 
-hWriteBed :: (BEDConvert b, MonadIO m) => Handle -> ConduitT b Void m ()
+hWriteBed :: (BEDConvert b, MonadIO m) => Handle -> ConduitT b o m ()
 hWriteBed handle = do
     x <- await
     case x of
@@ -294,7 +304,7 @@ hWriteBed' :: (BEDConvert b, MonadIO m) => Handle -> [b] -> m ()
 hWriteBed' handle beds = runConduit $ yieldMany beds .| hWriteBed handle
 {-# INLINE hWriteBed' #-}
 
-writeBed :: (BEDConvert b, MonadIO m) => FilePath -> ConduitT b Void m ()
+writeBed :: (BEDConvert b, MonadIO m) => FilePath -> ConduitT b o m ()
 writeBed fl = do handle <- liftIO $ openFile fl WriteMode
                  hWriteBed handle
                  liftIO $ hClose handle

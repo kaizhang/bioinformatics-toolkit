@@ -48,7 +48,7 @@ monoColonalize = do
 -- memory but not tag file.
 -- RPKM: Readcounts per kilobase per million reads. Only counts the starts of tags
 rpkmBed :: (PrimMonad m, BEDLike b, G.Vector v Double)
-     => [b] -> ConduitT BED Void m (v Double)
+     => [b] -> ConduitT BED o m (v Double)
 rpkmBed regions = do
     v <- lift $ do v' <- V.unsafeThaw . V.fromList . zip [0..] $ regions
                    I.sortBy (compareBed `on` snd) v'
@@ -66,7 +66,7 @@ rpkmBed regions = do
 -- | calculate RPKM on a set of regions. Regions must be sorted. The Sorted data
 -- type is used to remind users to sort their data.
 rpkmSortedBed :: (PrimMonad m, BEDLike b, G.Vector v Double)
-              => Sorted (V.Vector b) -> ConduitT BED Void m (v Double)
+              => Sorted (V.Vector b) -> ConduitT BED o m (v Double)
 rpkmSortedBed (Sorted regions) = do
     vec <- lift $ GM.replicate l 0
     n <- foldMC (count vec) (0 :: Int)
@@ -96,7 +96,7 @@ rpkmSortedBed (Sorted regions) = do
 countTagsBinBed :: (Integral a, PrimMonad m, G.Vector v a, BEDLike b)
            => Int   -- ^ bin size
            -> [b]   -- ^ regions
-           -> ConduitT BED Void m ([v a], Int)
+           -> ConduitT BED o m ([v a], Int)
 countTagsBinBed k beds = do
     initRC <- lift $ forM beds $ \bed -> do
         let start = bed^.chromStart
@@ -136,7 +136,7 @@ countTagsBinBed k beds = do
 countTagsBinBed' :: (Integral a, PrimMonad m, G.Vector v a, BEDLike b1, BEDLike b2)
                  => Int   -- ^ bin size
                  -> [b1]   -- ^ regions
-                 -> ConduitT b2 Void m ([v a], Int)
+                 -> ConduitT b2 o m ([v a], Int)
 countTagsBinBed' k beds = do
     initRC <- lift $ forM beds $ \bed -> do
         let start = bed^.chromStart
@@ -208,7 +208,7 @@ rpkmBam fl = do
 {-# INLINE rpkmBam #-}
 -}
 
-tagCountDistr :: PrimMonad m => G.Vector v Int => ConduitT BED Void m (v Int)
+tagCountDistr :: PrimMonad m => G.Vector v Int => ConduitT BED o m (v Int)
 tagCountDistr = loop M.empty
   where
     loop m = do
@@ -234,7 +234,7 @@ peakCluster :: (BEDLike b, Monad m)
             => [b]   -- ^ peaks
             -> Int   -- ^ radius
             -> Int   -- ^ cutoff
-            -> ConduitT Void BED m ()
+            -> ConduitT o BED m ()
 peakCluster peaks r th = mergeBedWith mergeFn peaks' .| filterC g
   where
     peaks' = map f peaks

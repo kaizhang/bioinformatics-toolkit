@@ -1,15 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Bio.Data.Bed.Types
-    ( BEDLike(..)
-    , BEDConvert(..)
-    , BED
-    , BED3
-    , NarrowPeak
-    , BEDExt(..)
-    , BEDTree
-    ) where
+module Bio.Data.Bed.Types where
 
 import           Control.Lens
 import qualified Data.ByteString.Char8             as B
@@ -61,12 +53,12 @@ class BEDLike b => BEDConvert b where
 
 -- | BED6 format, as described in http://genome.ucsc.edu/FAQ/FAQformat.html#format1.7
 data BED = BED
-    { _chrom      :: !B.ByteString
-    , _chromStart :: {-# UNPACK #-} !Int
-    , _chromEnd   :: {-# UNPACK #-} !Int
-    , _name       :: !(Maybe B.ByteString)
-    , _score      :: !(Maybe Double)
-    , _strand     :: !(Maybe Bool)  -- ^ True: "+", False: "-"
+    { _bed_chrom      :: !B.ByteString
+    , _bed_chromStart :: !Int
+    , _bed_chromEnd   :: !Int
+    , _bed_name       :: !(Maybe B.ByteString)
+    , _bed_score      :: !(Maybe Double)
+    , _bed_strand     :: !(Maybe Bool)  -- ^ True: "+", False: "-"
     } deriving (Eq, Show, Read)
 
 instance Ord BED where
@@ -74,12 +66,12 @@ instance Ord BED where
         compare (x1,x2,x3,x4,x5,x6) (y1,y2,y3,y4,y5,y6)
 
 instance BEDLike BED where
-    chrom = lens _chrom (\bed x -> bed { _chrom = x })
-    chromStart = lens _chromStart (\bed x -> bed { _chromStart = x })
-    chromEnd = lens _chromEnd (\bed x -> bed { _chromEnd = x })
-    name = lens _name (\bed x -> bed { _name = x })
-    score = lens _score (\bed x -> bed { _score = x })
-    strand = lens _strand (\bed x -> bed { _strand = x })
+    chrom = lens _bed_chrom (\bed x -> bed { _bed_chrom = x })
+    chromStart = lens _bed_chromStart (\bed x -> bed { _bed_chromStart = x })
+    chromEnd = lens _bed_chromEnd (\bed x -> bed { _bed_chromEnd = x })
+    name = lens _bed_name (\bed x -> bed { _bed_name = x })
+    score = lens _bed_score (\bed x -> bed { _bed_score = x })
+    strand = lens _bed_strand (\bed x -> bed { _bed_strand = x })
 
 instance BEDConvert BED where
     asBed chr s e = BED chr s e Nothing Nothing Nothing
@@ -157,11 +149,17 @@ data NarrowPeak = NarrowPeak
     , _npName   :: !(Maybe B.ByteString)
     , _npScore  :: !Double
     , _npStrand :: !(Maybe Bool)
-    , _npSigal  :: !Double
+    , _npSignal  :: !Double
     , _npPvalue :: !(Maybe Double)
     , _npQvalue :: !(Maybe Double)
     , _npPeak   :: !(Maybe Int)
     } deriving (Eq, Show, Read)
+
+makeLensesFor [ ("_npSignal", "npSignal")
+              , ("_npPvalue", "npPvalue")
+              , ("_npQvalue", "npQvalue")
+              , ("_npPeak", "npPeak")
+              ] ''NarrowPeak
 
 instance BEDLike NarrowPeak where
     chrom = lens _npChrom (\bed x -> bed { _npChrom = x })
