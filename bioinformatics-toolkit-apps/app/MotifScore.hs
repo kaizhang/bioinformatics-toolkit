@@ -30,7 +30,7 @@ defaultMain :: Options -> IO ()
 defaultMain opts = do
     withGenome (genomeFile opts) $ \genome -> do
         motifs <- readMEME $ motifFile opts
-        readBed (input opts) =$= getMotifScore genome motifs def $$
+        runConduit $ readBed (input opts) .| getMotifScore genome motifs def .|
             hWriteBed stdout
 
 main :: IO ()

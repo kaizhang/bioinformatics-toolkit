@@ -98,7 +98,7 @@ mkIndex fls outFl = withFile outFl WriteMode $ \outH -> do
     B.hPutStr outH $ B.unlines [magic, mkHeader chrs]
     mapM_ (B.hPutStr outH) dnas
   where
-    readSeq fl = runResourceT $ fastaReader fl =$= conduit $$ sinkList
+    readSeq fl = runResourceT $ runConduit $ fastaReader fl .| conduit .| sinkList
       where
         conduit = awaitForever $ \(chrName, seqs) -> do
             let dna = B.concat seqs

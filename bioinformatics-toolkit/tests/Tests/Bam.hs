@@ -37,7 +37,7 @@ bamToBedTest = do
 
 sortedBamToBedPETest :: Assertion
 sortedBamToBedPETest = do
-    bedpe <- readBedPE "tests/data/pairedend.bedpe"
+    bedpe <- readBedPE "tests/data/pairedend.bedpe" :: IO [(BED3, BED3)]
     bedpe' <- withBamFile "tests/data/pairedend.bam" $ \h -> runConduit $
         readBam h .| sortedBamToBedPE .|
         mapC (\(x,y) -> (convert x, convert y)) .| sinkList
@@ -46,5 +46,5 @@ sortedBamToBedPETest = do
     readBedPE fl = do
         c <- B.readFile fl
         return $ map (f . B.split '\t') $ B.lines c
-    f (f1:f2:f3:f4:f5:f6:_) = ( BED3 f1 (readInt f2) (readInt f3)
-                              , BED3 f4 (readInt f5) (readInt f6) )
+    f (f1:f2:f3:f4:f5:f6:_) = ( asBed f1 (readInt f2) (readInt f3)
+                              , asBed f4 (readInt f5) (readInt f6) )

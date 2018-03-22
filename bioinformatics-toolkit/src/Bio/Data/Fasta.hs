@@ -16,12 +16,12 @@ class FastaLike f where
     -- to a specific data type
     fromFastaRecord :: (B.ByteString, [B.ByteString]) -> f
 
-    readFasta :: FilePath -> Source (ResourceT IO) f
-    readFasta fl = fastaReader fl =$= mapC fromFastaRecord
+    readFasta :: FilePath -> ConduitT i f (ResourceT IO) ()
+    readFasta fl = fastaReader fl .| mapC fromFastaRecord
 
     -- | non-stream version, read whole file in memory
     readFasta' :: FilePath -> IO [f]
-    readFasta' fl = runResourceT $ readFasta fl $$ sinkList
+    readFasta' fl = runResourceT $ runConduit $ readFasta fl .| sinkList
     {-# MINIMAL fromFastaRecord #-}
 
 instance BioSeq s a => FastaLike (s a) where
@@ -34,8 +34,9 @@ instance FastaLike Motif where
     fromFastaRecord (name, mat) = Motif name (toPWM mat)
     {-# INLINE fromFastaRecord #-}
 
-fastaReader :: FilePath -> Source (ResourceT IO) (B.ByteString, [B.ByteString])
-fastaReader fl = sourceFile fl =$= linesUnboundedAsciiC =$= loop []
+fastaReader :: FilePath
+            -> ConduitT i (B.ByteString, [B.ByteString]) (ResourceT IO) ()
+fastaReader fl = sourceFile fl .| linesUnboundedAsciiC .| loop []
   where
     loop acc = do
         x <- await

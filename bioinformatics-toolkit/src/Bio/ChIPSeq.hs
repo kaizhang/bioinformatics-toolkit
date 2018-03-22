@@ -1,6 +1,6 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns          #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE OverloadedStrings     #-}
 
 module Bio.ChIPSeq
     ( monoColonalize
@@ -12,48 +12,43 @@ module Bio.ChIPSeq
     , peakCluster
     ) where
 
-import Control.Monad (liftM, forM_, forM)
-import Control.Monad.Primitive (PrimMonad)
-import Conduit
-import Data.Function (on)
-import qualified Data.Foldable as F
-import qualified Data.HashMap.Strict as M
-import qualified Data.IntervalMap as IM
-import Data.Maybe (fromJust)
-import qualified Data.Vector as V
-import qualified Data.Vector.Unboxed as U
+import           Conduit
+import           Control.Monad                (forM, forM_, liftM)
+import           Control.Monad.Primitive      (PrimMonad)
+import qualified Data.Foldable                as F
+import           Data.Function                (on)
+import qualified Data.HashMap.Strict          as M
+import qualified Data.IntervalMap             as IM
+import Control.Lens ((^.), (&), (.~))
+import           Data.Maybe                   (fromJust, fromMaybe)
+import qualified Data.Vector                  as V
 import qualified Data.Vector.Algorithms.Intro as I
-import qualified Data.Vector.Generic as G
-import qualified Data.Vector.Generic.Mutable as GM
+import qualified Data.Vector.Generic          as G
+import qualified Data.Vector.Generic.Mutable  as GM
+import qualified Data.Vector.Unboxed          as U
 
-import Bio.Data.Bed
+import           Bio.Data.Bed
 
 -- | process a sorted BED stream, keep only mono-colonal tags
-monoColonalize :: Monad m => Conduit BED m BED
+monoColonalize :: Monad m => ConduitT BED BED m ()
 monoColonalize = do
-    x <- await
-    F.forM_ x loop
+    x <- headC
+    case x of
+        Just b -> yield b >> concatMapAccumC f b
+        Nothing -> return ()
   where
-    loop prev = do
-        x <- await
-        case x of
-            Nothing -> yield prev
-            Just current ->
-                case () of
-                   _ | compareBed prev current == GT ->
-                         error $ "Bio.ChIPSeq.monoColonalize: Input is not sorted: " ++ show prev ++ " > " ++ show current
-                     | chromStart prev == chromStart current &&
-                       chromEnd prev == chromEnd current &&
-                       chrom prev == chrom current &&
-                       _strand prev == _strand current -> loop prev
-                     | otherwise -> yield prev >> loop current
+    f cur prev = case compareBed prev cur of
+        GT -> error $
+            "Input is not sorted: " ++ show prev ++ " > " ++ show cur
+        LT -> (cur, [cur])
+        _ -> if prev^.strand == cur^.strand then (cur, []) else (cur, [cur])
 {-# INLINE monoColonalize #-}
 
 -- | calculate RPKM on a set of unique regions. Regions (in bed format) would be kept in
 -- memory but not tag file.
 -- RPKM: Readcounts per kilobase per million reads. Only counts the starts of tags
 rpkmBed :: (PrimMonad m, BEDLike b, G.Vector v Double)
-     => [b] -> Sink BED m (v Double)
+     => [b] -> ConduitT BED Void m (v Double)
 rpkmBed regions = do
     v <- lift $ do v' <- V.unsafeThaw . V.fromList . zip [0..] $ regions
                    I.sortBy (compareBed `on` snd) v'
@@ -71,21 +66,20 @@ rpkmBed regions = do
 -- | calculate RPKM on a set of regions. Regions must be sorted. The Sorted data
 -- type is used to remind users to sort their data.
 rpkmSortedBed :: (PrimMonad m, BEDLike b, G.Vector v Double)
-              => Sorted (V.Vector b) -> Sink BED m (v Double)
+              => Sorted (V.Vector b) -> ConduitT BED Void m (v Double)
 rpkmSortedBed (Sorted regions) = do
     vec <- lift $ GM.replicate l 0
     n <- foldMC (count vec) (0 :: Int)
     let factor = fromIntegral n / 1e9
-    lift $ liftM (G.imap (\i x -> x / factor / (fromIntegral . bedSize) (regions V.! i)))
+    lift $ liftM (G.imap (\i x -> x / factor / (fromIntegral . size) (regions V.! i)))
          $ G.unsafeFreeze vec
   where
     count v nTags tag = do
-        let chr = chrom tag
-            p | _strand tag == Just True = chromStart tag
-              | _strand tag == Just False = chromEnd tag - 1
+        let p | tag^.strand == Just True = tag^.chromStart
+              | tag^.strand == Just False = tag^.chromEnd - 1
               | otherwise = error "Unkown strand"
             xs = concat $ IM.elems $
-                IM.containing (M.lookupDefault IM.empty chr intervalMap) p
+                IM.containing (M.lookupDefault IM.empty (tag^.chrom) intervalMap) p
         addOne v xs
         return $ succ nTags
 
@@ -102,11 +96,11 @@ rpkmSortedBed (Sorted regions) = do
 countTagsBinBed :: (Integral a, PrimMonad m, G.Vector v a, BEDLike b)
            => Int   -- ^ bin size
            -> [b]   -- ^ regions
-           -> Sink BED m ([v a], Int)
+           -> ConduitT BED Void m ([v a], Int)
 countTagsBinBed k beds = do
     initRC <- lift $ forM beds $ \bed -> do
-        let start = chromStart bed
-            end = chromEnd bed
+        let start = bed^.chromStart
+            end = bed^.chromEnd
             num = (end - start) `div` k
             index i = (i - start) `div` k
         v <- GM.replicate num 0
@@ -117,12 +111,12 @@ countTagsBinBed k beds = do
     sink !nTags vs = do
         tag <- await
         case tag of
-            Just (BED chr start end _ _ strand) -> do
-                let p | strand == Just True = start
-                      | strand == Just False = end - 1
+            Just bed -> do
+                let p | bed^.strand == Just True = bed^.chromStart
+                      | bed^.strand == Just False = bed^.chromEnd - 1
                       | otherwise = error "profiling: unkown strand"
                     overlaps = concat $ IM.elems $
-                        IM.containing (M.lookupDefault IM.empty chr intervalMap) p
+                        IM.containing (M.lookupDefault IM.empty (bed^.chrom) intervalMap) p
                 lift $ forM_ overlaps $ \x -> do
                     let (v, idxFn) = vs `G.unsafeIndex` x
                         i = let i' = idxFn p
@@ -142,11 +136,11 @@ countTagsBinBed k beds = do
 countTagsBinBed' :: (Integral a, PrimMonad m, G.Vector v a, BEDLike b1, BEDLike b2)
                  => Int   -- ^ bin size
                  -> [b1]   -- ^ regions
-                 -> Sink b2 m ([v a], Int)
+                 -> ConduitT b2 Void m ([v a], Int)
 countTagsBinBed' k beds = do
     initRC <- lift $ forM beds $ \bed -> do
-        let start = chromStart bed
-            end = chromEnd bed
+        let start = bed^.chromStart
+            end = bed^.chromEnd
             num = (end - start) `div` k
             index i = (i - start) `div` k
         v <- GM.replicate num 0
@@ -158,9 +152,9 @@ countTagsBinBed' k beds = do
         tag <- await
         case tag of
             Just bed -> do
-                let chr = chrom bed
-                    start = chromStart bed
-                    end = chromEnd bed
+                let chr = bed^.chrom
+                    start = bed^.chromStart
+                    end = bed^.chromEnd
                     overlaps = concat $ IM.elems $ IM.intersecting
                         (M.lookupDefault IM.empty chr intervalMap) $ IM.IntervalCO start end
                 lift $ forM_ overlaps $ \x -> do
@@ -214,18 +208,18 @@ rpkmBam fl = do
 {-# INLINE rpkmBam #-}
 -}
 
-tagCountDistr :: PrimMonad m => G.Vector v Int => Sink BED m (v Int)
+tagCountDistr :: PrimMonad m => G.Vector v Int => ConduitT BED Void m (v Int)
 tagCountDistr = loop M.empty
   where
     loop m = do
         x <- await
         case x of
-            Just (BED chr s e _ _ (Just str)) -> do
-                let p | str = s
-                      | otherwise = 1 - e
-                case M.lookup chr m of
-                    Just table -> loop $ M.insert chr (M.insertWith (+) p 1 table) m
-                    _ -> loop $ M.insert chr (M.fromList [(p,1)]) m
+            Just bed -> do
+                let p | fromMaybe True (bed^.strand) = bed^.chromStart
+                      | otherwise = 1 - bed^.chromEnd
+                case M.lookup (bed^.chrom) m of
+                    Just table -> loop $ M.insert (bed^.chrom) (M.insertWith (+) p 1 table) m
+                    _ -> loop $ M.insert (bed^.chrom) (M.fromList [(p,1)]) m
             _ -> lift $ do
                 vec <- GM.replicate 100 0
                 F.forM_ m $ \table ->
@@ -240,16 +234,15 @@ peakCluster :: (BEDLike b, Monad m)
             => [b]   -- ^ peaks
             -> Int   -- ^ radius
             -> Int   -- ^ cutoff
-            -> Source m BED
+            -> ConduitT Void BED m ()
 peakCluster peaks r th = mergeBedWith mergeFn peaks' .| filterC g
   where
     peaks' = map f peaks
-    f b = let chr = chrom b
-              c = (chromStart b + chromEnd b) `div` 2
-          in BED3 chr (c-r) (c+r)
-    mergeFn xs = BED (chrom $ head xs) lo hi Nothing (Just $ fromIntegral $ length xs) Nothing
+    f b = let c = (b^.chromStart + b^.chromEnd) `div` 2
+          in asBed (b^.chrom) (c-r) (c+r) :: BED3
+    mergeFn xs = asBed (head xs ^. chrom) lo hi & score .~ Just (fromIntegral $ length xs)
       where
-        lo = minimum . map chromStart $ xs
-        hi = maximum . map chromEnd $ xs
-    g b = fromJust (_score b) >= fromIntegral th
+        lo = minimum $ map (^.chromStart) xs
+        hi = maximum $ map (^.chromEnd) xs
+    g b = fromJust (b^.score) >= fromIntegral th
 {-# INLINE peakCluster #-}

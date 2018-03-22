@@ -11,8 +11,7 @@ module Bio.Motif.Search
     , spaceConstraintHelper
     ) where
 
-import           Conduit                     (Source, await, mapC, sinkVector,
-                                              yield, ($$), (=$=))
+import           Conduit
 import           Control.Arrow               ((***))
 import           Control.Monad.ST            (runST)
 import           Control.Parallel.Strategies (parMap, rdeepseq)
@@ -41,7 +40,7 @@ findTFBS :: Monad m
          -> Double
          -> Bool    -- ^ whether to skip ambiguous sequences. Recommend: True
                     -- in most cases
-         -> Source m Int
+         -> ConduitT i Int m ()
 findTFBS bg pwm dna thres skip = loop 0
   where
     loop !i | i >= l - n + 1 = return ()
@@ -81,9 +80,8 @@ findTFBS' bg pwm dna th skip = concat $ parMap rdeepseq f [0,step..l-n+1]
 {-# INLINE findTFBS' #-}
 
 -- | use naive search
-findTFBSSlow :: Monad m => Bkgd -> PWM -> DNA a -> Double -> Source m Int
-findTFBSSlow bg pwm dna thres = scores' bg pwm dna =$=
-                                       loop 0
+findTFBSSlow :: Monad m => Bkgd -> PWM -> DNA a -> Double -> ConduitT i Int m ()
+findTFBSSlow bg pwm dna thres = scores' bg pwm dna .| loop 0
   where
     loop i = do v <- await
                 case v of
@@ -184,7 +182,7 @@ lookAheadSearch' (BG (a, c, g, t)) pwm sigma dna start thres = loop (0, -1) 0
               'C' -> log $! matchC / c
               'G' -> log $! matchG / g
               'T' -> log $! matchT / t
-              _ -> -1 / 0
+              _   -> -1 / 0
         matchA = addSome $ M.unsafeIndex (_mat pwm) (d,0)
         matchC = addSome $ M.unsafeIndex (_mat pwm) (d,1)
         matchG = addSome $ M.unsafeIndex (_mat pwm) (d,2)
@@ -194,20 +192,6 @@ lookAheadSearch' (BG (a, c, g, t)) pwm sigma dna start thres = loop (0, -1) 0
         pseudoCount = 0.0001
     n = size pwm
 {-# INLINE lookAheadSearch' #-}
-
-{-
-data MotifCompo = MotifCompo
-    { _motif1        :: Motif
-    , _motif2        :: Motif
-    , _sameDirection :: Bool
-    , _spacing       :: Int
-    , _score         :: Double
-    }
-
-instance Show MotifCompo where
-    show (MotifCompo m1 m2 isSame sp sc) = intercalate "\t"
-        [B.unpack $ _name m1, B.unpack $ _name m2, show isSame, show sp, show sc]
-        -}
 
 data SpaceDistribution = SpaceDistribution
     { _motif1   :: Motif
@@ -235,9 +219,9 @@ spaceConstraint pairs bg th w k dna = flip map pairs $ \(a, b) ->
     motifs = nubBy ((==) `on` _name) $ concatMap (\(a,b) -> [a,b]) pairs
     findSites (Motif _ pwm) = (fwd, rev)
       where
-        fwd = runST $ findTFBS bg pwm dna cutoff True $$ sinkVector
-        rev = runST $ findTFBS bg pwm' dna cutoff' True =$=
-              mapC (+ (size pwm - 1)) $$ sinkVector
+        fwd = runST $ runConduit $ findTFBS bg pwm dna cutoff True .| sinkVector
+        rev = runST $ runConduit $ findTFBS bg pwm' dna cutoff' True .|
+              mapC (+ (size pwm - 1)) .| sinkVector
         cutoff = pValueToScore th bg pwm
         cutoff' = pValueToScore th bg pwm'
         pwm' = rcPWM pwm

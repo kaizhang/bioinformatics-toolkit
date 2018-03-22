@@ -21,7 +21,7 @@ data Gene = Gene
     , geneLeft        :: !Int
     , geneRight       :: !Int
     , geneStrand      :: !Bool
-    , geneTranscripts :: Maybe [(Int, Int)]
+    , geneTranscripts :: [(Int, Int)]
     } deriving (Show)
 
 -- | Read gene information from Gencode GTF file
@@ -30,14 +30,14 @@ readGenes input = do
     (genes, transcripts) <- runResourceT $ runConduit $ sourceFile input .|
         linesUnboundedAsciiC .| foldlC f (M.empty, M.empty)
     return $ M.elems $ M.foldlWithKey'
-        (\m k v -> M.adjust (\g -> g{geneTranscripts=Just v}) k m)
+        (\m k v -> M.adjust (\g -> g{geneTranscripts=v}) k m)
         genes transcripts
   where
     f (genes, transcripts) l
         | B.head l == '#' = (genes, transcripts)
         | f3 == "gene" =
             let g = Gene (mk $ getField "gene_name") i f1 (readInt f4 - 1)
-                    (readInt f5 - 1) (f7=="+") Nothing
+                    (readInt f5 - 1) (f7=="+") []
                 i = getField "gene_id"
             in (M.insert i g genes, transcripts)
         | f3 == "transcript" =

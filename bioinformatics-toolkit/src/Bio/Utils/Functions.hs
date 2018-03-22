@@ -85,8 +85,8 @@ hyperquick x m _n _N = loop (m-2) s s (2*e)
             in loop k' ak' bk' espk'
         | otherwise = 1 - (ak / bk - epsk / 2)
     s = foldl' (\s' k -> 1 + s' * invJm _n x _N k) 1.0 [x..m-2]
-    invJm _n x _N m = ( 1 - fromIntegral x / fromIntegral (m+1) ) /
-                          ( 1 - fromIntegral (_n-1-x) / fromIntegral (_N-1-m) )
+    invJm _n _x _N _m = ( 1 - fromIntegral _x / fromIntegral (_m+1) ) /
+                          ( 1 - fromIntegral (_n-1-_x) / fromIntegral (_N-1-_m) )
     e = 1e-20
 
 

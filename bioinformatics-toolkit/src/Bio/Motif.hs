@@ -132,7 +132,7 @@ scores bg p@(PWM _ pwm) dna = go $! toBS dna
 {-# INLINE scores #-}
 
 -- | A streaming version of scores.
-scores' :: Monad m => Bkgd -> PWM -> DNA a -> Source m Double
+scores' :: Monad m => Bkgd -> PWM -> DNA a -> ConduitT i Double m ()
 scores' bg p@(PWM _ pwm) dna = go 0
   where
     go i | i < n - len + 1 = do yield $ scoreHelp bg p $ B.take len $ B.drop i s

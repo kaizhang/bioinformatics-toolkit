@@ -75,8 +75,8 @@ data GAF = GAF
 
 -- | GO Annotation File (GAF) Format 2.1 Parser. For details read:
 -- http://geneontology.org/page/go-annotation-file-gaf-format-21.
-readGAF :: FilePath -> Source (ResourceT IO) GAF
-readGAF input = sourceFileBS input =$= linesUnboundedAsciiC =$=
+readGAF :: FilePath -> ConduitT i GAF (ResourceT IO) ()
+readGAF input = sourceFileBS input .| linesUnboundedAsciiC .|
     (dropWhileC isCom >> mapC parseLine)
   where
     isCom l = B.head l == '!' || B.null l

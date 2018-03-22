@@ -1,5 +1,5 @@
 name:                bioinformatics-toolkit
-version:             0.4.2-dev
+version:             0.5.0-dev
 synopsis:            A collection of bioinformatics tools
 description:         A collection of bioinformatics tools
 license:             MIT
@@ -28,11 +28,11 @@ library
     Bio.ChIPSeq
     Bio.ChIPSeq.FragLen
     Bio.Data.Bed
+    Bio.Data.Bed.Types
     Bio.Data.Bam
     Bio.Data.Fasta
     Bio.GO
     Bio.GO.Parser
-    Bio.GO.GREAT
     Bio.Motif
     Bio.Motif.Alignment
     Bio.Motif.Merge
@@ -67,6 +67,7 @@ library
     , http-conduit >=2.1.8
     , hexpat
     , IntervalMap >=0.5.0.0
+    , lens
     , matrices >=0.4.3
     , mtl >=2.1.3.1
     , math-functions
@@ -109,7 +110,6 @@ test-suite tests
     , Tests.ChIPSeq
     , Tests.Motif
     , Tests.Seq
-    , Tests.GREAT
     , Tests.Tools
 
   default-language:    Haskell2010

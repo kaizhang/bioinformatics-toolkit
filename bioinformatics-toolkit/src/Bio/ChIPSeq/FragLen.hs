@@ -5,13 +5,14 @@ module Bio.ChIPSeq.FragLen
     , naiveCCWithSmooth
     ) where
 
-import qualified Data.ByteString.Char8 as B
-import qualified Data.HashSet as S
-import qualified Data.HashMap.Strict as M
-import Data.List (foldl', maximumBy)
-import Data.Ord (comparing)
-import Bio.Data.Bed
-import Control.Parallel.Strategies (parMap, rpar)
+import           Bio.Data.Bed
+import           Control.Lens                ((^.))
+import           Control.Parallel.Strategies (parMap, rpar)
+import qualified Data.ByteString.Char8       as B
+import qualified Data.HashMap.Strict         as M
+import qualified Data.HashSet                as S
+import           Data.List                   (foldl', maximumBy)
+import           Data.Ord                    (comparing)
 
 -- | estimate fragment length for a ChIP-seq experiment
 fragLength :: (Int, Int) -> [BED] -> Int
@@ -25,10 +26,10 @@ fromBED :: [BED] -> [(B.ByteString, (S.HashSet Int, S.HashSet Int))]
 fromBED = map toSet . M.toList . M.fromListWith f . map parseLine
     where
         parseLine :: BED -> (B.ByteString, ([Int], [Int]))
-        parseLine x = case _strand x of
-            Just True -> (_chrom x, ([_chromStart x], []))
-            Just False -> (_chrom x, ([], [_chromEnd x]))
-            _ -> error "Unknown Strand!"
+        parseLine x = case x^.strand of
+            Just True  -> (x^.chrom, ([x^.chromStart], []))
+            Just False -> (x^.chrom, ([], [x^.chromEnd]))
+            _          -> error "Unknown Strand!"
         f (a,b) (a',b') = (a++a', b++b')
         toSet (chr, (forwd, rev)) = (chr, (S.fromList forwd, S.fromList rev))
 {-# INLINE fromBED #-}

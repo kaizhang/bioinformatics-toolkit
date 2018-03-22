@@ -6,6 +6,7 @@ module Bio.Utils.Overlap
 
 import           Bio.Data.Bed
 import           Conduit
+import           Control.Lens                ((^.))
 import           Control.Monad
 import qualified Data.ByteString.Char8       as B
 import           Data.Function
@@ -24,55 +25,17 @@ toMap input = M.fromList.map create.groupBy ((==) `on` (fst.fst)) $ zip input [0
         create xs = (fst.fst.head $ xs, IM.fromDistinctAscList.map f $ xs)
 {-# INLINE toMap #-}
 
-{-
--- | coverages of bins
--- FIXME: Too ugly
 coverage :: [BED]  -- ^ genomic locus in BED format
-         -> [BED]  -- ^ reads in BED format
-         -> (V.Vector Double, Int)
-coverage bin tags = getResult (V.create (VM.replicate (n+1) 0 >>= go tags))
-  where
-    getResult v = (V.zipWith normalize (V.slice 0 n v) featWidth, v V.! n)
-    go ts v = do
-        forM_ ts (\t -> do
-            let set = M.lookup (t^.chrom) featMap
-                s = t^.chromStart
-                e = t^.chromEnd
-                b = (s, e)
-                l = s - e + 1
-                intervals = case set of
-                    Just iMap -> IM.intersecting iMap.toInterval $ b
-                    _ -> []
-            forM_ intervals (\interval -> do
-                let i = snd interval
-                    nucl = overlap b . fst $ interval
-                VM.write v i . (+nucl) =<< VM.read v i
-                )
-            VM.write v n . (+l) =<< VM.read v n
-            )
-        return v
-    featMap = toMap.map (\x -> (x^.chrom, (x^.chromStart, x^.chromEnd))) $ bin
-    featWidth = V.fromList.map (\x -> x^.chromEnd - x^.chromStart) $ bin
-    n = length bin
-    overlap (l, u) (IM.ClosedInterval l' u')
-        | l' >= l = if u' <= u then u'-l'+1 else u-l'+1
-        | otherwise = if u' <= u then u'-l+1 else u-l+1
-    overlap _ _ = 0
-    normalize a b = fromIntegral a / fromIntegral b
-    -}
-
-coverage :: [BED]  -- ^ genomic locus in BED format
-         -> Source IO BED  -- ^ reads in BED format
+         -> ConduitT () BED IO ()  -- ^ reads in BED format
          -> IO (V.Vector Double, Int)
-coverage bin tags = liftM getResult $ tags $$ sink
+coverage bin tags = liftM getResult $ runConduit $ tags .| sink
   where
-    sink :: Sink BED IO (V.Vector Int)
     sink = do
         v <- lift $ VM.replicate (n+1) 0
         mapM_C $ \t -> do
-                let set = M.lookup (_chrom t) featMap
-                    s = _chromStart t
-                    e = _chromEnd t
+                let set = M.lookup (t^.chrom) featMap
+                    s = t^.chromStart
+                    e = t^.chromEnd
                     b = (s, e)
                     l = e - s + 1
                     intervals = case set of
@@ -86,8 +49,8 @@ coverage bin tags = liftM getResult $ tags $$ sink
                 VM.write v n . (+l) =<< VM.read v n
         lift $ V.freeze v
     getResult v = (V.zipWith normalize (V.slice 0 n v) featWidth, v V.! n)
-    featMap = toMap.map (\x -> (_chrom x, (_chromStart x, _chromEnd x))) $ bin
-    featWidth = V.fromList.map (\x -> _chromEnd x - _chromStart x) $ bin
+    featMap = toMap.map (\x -> (x^.chrom, (x^.chromStart, x^.chromEnd))) $ bin
+    featWidth = V.fromList $ map size bin
     n = length bin
     overlap (l, u) (IM.ClosedInterval l' u')
         | l' >= l = if u' <= u then u'-l'+1 else u-l'+1

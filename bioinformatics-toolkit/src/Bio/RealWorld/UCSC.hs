@@ -37,7 +37,7 @@ getJunction :: UCSCGene -> (B.ByteString, U.Vector Int)
 getJunction g = (_chrom g, U.map fst $ _introns g)
 
 -- | read genes from UCSC "knownGenes.tsv"
-readUCSCGenes :: FilePath -> Source IO UCSCGene
+readUCSCGenes :: FilePath -> ConduitT i UCSCGene IO ()
 readUCSCGenes fl = do
     handle <- liftIO $ openFile fl ReadMode
     _ <- liftIO $ B.hGetLine handle   -- header
@@ -54,7 +54,7 @@ readUCSCGenes fl = do
 {-# INLINE readUCSCGenes #-}
 
 readUCSCGenes' :: FilePath -> IO [UCSCGene]
-readUCSCGenes' fl = readUCSCGenes fl $$ sinkList
+readUCSCGenes' fl = runConduit $ readUCSCGenes fl .| sinkList
 {-# INLINE readUCSCGenes' #-}
 
 readGeneFromLine :: B.ByteString -> UCSCGene

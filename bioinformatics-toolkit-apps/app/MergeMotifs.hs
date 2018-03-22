@@ -7,10 +7,8 @@ import           Control.Monad                     (forM, forM_)
 import qualified Data.ByteString.Char8             as B
 import           Data.Default
 import           Data.Double.Conversion.ByteString (toShortest)
-import           Data.List
 import           Data.List.Split                   (splitOn)
 import           Data.Monoid                       ((<>))
-import           Data.Ord
 {-
 import           Diagrams.Backend.Cairo
 import           Diagrams.Plots.Dendrogram
