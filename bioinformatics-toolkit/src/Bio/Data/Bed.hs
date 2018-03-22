@@ -183,19 +183,19 @@ intersectSortedBed (Sorted b) = filterC (not . IM.null . intersecting tree)
 {-# INLINE intersectSortedBed #-}
 
 intersectBedWith :: (BEDLike b1, BEDLike b2, Monad m)
-                 => ([b2] -> a)
+                 => (b1 -> [b2] -> a)
                  -> [b2]
-                 -> ConduitT b1 (b1, a) m ()
+                 -> ConduitT b1 a m ()
 intersectBedWith fn = intersectSortedBedWith fn . sortBed
 {-# INLINE intersectBedWith #-}
 
 intersectSortedBedWith :: (BEDLike b1, BEDLike b2, Monad m)
-                       => ([b2] -> a)
+                       => (b1 -> [b2] -> a)
                        -> Sorted (V.Vector b2)
-                       -> ConduitT b1 (b1, a) m ()
-intersectSortedBedWith fn (Sorted b) = mapC f
+                       -> ConduitT b1 a m ()
+intersectSortedBedWith fn (Sorted b) = mapC $ \input -> fn input
+    $ concat $ IM.elems $ intersecting tree input
   where
-    f bed = (bed, fn $ concat $ IM.elems $ intersecting tree bed)
     tree = sortedBedToTree (++) $ Sorted $ V.map (\x -> (x, [x])) b
 {-# INLINE intersectSortedBedWith #-}
 
