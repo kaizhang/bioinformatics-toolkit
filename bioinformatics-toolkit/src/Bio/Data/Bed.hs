@@ -12,6 +12,8 @@ module Bio.Data.Bed
     , npQvalue
     , npPeak
     , BEDExt(..)
+    , _bed
+    , _data
 
     , BEDTree
     , bedToTree
@@ -70,7 +72,7 @@ import qualified Data.Vector.Algorithms.Intro as I
 import           System.IO
 
 import           Bio.Data.Bed.Types
-import Bio.Motif (Motif(..), Bkgd(..))
+import           Bio.Motif                    (Bkgd (..), Motif (..))
 import qualified Bio.Motif                    as Motif
 import qualified Bio.Motif.Search             as Motif
 import           Bio.Seq
