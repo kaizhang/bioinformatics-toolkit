@@ -1,7 +1,25 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Bio.Data.Bed.Types where
+module Bio.Data.Bed.Types
+    ( BEDLike(..)
+    , BEDConvert(..)
+    , BED(..)
+    , BED3(..)
+    , NarrowPeak(..)
+    , npSignal
+    , npPvalue
+    , npQvalue
+    , npPeak
+    , BroadPeak(..)
+    , bpSignal
+    , bpPvalue
+    , bpQvalue
+    , BEDExt(..)
+    , _bed
+    , _data
+    , BEDTree
+    ) where
 
 import           Control.Lens
 import qualified Data.ByteString.Char8             as B
@@ -14,6 +32,20 @@ import           Data.Maybe                        (fromJust, fromMaybe)
 import           Data.Monoid                       ((<>))
 
 import           Bio.Utils.Misc                    (readDouble, readInt)
+
+readDoubleNonnegative :: B.ByteString -> Maybe Double
+readDoubleNonnegative x | v < 0 = Nothing
+                      | otherwise = Just v
+  where
+    v = readDouble x
+{-# INLINE readDoubleNonnegative #-}
+
+readIntNonnegative :: B.ByteString -> Maybe Int
+readIntNonnegative x | v < 0 = Nothing
+                   | otherwise = Just v
+  where
+    v = readInt x
+{-# INLINE readIntNonnegative #-}
 
 -- | A class representing BED-like data, e.g., BED3, BED6 and BED12. BED format
 -- uses 0-based index (see documentation).
@@ -177,9 +209,9 @@ instance BEDConvert NarrowPeak where
         (readDouble e)
         (if f == "." then Nothing else if f == "+" then Just True else Just False)
         (readDouble g)
-        (if readDouble h < 0 then Nothing else Just $ readDouble h)
-        (if readDouble i < 0 then Nothing else Just $ readDouble i)
-        (if readInt j < 0 then Nothing else Just $ readInt j)
+        (readDoubleNonnegative h)
+        (readDoubleNonnegative i)
+        (readIntNonnegative j)
       where
         (a:b:c:d:e:f:g:h:i:j:_) = B.split '\t' l
     {-# INLINE fromLine #-}
@@ -199,6 +231,62 @@ instance BEDConvert NarrowPeak where
 
     convert bed = NarrowPeak (bed^.chrom) (bed^.chromStart) (bed^.chromEnd) (bed^.name)
         (fromMaybe 0 $ bed^.score) (bed^.strand) 0 Nothing Nothing Nothing
+
+-- | ENCODE broadPeak format: https://genome.ucsc.edu/FAQ/FAQformat.html#format13
+data BroadPeak = BroadPeak
+    { _bpChrom  :: !B.ByteString
+    , _bpStart  :: !Int
+    , _bpEnd    :: !Int
+    , _bpName   :: !(Maybe B.ByteString)
+    , _bpScore  :: !Double
+    , _bpStrand :: !(Maybe Bool)
+    , _bpSignal  :: !Double
+    , _bpPvalue :: !(Maybe Double)
+    , _bpQvalue :: !(Maybe Double)
+    } deriving (Eq, Show, Read)
+
+makeLensesFor [ ("_bpSignal", "bpSignal")
+              , ("_bpPvalue", "bpPvalue")
+              , ("_bpQvalue", "bpQvalue")
+              ] ''BroadPeak
+
+instance BEDLike BroadPeak where
+    chrom = lens _bpChrom (\bed x -> bed { _bpChrom = x })
+    chromStart = lens _bpStart (\bed x -> bed { _bpStart = x })
+    chromEnd = lens _bpEnd (\bed x -> bed { _bpEnd = x })
+    name = lens _bpName (\bed x -> bed { _bpName = x })
+    score = lens (Just . _bpScore) (\bed x -> bed { _bpScore = fromJust x })
+    strand = lens _bpStrand (\bed x -> bed { _bpStrand = x })
+
+instance BEDConvert BroadPeak where
+    asBed chr s e = BroadPeak chr s e Nothing 0 Nothing 0 Nothing Nothing
+
+    fromLine l = BroadPeak a (readInt b) (readInt c)
+        (if d == "." then Nothing else Just d)
+        (readDouble e)
+        (if f == "." then Nothing else if f == "+" then Just True else Just False)
+        (readDouble g)
+        (readDoubleNonnegative h)
+        (readDoubleNonnegative i)
+      where
+        (a:b:c:d:e:f:g:h:i:_) = B.split '\t' l
+    {-# INLINE fromLine #-}
+
+    toLine (BroadPeak a b c d e f g h i) = B.intercalate "\t"
+        [ a, fromJust $ packDecimal b, fromJust $ packDecimal c, fromMaybe "." d
+        , toShortest e
+        , case f of
+            Nothing   -> "."
+            Just True -> "+"
+            _         -> "-"
+        , toShortest g, fromMaybe "-1" $ fmap toShortest h
+        , fromMaybe "-1" $ fmap toShortest i
+        ]
+    {-# INLINE toLine #-}
+
+    convert bed = BroadPeak (bed^.chrom) (bed^.chromStart) (bed^.chromEnd) (bed^.name)
+        (fromMaybe 0 $ bed^.score) (bed^.strand) 0 Nothing Nothing
+
 
 data BEDExt bed a = BEDExt
     { _ext_bed :: bed
