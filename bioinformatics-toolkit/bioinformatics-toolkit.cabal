@@ -31,6 +31,7 @@ library
     Bio.Data.Bed.Types
     Bio.Data.Bam
     Bio.Data.Fasta
+    Bio.Data.Fastq
     Bio.GO
     Bio.GO.Parser
     Bio.Motif

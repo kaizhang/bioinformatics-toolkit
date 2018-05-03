@@ -35,14 +35,14 @@ import           Bio.Utils.Misc                    (readDouble, readInt)
 
 readDoubleNonnegative :: B.ByteString -> Maybe Double
 readDoubleNonnegative x | v < 0 = Nothing
-                      | otherwise = Just v
+                        | otherwise = Just v
   where
     v = readDouble x
 {-# INLINE readDoubleNonnegative #-}
 
 readIntNonnegative :: B.ByteString -> Maybe Int
 readIntNonnegative x | v < 0 = Nothing
-                   | otherwise = Just v
+                     | otherwise = Just v
   where
     v = readInt x
 {-# INLINE readIntNonnegative #-}
