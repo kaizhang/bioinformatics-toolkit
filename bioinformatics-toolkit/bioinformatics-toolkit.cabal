@@ -44,6 +44,7 @@ library
     Bio.RealWorld.GENCODE
     Bio.RealWorld.ID
     Bio.RealWorld.UCSC
+    Bio.RealWorld.Uniprot
     Bio.Seq
     Bio.Seq.IO
     Bio.Utils.Functions

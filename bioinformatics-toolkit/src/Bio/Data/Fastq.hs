@@ -1,6 +1,7 @@
 module Bio.Data.Fastq
     ( Fastq(..)
     , parseFastqC
+    , parseFastqUnsafeC
     , fastqToByteString
     , trimPolyA
     ) where
@@ -43,9 +44,31 @@ parseFastqC = linesUnboundedAsciiC .| conduit
             Just x  -> yield x >> conduit
 {-# INLINE parseFastqC #-}
 
+parseFastqUnsafeC :: Monad m => ConduitT B.ByteString Fastq m ()
+parseFastqUnsafeC = linesUnboundedAsciiC .| conduit
+  where
+    conduit = do
+        l1 <- await
+        l2 <- await
+        l3 <- await
+        l4 <- await
+        case mkFastqRecordUnsafe <$> l1 <*> l2 <*> l3 <*> l4 of
+            Nothing -> when (isJust l1) $ error "file ends prematurely"
+            Just x  -> yield x >> conduit
+{-# INLINE parseFastqUnsafeC #-}
+
 fastqToByteString :: Fastq -> [B.ByteString]
 fastqToByteString (Fastq a b c d) = ['@' `B.cons` a, b, '+' `B.cons` c, d]
 {-# INLINE fastqToByteString #-}
+
+-- | Make Fastq record from Bytestrings, without sanity check.
+mkFastqRecordUnsafe :: B.ByteString   -- ^ First line
+                    -> B.ByteString   -- ^ Second line
+                    -> B.ByteString   -- ^ Third line
+                    -> B.ByteString   -- ^ Fourth line
+                    -> Fastq
+mkFastqRecordUnsafe l1 l2 l3 l4 = Fastq (B.tail l1) l2 (B.tail l3) l4
+{-# INLINE mkFastqRecordUnsafe #-}
 
 mkFastqRecord :: B.ByteString   -- ^ First line
               -> B.ByteString   -- ^ Second line
