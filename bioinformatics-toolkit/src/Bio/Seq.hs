@@ -49,9 +49,11 @@ newtype Peptide alphabet = Peptide B.ByteString
 instance Show (DNA a) where
     show (DNA s) = B.unpack s
 
+instance Semigroup (DNA a) where
+    (<>) (DNA x) (DNA y) = DNA (x <> y)
+
 instance Monoid (DNA a) where
     mempty = DNA B.empty
-    mappend (DNA x) (DNA y) = DNA (x `mappend` y)
     mconcat dnas = DNA . B.concat . map toBS $ dnas
 
 class BioSeq' s where

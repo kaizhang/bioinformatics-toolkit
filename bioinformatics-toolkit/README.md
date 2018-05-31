@@ -1,2 +1,2 @@
-the-bioinformatician-s-toolkit
-==============================
+Bioinformatics Algorithms
+=========================

@@ -35,6 +35,7 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
+import Data.Semigroup (Semigroup(..))
 import Network.HTTP.Conduit
 import Data.Default.Class
 
@@ -54,9 +55,8 @@ instance Show KeyWords where
         g y' | S.null y' = ""
              | otherwise =  foldr1 (\a b -> b ++ ('&':a)) y'
 
-instance Monoid KeyWords where
-    mempty = KeyWords S.empty S.empty
-    mappend (KeyWords a b) (KeyWords a' b') = KeyWords (a S.>< a') (b S.>< b')
+instance Semigroup KeyWords where
+    (<>) (KeyWords a b) (KeyWords a' b') = KeyWords (a S.>< a') (b S.>< b')
 
 base :: String
 base = "https://www.encodeproject.org/"

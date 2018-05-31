@@ -9,8 +9,6 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.HashMap.Strict   as M
 import           Network.HTTP.Conduit
 
-import           Bio.RealWorld.ID
-
 base :: String
 base = "http://www.uniprot.org/uploadlists/"
 
