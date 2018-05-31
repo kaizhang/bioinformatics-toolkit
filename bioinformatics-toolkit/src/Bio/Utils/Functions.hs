@@ -17,12 +17,13 @@ module Bio.Utils.Functions (
 ) where
 
 import Data.Bits (shiftR)
-import Data.List (foldl')
+import Data.List (foldl', groupBy)
+import Data.Function (on)
 import Data.Ord (comparing)
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Unboxed as U
-import qualified Data.Matrix.Unboxed as MU
+import qualified Data.Matrix as M
 import Statistics.Sample (meanVarianceUnb, mean)
 import Statistics.Function (sortBy)
 
@@ -155,19 +156,18 @@ cdf xs = let f = empiricalCDF xs
 -}
 
 -- | Columns are samples, rows are features / genes.
--- TODO: handle ties.
-quantileNormalization :: MU.Matrix Double -> MU.Matrix Double
-quantileNormalization mat = fromColumns $
-    map (snd . (U.unzip :: U.Vector (Int, Double) -> (U.Vector Int, U.Vector Double)) . sortBy (comparing fst)) $ MU.toColumns $
-    fromRows $ map f $ MU.toRows $ fromColumns $
-    map (sortBy (comparing snd) . U.zip (U.enumFromN 0 n)) $ MU.toColumns mat
+quantileNormalization :: M.Matrix Double -> M.Matrix Double
+quantileNormalization mat = M.fromColumns $ map
+    (fst . G.unzip . sortBy (comparing snd) . G.fromList . concatMap f .
+    groupBy ((==) `on` (snd . snd)) . zip averages . G.toList) $
+    M.toColumns srtMat
   where
-    n = MU.rows mat
-    f xs = let m = mean $ snd $ U.unzip xs
-           in U.map (\(i,_) -> (i,m)) xs
-
-fromRows :: U.Unbox a => [U.Vector a] -> MU.Matrix a
-fromRows = MU.fromRows
-
-fromColumns :: U.Unbox a => [U.Vector a] -> MU.Matrix a
-fromColumns = MU.fromColumns
+    f [(a,(b,c))] = [(a,b)]
+    f xs = let m = mean $ U.fromList $ fst $ unzip xs
+           in map (\(_,(i,_)) -> (m, i)) xs
+    srtMat :: M.Matrix (Int, Double)
+    srtMat = M.fromColumns $ map (sortBy (comparing snd) . G.zip (G.enumFromN 0 n)) $
+        M.toColumns mat
+    averages = map (mean . snd . G.unzip) $ M.toRows srtMat
+    n = M.rows mat
+{-# INLINE quantileNormalization #-}
