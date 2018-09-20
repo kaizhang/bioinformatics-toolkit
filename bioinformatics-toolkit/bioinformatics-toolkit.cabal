@@ -43,6 +43,7 @@ library
     Bio.RealWorld.Ensembl
     Bio.RealWorld.GENCODE
     Bio.RealWorld.ID
+    Bio.RealWorld.Reactome
     Bio.RealWorld.UCSC
     Bio.RealWorld.Uniprot
     Bio.Seq
