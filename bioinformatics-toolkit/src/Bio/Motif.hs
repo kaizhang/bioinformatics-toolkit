@@ -49,6 +49,7 @@ import qualified Data.Vector.Unboxed.Mutable       as UM
 import           Numeric.MathFunctions.Constants   (m_epsilon)
 import           Prelude                           hiding (sum)
 import           Text.Printf                       (printf)
+import Statistics.Function (minMax)
 
 import           Bio.Seq
 import           Bio.Utils.Functions               (binarySearchBy)
@@ -270,44 +271,44 @@ truncateCDF :: Double -> CDF -> CDF
 truncateCDF x (CDF v) = CDF $ U.filter ((>=x) . snd) v
 {-# INLINE truncateCDF #-}
 
--- | Approximate the cdf of motif matching scores
+-- | Approximate the cdf of motif matching scores using dynamic programming.
+-- Algorithm:
+-- Scan the PWM from left to right. For each position $i$, compute a score
+-- density function $s_i$ such that $s_i(x)$ is the total number of sequences
+-- with score $x$.
 scoreCDF :: Bkgd -> PWM -> CDF
 scoreCDF (BG (a,c,g,t)) pwm = toCDF $ loop (U.singleton 1, const 0) 0
   where
     loop (prev,scFn) i
-        | i < n =
-            let (lo,hi) = minMax (1/0,-1/0) 0
-                nBin' = min 200000 $ ceiling $ (hi - lo) / precision
-                step = (hi - lo) / fromIntegral nBin'
-                idx x = let j = truncate $ (x - lo) / step
-                        in if j >= nBin' then nBin' - 1 else j
-                v = U.create $ do
+        | i >= n = (prev, scFn)
+        | lo < hi =
+            let v = U.create $ do
                     new <- UM.replicate nBin' 0
-                    flip U.imapM_ prev $ \x p ->
-                        when (p /= 0) $ do
-                            let idx_a = idx $ sc + log' (M.unsafeIndex (_mat pwm) (i,0)) - log a
-                                idx_c = idx $ sc + log' (M.unsafeIndex (_mat pwm) (i,1)) - log c
-                                idx_g = idx $ sc + log' (M.unsafeIndex (_mat pwm) (i,2)) - log g
-                                idx_t = idx $ sc + log' (M.unsafeIndex (_mat pwm) (i,3)) - log t
-                                sc = scFn x
-                            new `UM.read` idx_a >>= UM.write new idx_a . (a * p + )
-                            new `UM.read` idx_c >>= UM.write new idx_c . (c * p + )
-                            new `UM.read` idx_g >>= UM.write new idx_g . (g * p + )
-                            new `UM.read` idx_t >>= UM.write new idx_t . (t * p + )
+                    flip U.imapM_ prev $ \x prob ->
+                        when (prob /= 0) $ do
+                            let sc = scFn x
+                            UM.modify new (a * prob +) $ getIdx $ sc + a_at i
+                            UM.modify new (c * prob +) $ getIdx $ sc + c_at i
+                            UM.modify new (g * prob +) $ getIdx $ sc + g_at i
+                            UM.modify new (t * prob +) $ getIdx $ sc + t_at i
                     return new
             in loop (v, \x -> (fromIntegral x + 0.5) * step + lo) (i+1)
-        | otherwise = (prev, scFn)
+        | otherwise = loop (prev, scFn) (i+1)
       where
-        minMax (l,h) x
-            | x >= U.length prev = (l,h)
-            | prev U.! x /= 0 =
-                let sc = scFn x
-                    s1 = sc + log' (M.unsafeIndex (_mat pwm) (i,0)) - log a
-                    s2 = sc + log' (M.unsafeIndex (_mat pwm) (i,1)) - log c
-                    s3 = sc + log' (M.unsafeIndex (_mat pwm) (i,2)) - log g
-                    s4 = sc + log' (M.unsafeIndex (_mat pwm) (i,3)) - log t
-                 in minMax (foldr min l [s1,s2,s3,s4],foldr max h [s1,s2,s3,s4]) (x+1)
-            | otherwise = minMax (l,h) (x+1)
+        getIdx x = let j = truncate $ (x - lo) / step
+                   in if j >= nBin' then nBin' - 1 else j
+        lo = lo' + min'
+        hi = hi' + max'
+        nBin' = min 200000 $ ceiling $ (hi - lo) / precision
+        step = (hi - lo) / fromIntegral nBin'
+        lo' = scFn $ fst . U.head $ U.dropWhile ((==0) . snd) $ U.indexed prev
+        hi' = scFn $ fst . U.head $ U.dropWhile ((==0) . snd) $ U.reverse $
+            U.indexed prev
+        (min', max') = minMax $ U.fromList [a_at i, c_at i, g_at i, t_at i]
+    a_at i = log' (M.unsafeIndex (_mat pwm) (i,0)) - log a
+    c_at i = log' (M.unsafeIndex (_mat pwm) (i,1)) - log c
+    g_at i = log' (M.unsafeIndex (_mat pwm) (i,2)) - log g
+    t_at i = log' (M.unsafeIndex (_mat pwm) (i,3)) - log t
     toCDF (v, scFn) = CDF $ compressCDF $ U.imap (\i x -> (scFn i, x)) $ U.scanl1 (+) v
     compressCDF v = U.ifilter f v
       where
@@ -315,7 +316,7 @@ scoreCDF (BG (a,c,g,t)) pwm = toCDF $ loop (U.singleton 1, const 0) 0
         f i (_, x) | i == 0 || i == len = True
                    | otherwise = x - snd (v `U.unsafeIndex` (i-1)) > m_epsilon ||
                         snd (v `U.unsafeIndex` (i+1)) - x > m_epsilon
-    precision = 1e-4
+    precision = 1e-5
     n = size pwm
     log' x | x == 0 = log 0.001
            | otherwise = log x

@@ -31,7 +31,10 @@ dna = case fromBS (B.pack $ map f $ take 5000 $ randomRs (0, 3) (mkStdGen 2)) of
         _ -> undefined
 
 motifs :: IO [Motif]
-motifs = readFasta' "tests/data/motifs.fasta"
+motifs = do
+    m1 <- readFasta' "tests/data/motifs.fasta"
+    m2 <- readMEME "tests/data/motifs.meme"
+    return $ m1 ++ m2
 
 tests :: TestTree
 tests = testGroup "Test: Bio.Motif"
