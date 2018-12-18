@@ -5,11 +5,15 @@ module Bio.Data.Bam
     , withBamFile
     , readBam
     , writeBam
+    , bamToBedC
     , bamToBed
+    , bamToFastqC
+    , bamToFastq
     , sortedBamToBedPE
     ) where
 
 import           Bio.Data.Bed
+import           Bio.Data.Fastq
 import           Bio.HTS
 import           Bio.HTS.Types        (Bam, FileHeader (..))
 import           Conduit
@@ -17,9 +21,14 @@ import           Control.Lens         ((&), (.~))
 import           Control.Monad.Reader (ask, lift)
 
 -- | Convert bam record to bed record. Unmapped reads will be discarded.
-bamToBed :: ConduitT Bam BED HeaderState ()
-bamToBed = mapMC bamToBed1 .| concatC
-{-# INLINE bamToBed #-}
+bamToBedC :: ConduitT Bam BED HeaderState ()
+bamToBedC = mapMC bamToBed .| concatC
+{-# INLINE bamToBedC #-}
+
+-- | Convert bam record to fastq record.
+bamToFastqC :: Monad m => ConduitT Bam Fastq m ()
+bamToFastqC = mapC bamToFastq .| concatC
+{-# INLINE bamToFastqC #-}
 
 -- | Convert pairedend bam file to bed. the bam file must be sorted by names,
 -- e.g., using "samtools sort -n". This condition is checked from Bam header.
@@ -42,8 +51,8 @@ sortedBamToBedPE = do
             Just (bam1, bam2) -> if qName bam1 /= qName bam2
                 then error "Adjacent records have different query names. Aborted."
                 else do
-                    bed1 <- lift $ bamToBed1 bam1
-                    bed2 <- lift $ bamToBed1 bam2
+                    bed1 <- lift $ bamToBed bam1
+                    bed2 <- lift $ bamToBed bam2
                     yield $ (,) <$> bed1 <*> bed2
                     loopBedPE
       where
@@ -52,8 +61,8 @@ sortedBamToBedPE = do
 {-# INLINE sortedBamToBedPE #-}
 
 
-bamToBed1 :: Bam -> HeaderState (Maybe BED)
-bamToBed1 bam = do
+bamToBed :: Bam -> HeaderState (Maybe BED)
+bamToBed bam = do
     BamHeader hdr <- lift ask
     return $
         (\chr -> asBed chr start end & name .~ nm & score .~ sc & strand .~ str)
@@ -64,4 +73,8 @@ bamToBed1 bam = do
     nm = Just $ qName bam
     str = Just $ not $ isRev bam
     sc = Just $ fromIntegral $ mapq bam
-{-# INLINE bamToBed1 #-}
+{-# INLINE bamToBed #-}
+
+bamToFastq :: Bam -> Maybe Fastq
+bamToFastq bam = Fastq (qName bam) <$> getSeq bam <*> return mempty <*> qualityS bam
+{-# INLINE bamToFastq #-}

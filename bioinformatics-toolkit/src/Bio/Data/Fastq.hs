@@ -1,8 +1,10 @@
+{-# LANGUAGE LambdaCase #-}
 module Bio.Data.Fastq
     ( Fastq(..)
     , parseFastqC
     , parseFastqUnsafeC
     , fastqToByteString
+    , qualitySummary
     , trimPolyA
     ) where
 
@@ -31,6 +33,7 @@ data Fastq = Fastq
     , fastqSeqQual :: B.ByteString
     } deriving (Show, Eq)
 
+-- | Parse Fastq record from Bytestrings.
 parseFastqC :: Monad m => ConduitT B.ByteString Fastq m ()
 parseFastqC = linesUnboundedAsciiC .| conduit
   where
@@ -44,6 +47,7 @@ parseFastqC = linesUnboundedAsciiC .| conduit
             Just x  -> yield x >> conduit
 {-# INLINE parseFastqC #-}
 
+-- | Parse Fastq record from Bytestrings, without sanity check.
 parseFastqUnsafeC :: Monad m => ConduitT B.ByteString Fastq m ()
 parseFastqUnsafeC = linesUnboundedAsciiC .| conduit
   where
@@ -60,6 +64,28 @@ parseFastqUnsafeC = linesUnboundedAsciiC .| conduit
 fastqToByteString :: Fastq -> [B.ByteString]
 fastqToByteString (Fastq a b c d) = ['@' `B.cons` a, b, '+' `B.cons` c, d]
 {-# INLINE fastqToByteString #-}
+
+qualitySummary :: Monad m => ConduitT Fastq o m [(Double, Double)]
+qualitySummary = mapC (map fromIntegral . decodeQualSc) .| meanVarianceC
+
+meanVarianceC :: Monad m => ConduitT [Double] o m [(Double, Double)]
+meanVarianceC = peekC >>= \case
+    Nothing -> error "Empty input"
+    Just x -> fst <$> foldlC f (replicate (length x) (0,0), 0)
+  where
+    f (acc, n) xs = let acc' = zipWith g acc xs in (acc', n')
+      where
+        n' = n + 1
+        g (m, s) x = (m', s')
+          where
+            m' = m + d / fromIntegral n'
+            s' = s + d * (x - m')
+            d  = x - m
+{-# INLINE meanVarianceC #-}
+
+decodeQualSc :: Fastq -> [Int]
+decodeQualSc = map (fromIntegral . (\x -> x - 33)) . BS.unpack .fastqSeqQual
+{-# INLINE decodeQualSc #-}
 
 -- | Make Fastq record from Bytestrings, without sanity check.
 mkFastqRecordUnsafe :: B.ByteString   -- ^ First line
