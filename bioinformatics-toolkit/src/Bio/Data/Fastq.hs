@@ -65,6 +65,7 @@ fastqToByteString :: Fastq -> [B.ByteString]
 fastqToByteString (Fastq a b c d) = ['@' `B.cons` a, b, '+' `B.cons` c, d]
 {-# INLINE fastqToByteString #-}
 
+-- | Get the mean and variance of quality scores at every position.
 qualitySummary :: Monad m => ConduitT Fastq o m [(Double, Double)]
 qualitySummary = mapC (map fromIntegral . decodeQualSc) .| meanVarianceC
 
@@ -86,6 +87,10 @@ meanVarianceC = peekC >>= \case
 decodeQualSc :: Fastq -> [Int]
 decodeQualSc = map (fromIntegral . (\x -> x - 33)) . BS.unpack .fastqSeqQual
 {-# INLINE decodeQualSc #-}
+
+pError :: Int -> Double
+pError x = 10 ** (negate (fromIntegral x) / 10)
+{-# INLINE pError #-}
 
 -- | Make Fastq record from Bytestrings, without sanity check.
 mkFastqRecordUnsafe :: B.ByteString   -- ^ First line

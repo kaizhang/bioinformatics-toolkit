@@ -43,6 +43,7 @@ library
     Bio.RealWorld.ENCODE
     Bio.RealWorld.Ensembl
     Bio.RealWorld.GENCODE
+    Bio.RealWorld.GDC
     Bio.RealWorld.ID
     Bio.RealWorld.Reactome
     Bio.RealWorld.UCSC
