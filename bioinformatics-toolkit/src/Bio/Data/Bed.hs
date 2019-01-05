@@ -25,7 +25,6 @@ module Bio.Data.Bed
     , splitBedBySize
     , splitBedBySizeLeft
     , splitBedBySizeOverlap
-    , Sorted(..)
     , sortBed
     , intersectBed
     , intersectBedWith
@@ -46,12 +45,6 @@ module Bio.Data.Bed
     , writeBed
     , writeBed'
 
-    -- * Utilities
-    , fetchSeq
-    , fetchSeq'
-    , motifScan
-    , getMotifScore
-    , getMotifPValue
     , compareBed
     ) where
 
@@ -65,18 +58,12 @@ import           Data.Function                (on)
 import qualified Data.HashMap.Strict          as M
 import qualified Data.IntervalMap.Strict      as IM
 import           Data.List                    (groupBy, sortBy)
-import           Data.Maybe                   (fromJust)
 import           Data.Ord                     (comparing)
 import qualified Data.Vector                  as V
 import qualified Data.Vector.Algorithms.Intro as I
 import           System.IO
 
 import           Bio.Data.Bed.Types
-import           Bio.Motif                    (Bkgd (..), Motif (..))
-import qualified Bio.Motif                    as Motif
-import qualified Bio.Motif.Search             as Motif
-import           Bio.Seq
-import           Bio.Seq.IO
 import           Bio.Utils.Misc               (binBySize, binBySizeLeft,
                                                binBySizeOverlap, bins)
 
@@ -149,9 +136,6 @@ splitBedBySizeOverlap :: BEDConvert b
 splitBedBySizeOverlap k o bed = map (uncurry (asBed (bed^.chrom))) $
     binBySizeOverlap k o (bed^.chromStart, bed^.chromEnd)
 {-# INLINE splitBedBySizeOverlap #-}
-
--- | a type to imply that underlying data structure is sorted
-newtype Sorted b = Sorted {fromSorted :: b} deriving (Show, Read, Eq)
 
 -- | Compare bed records using only the chromosome, start and end positions.
 -- Unlike the ``compare'' from the Ord type class, this function can compare
@@ -315,84 +299,3 @@ writeBed fl = do handle <- liftIO $ openFile fl WriteMode
 writeBed' :: (BEDConvert b, MonadIO m) => FilePath -> [b] -> m ()
 writeBed' fl beds = runConduit $ yieldMany beds .| writeBed fl
 {-# INLINE writeBed' #-}
-
--- | retreive sequences
-fetchSeq :: (BioSeq DNA a, MonadIO m)
-         => Genome
-         -> ConduitT BED (Either String (DNA a)) m ()
-fetchSeq g = mapMC f
-  where
-    f bed = do
-        dna <- liftIO $ getSeq g (bed^.chrom, bed^.chromStart, bed^.chromEnd)
-        return $ case bed^.strand of
-            Just False -> rc <$> dna
-            _          -> dna
-{-# INLINE fetchSeq #-}
-
-fetchSeq' :: (BioSeq DNA a, MonadIO m) => Genome -> [BED] -> m [Either String (DNA a)]
-fetchSeq' g beds = runConduit $ yieldMany beds .| fetchSeq g .| sinkList
-{-# INLINE fetchSeq' #-}
-
--- | Identify motif binding sites
-motifScan :: (BEDLike b, MonadIO m)
-          => Genome -> [Motif] -> Bkgd -> Double -> ConduitT b BED m ()
-motifScan g motifs bg p = awaitForever $ \bed -> do
-    r <- liftIO $ getSeq g (bed^.chrom, bed^.chromStart, bed^.chromEnd)
-    case r of
-        Left _    -> return ()
-        Right dna -> mapM_ (getTFBS dna (bed^.chrom, bed^.chromStart)) motifs'
-  where
-    getTFBS dna (chr, s) (nm, (pwm, cutoff), (pwm', cutoff')) = toProducer
-        ( (Motif.findTFBS bg pwm (dna :: DNA IUPAC) cutoff True .|
-            mapC (\i -> bed & chromStart +~ i & chromEnd +~ i & strand .~ Just True)) >>
-          (Motif.findTFBS bg pwm' dna cutoff' True .|
-            mapC (\i -> bed & chromStart +~ i & chromEnd +~ i & strand .~ Just False)) )
-      where
-        n = Motif.size pwm
-        bed = asBed chr s (s+n) & name .~ Just nm
-    motifs' = flip map motifs $ \(Motif nm pwm) ->
-        let cutoff = Motif.pValueToScore p bg pwm
-            cutoff' = Motif.pValueToScore p bg pwm'
-            pwm' = Motif.rcPWM pwm
-        in (nm, (pwm, cutoff), (pwm', cutoff'))
-{-# INLINE motifScan #-}
-
--- | Retrieve motif matching scores
-getMotifScore :: MonadIO m
-              => Genome -> [Motif] -> Bkgd -> ConduitT BED BED m ()
-getMotifScore g motifs bg = awaitForever $ \bed -> do
-    r <- liftIO $ getSeq g (bed^.chrom, bed^.chromStart, bed^.chromEnd)
-    let r' = case bed^.strand of
-            Just False -> rc <$> r
-            _          -> r
-    case r' of
-        Left _ -> return ()
-        Right dna -> do
-            let pwm = M.lookupDefault (error "can't find motif with given name")
-                        (fromJust $ bed^.name) motifMap
-                sc = Motif.score bg pwm (dna :: DNA IUPAC)
-            yield $ score .~ Just sc $ bed
-  where
-    motifMap = M.fromListWith (error "found motif with same name") $
-        map (\(Motif nm pwm) -> (nm, pwm)) motifs
-{-# INLINE getMotifScore #-}
-
-getMotifPValue :: Monad m
-               => Maybe Double   -- ^ whether to truncate the motif score CDF.
-                                 -- Doing this will significantly reduce memory
-                                 -- usage without sacrifice accuracy.
-               -> [Motif] -> Bkgd -> ConduitT BED BED m ()
-getMotifPValue truncation motifs bg = mapC $ \bed ->
-    let nm = fromJust $ bed^.name
-        sc = fromJust $ bed^.score
-        d = M.lookupDefault (error "can't find motif with given name")
-                nm motifMap
-        p = 1 - Motif.cdf d sc
-     in score .~ Just p $ bed
-  where
-    motifMap = M.fromListWith (error "getMotifPValue: found motif with same name") $
-        map (\(Motif nm pwm) -> (nm, compressCDF $ Motif.scoreCDF bg pwm)) motifs
-    compressCDF = case truncation of
-        Nothing -> id
-        Just x  -> Motif.truncateCDF x
-{-# INLINE getMotifPValue #-}

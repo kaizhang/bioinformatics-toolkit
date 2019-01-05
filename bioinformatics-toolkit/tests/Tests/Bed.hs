@@ -3,12 +3,19 @@
 module Tests.Bed (tests) where
 
 import           Bio.Data.Bed
+import           Bio.Data.Bed.Types
+import           Bio.Data.Bed.Utils
+import Bio.Utils.BitVector
+import Control.Lens
 import           Conduit
 import           Data.Function    (on)
-import           Data.List        (sortBy)
+import           Data.List        (sortBy, sort)
 import qualified Data.Vector      as V
 import           Test.Tasty
 import           Test.Tasty.HUnit
+import qualified Data.HashMap.Strict as M
+import Data.Ord
+import Data.Maybe
 
 tests :: TestTree
 tests = testGroup "Test: Bio.Data.Bed"
@@ -16,6 +23,7 @@ tests = testGroup "Test: Bio.Data.Bed"
     , testCase "split" splitBedTest
     , testCase "splitOverlapped" splitOverlappedTest
     , testCase "intersectBed" intersectBedTest
+    , testCase "baseMap" baseMapTest
     ]
 
 sortBedTest :: Assertion
@@ -67,5 +75,20 @@ intersectBedTest :: Assertion
 intersectBedTest = do
     expect <- readBed' "tests/data/example_intersect_peaks.bed" :: IO [BED3]
     peaks <- readBed' "tests/data/peaks.bed" :: IO [BED3]
-    result <- readBed "tests/data/example.bed" =$= intersectBed peaks $$ sinkList
+    result <- runConduit $ readBed "tests/data/example.bed" .| intersectBed peaks .| sinkList
     expect @=? result
+
+baseMapTest :: Assertion
+baseMapTest = do
+    bv <- runConduit $ readBed "tests/data/example.bed" .|
+        baseMap [("chr1", 300000000)]
+    let res = M.lookupDefault undefined "chr1" $ fmap (map fst . filter snd . zip [0..] . toList) bv
+    expect <- runConduit $ readBed "tests/data/example.bed" .| concatMapC f .| sinkList
+    sort expect @=? sort res
+  where
+    f :: BED -> Maybe Int
+    f bed = if bed^.chrom == "chr1"
+        then Just $ if fromJust (bed^.strand)
+            then bed^.chromStart
+            else bed^.chromEnd
+        else Nothing

@@ -32,7 +32,7 @@ bamToBedTest :: Assertion
 bamToBedTest = do
     bed <- readBed' "tests/data/example.bed"
     bed' <- withBamFile "tests/data/example.bam" $ \h ->
-        runConduit $ readBam h .| bamToBed .| sinkList
+        runConduit $ readBam h .| bamToBedC .| sinkList
     (bed == bed') @? "bamToBedTest"
 
 sortedBamToBedPETest :: Assertion

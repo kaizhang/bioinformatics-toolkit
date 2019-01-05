@@ -1,12 +1,12 @@
 name:                bioinformatics-toolkit
-version:             0.5.1
+version:             0.6.0-dev
 synopsis:            A collection of bioinformatics tools
 description:         A collection of bioinformatics tools
 license:             MIT
 license-file:        LICENSE
 author:              Kai Zhang
 maintainer:          kai@kzhang.org
-copyright:           (c) 2014-2018 Kai Zhang
+copyright:           (c) 2014-2019 Kai Zhang
 category:            Bio
 build-type:          Simple
 extra-source-files:  README.md
@@ -26,10 +26,10 @@ library
   ghc-options: -Wall
 
   exposed-modules:
-    Bio.ChIPSeq
     Bio.ChIPSeq.FragLen
     Bio.Data.Bed
     Bio.Data.Bed.Types
+    Bio.Data.Bed.Utils
     Bio.Data.Bam
     Bio.Data.Fasta
     Bio.Data.Fastq
@@ -50,6 +50,7 @@ library
     Bio.RealWorld.Uniprot
     Bio.Seq
     Bio.Seq.IO
+    Bio.Utils.BitVector
     Bio.Utils.Functions
     Bio.Utils.Misc
     Bio.Utils.Overlap
@@ -111,7 +112,6 @@ test-suite tests
   other-modules:
       Tests.Bed
     , Tests.Bam
-    , Tests.ChIPSeq
     , Tests.Motif
     , Tests.Seq
     , Tests.Tools
@@ -123,6 +123,7 @@ test-suite tests
     , random
     , vector
     , data-default-class
+    , lens
     , tasty
     , tasty-golden
     , tasty-hunit

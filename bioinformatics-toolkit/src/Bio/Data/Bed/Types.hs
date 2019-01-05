@@ -19,6 +19,7 @@ module Bio.Data.Bed.Types
     , _bed
     , _data
     , BEDTree
+    , Sorted(..)
     ) where
 
 import           Control.Lens
@@ -314,3 +315,6 @@ instance (Default a, Read a, Show a, BEDConvert bed) => BEDConvert (BEDExt bed a
     {-# INLINE toLine #-}
 
 type BEDTree a = M.HashMap B.ByteString (IM.IntervalMap Int a)
+
+-- | a type to imply that underlying data structure is sorted
+newtype Sorted b = Sorted {fromSorted :: b} deriving (Show, Read, Eq)

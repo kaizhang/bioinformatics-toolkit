@@ -7,13 +7,8 @@ module Bio.RealWorld.Reactome
 
 import Data.Aeson
 import GHC.Generics (Generic)
-import           Conduit
 import qualified Data.Text as T
-import qualified Data.ByteString.Char8 as B
-import qualified Data.HashMap.Strict   as M
 import           Network.HTTP.Simple
-
-import           Bio.RealWorld.ID
 
 base :: String
 base = "https://reactome.org/ContentService"
