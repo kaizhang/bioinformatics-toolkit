@@ -9,7 +9,9 @@ module Bio.Data.Bed.Utils
     , getMotifScore
     , getMotifPValue
     , monoColonalize
+    , BaseMap
     , baseMap
+    , queryBaseMap
     , rpkmBed
     , rpkmSortedBed
     , countTagsBinBed
@@ -139,10 +141,12 @@ monoColonalize = do
         _ -> if prev^.strand == cur^.strand then (cur, []) else (cur, [cur])
 {-# INLINE monoColonalize #-}
 
+newtype BaseMap = BaseMap (M.HashMap B.ByteString BV.BitVector)
+
 -- | Count the tags (starting positions) at each position in the genome.
 baseMap :: PrimMonad m
         => [(B.ByteString, Int)]   -- ^ chromosomes and their sizes
-        -> ConduitT BED o m (M.HashMap B.ByteString BV.BitVector)
+        -> ConduitT BED o m BaseMap
 baseMap chrs = do
     bvs <- lift $ fmap M.fromList $ forM chrs $ \(chr, n) -> do
         bv <- BV.zeros n
@@ -154,7 +158,16 @@ baseMap chrs = do
             then BV.set bv $ bed^.chromStart
             else BV.set bv $ bed^.chromEnd
 
-    lift $ sequence $ fmap BV.unsafeFreeze bvs 
+    lift $ fmap BaseMap $ sequence $ fmap BV.unsafeFreeze bvs 
+
+queryBaseMap :: BEDLike b => b -> BaseMap -> Maybe [Bool]
+queryBaseMap bed (BaseMap bm) = case M.lookup (bed^.chrom) bm of
+    Nothing -> Nothing
+    Just bv ->
+        let res = map (bv BV.!) [bed^.chromStart .. bed^.chromEnd - 1]
+        in case bed^.strand of
+            Just False -> Just $ reverse res
+            _ -> Just res
 
 -- | calculate RPKM on a set of unique regions. Regions (in bed format) would be kept in
 -- memory but not tag file.

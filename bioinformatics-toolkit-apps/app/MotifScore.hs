@@ -1,6 +1,7 @@
 module Main where
 
 import           Bio.Data.Bed
+import           Bio.Data.Bed.Utils
 import           Bio.Motif
 import           Bio.Seq.IO
 import           Conduit
