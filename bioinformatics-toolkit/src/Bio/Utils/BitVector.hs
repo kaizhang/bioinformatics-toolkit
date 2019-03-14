@@ -15,6 +15,7 @@ import Control.Monad.Primitive
 import qualified Data.Vector.Unboxed.Mutable as UM
 import Data.Word
 import Data.Bits
+import Text.Printf (printf)
 
 data BitVector = BitVector Int (U.Vector Word8)
 
@@ -27,7 +28,9 @@ size (BitVector n _) = n
 (!) = index
 
 index :: BitVector -> Int -> Bool
-index (BitVector _ v) i = testBit (v U.! m) n
+index (BitVector n v) i
+    | i >= n = error $ printf "index out of bounds (%d,%d)" i n
+    | otherwise = testBit (v `U.unsafeIndex` m) n
   where
     m = i `div` 8
     n = i `mod` 8
