@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Bio.Data.Fastq
     ( Fastq(..)
     , parseFastqC
@@ -47,8 +48,8 @@ fastqParser = do
     return $ Fastq ident sequence score
 {-# INLINE fastqParser #-}
 
-fastqToByteString :: Fastq -> [B.ByteString]
-fastqToByteString (Fastq a b c) = ['@' `B.cons` a, b, '+' `B.cons` a, c]
+fastqToByteString :: Fastq -> B.ByteString
+fastqToByteString (Fastq a b c) = "@" <> a <> "\n" <> b <> "\n+\n" <> c
 {-# INLINE fastqToByteString #-}
 
 -- | Get the mean and variance of quality scores at every position.
