@@ -60,11 +60,13 @@ library
       base >=4.11 && <5.0
     , aeson
     , aeson-pretty
+    , attoparsec
     , bytestring >=0.10
     , bytestring-lexing >=0.5
     , case-insensitive
     , clustering
     , conduit >=1.3.0
+    , conduit-extra
     , containers >=0.5
     , data-ordlist
     , data-default-class

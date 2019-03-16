@@ -2,7 +2,6 @@
 module Bio.Data.Fastq
     ( Fastq(..)
     , parseFastqC
-    , parseFastqUnsafeC
     , fastqToByteString
     , qualitySummary
     , trimPolyA
@@ -11,8 +10,11 @@ module Bio.Data.Fastq
 import           Conduit
 import           Control.Monad         (when)
 import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as BS
 import           Data.Maybe            (isJust)
+import Data.Attoparsec.ByteString
+import Data.Conduit.Attoparsec
 
 -- | A FASTQ file normally uses four lines per sequence.
 --
@@ -29,40 +31,24 @@ import           Data.Maybe            (isJust)
 data Fastq = Fastq
     { fastqSeqId   :: B.ByteString
     , fastqSeq     :: B.ByteString
-    , fastqSeqInfo :: B.ByteString
     , fastqSeqQual :: B.ByteString
     } deriving (Show, Eq)
 
--- | Parse Fastq record from Bytestrings.
-parseFastqC :: Monad m => ConduitT B.ByteString Fastq m ()
-parseFastqC = linesUnboundedAsciiC .| conduit
-  where
-    conduit = do
-        l1 <- await
-        l2 <- await
-        l3 <- await
-        l4 <- await
-        case mkFastqRecord <$> l1 <*> l2 <*> l3 <*> l4 of
-            Nothing -> when (isJust l1) $ error "file ends prematurely"
-            Just x  -> yield x >> conduit
+parseFastqC :: MonadThrow m => ConduitT B.ByteString Fastq m ()
+parseFastqC = conduitParser fastqParser .| mapC snd
 {-# INLINE parseFastqC #-}
 
--- | Parse Fastq record from Bytestrings, without sanity check.
-parseFastqUnsafeC :: Monad m => ConduitT B.ByteString Fastq m ()
-parseFastqUnsafeC = linesUnboundedAsciiC .| conduit
-  where
-    conduit = do
-        l1 <- await
-        l2 <- await
-        l3 <- await
-        l4 <- await
-        case mkFastqRecordUnsafe <$> l1 <*> l2 <*> l3 <*> l4 of
-            Nothing -> when (isJust l1) $ error "file ends prematurely"
-            Just x  -> yield x >> conduit
-{-# INLINE parseFastqUnsafeC #-}
+fastqParser :: Parser Fastq
+fastqParser = do
+    ident <- word8 64 *> takeTill (==10)
+    sequence <- BS.filter (/=10) <$> takeTill (==43)
+    skip (/=10)
+    score <- BS.filter (/=10) <$> takeTill (==64)
+    return $ Fastq ident sequence score
+{-# INLINE fastqParser #-}
 
 fastqToByteString :: Fastq -> [B.ByteString]
-fastqToByteString (Fastq a b c d) = ['@' `B.cons` a, b, '+' `B.cons` c, d]
+fastqToByteString (Fastq a b c) = ['@' `B.cons` a, b, '+' `B.cons` a, c]
 {-# INLINE fastqToByteString #-}
 
 -- | Get the mean and variance of quality scores at every position.
@@ -92,20 +78,7 @@ pError :: Int -> Double
 pError x = 10 ** (negate (fromIntegral x) / 10)
 {-# INLINE pError #-}
 
--- | Make Fastq record from Bytestrings, without sanity check.
-mkFastqRecordUnsafe :: B.ByteString   -- ^ First line
-                    -> B.ByteString   -- ^ Second line
-                    -> B.ByteString   -- ^ Third line
-                    -> B.ByteString   -- ^ Fourth line
-                    -> Fastq
-mkFastqRecordUnsafe l1 l2 l3 l4 = Fastq (B.tail l1) l2 (B.tail l3) l4
-{-# INLINE mkFastqRecordUnsafe #-}
-
-mkFastqRecord :: B.ByteString   -- ^ First line
-              -> B.ByteString   -- ^ Second line
-              -> B.ByteString   -- ^ Third line
-              -> B.ByteString   -- ^ Fourth line
-              -> Fastq
+{-
 mkFastqRecord l1 l2 l3 l4 = Fastq (parseLine1 l1) (parseLine2 l2)
     (parseLine3 l3) (parseLine4 l4)
   where
@@ -127,12 +100,12 @@ mkFastqRecord l1 l2 l3 l4 = Fastq (parseLine1 l1) (parseLine2 l2)
       where
         f b = let b' = fromIntegral b :: Int
               in b' >= 33 && b' <= 126
-{-# INLINE mkFastqRecord #-}
+-}
 
 -- | Remove trailing 'A'
 trimPolyA :: Int -> Fastq -> Fastq
-trimPolyA n f@(Fastq a b c d)
-    | B.length trailing >= n = Fastq a b' c $ B.take (B.length b') d
+trimPolyA n f@(Fastq a b c)
+    | B.length trailing >= n = Fastq a b' $ B.take (B.length b') c
     | otherwise = f
   where
     (b', trailing) = B.spanEnd (=='A') b

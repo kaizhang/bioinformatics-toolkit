@@ -76,5 +76,5 @@ bamToBed bam = do
 {-# INLINE bamToBed #-}
 
 bamToFastq :: Bam -> Maybe Fastq
-bamToFastq bam = Fastq (qName bam) <$> getSeq bam <*> return mempty <*> qualityS bam
+bamToFastq bam = Fastq (qName bam) <$> getSeq bam <*> qualityS bam
 {-# INLINE bamToFastq #-}
