@@ -28,24 +28,24 @@ size (BitVector n _) = n
 (!) = index
 
 index :: BitVector -> Int -> Bool
-index (BitVector n v) i
-    | i >= n = error $ printf "index out of bounds (%d,%d)" i n
-    | otherwise = testBit (v `U.unsafeIndex` m) n
+index (BitVector n v) idx
+    | idx >= n = error $ printf "index out of bounds (%d,%d)" idx n
+    | otherwise = testBit (v `U.unsafeIndex` i) j
   where
-    m = i `div` 8
-    n = i `mod` 8
+    i = idx `div` 8
+    j = idx `mod` 8
 
 set :: PrimMonad m => BitMVector (PrimState m) -> Int -> m ()
-set (BitMVector _ mv) i = UM.modify mv ((flip setBit) n) m
+set (BitMVector _ mv) idx = UM.modify mv ((flip setBit) j) i
   where
-    m = i `div` 8
-    n = i `mod` 8
+    i = idx `div` 8
+    j = idx `mod` 8
 
 clear :: PrimMonad m => BitMVector (PrimState m) -> Int -> m ()
-clear (BitMVector _ mv) i = UM.modify mv ((flip clearBit) n) m
+clear (BitMVector _ mv) idx = UM.modify mv ((flip clearBit) j) i
   where
-    m = i `div` 8
-    n = i `mod` 8
+    i = idx `div` 8
+    j = idx `mod` 8
 
 unsafeFreeze :: PrimMonad m => BitMVector (PrimState m) -> m BitVector
 unsafeFreeze (BitMVector n mv) = U.unsafeFreeze mv >>= return . BitVector n

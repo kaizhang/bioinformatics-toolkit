@@ -24,23 +24,32 @@ bamIOTest :: TestTree
 bamIOTest = do
     goldenVsFile "BAM Read/Write Test" input output io
   where
-    io = withBamFile input $ \h -> runConduit $ readBam h .| writeBam output
+    io = do
+        header <- getBamHeader input
+        runResourceT $ runConduit $ streamBam input .| sinkBam output header
     input = "tests/data/example.bam"
     output = "tests/data/example_copy.bam"
 
 bamToBedTest :: Assertion
 bamToBedTest = do
     bed <- readBed' "tests/data/example.bed"
-    bed' <- withBamFile "tests/data/example.bam" $ \h ->
-        runConduit $ readBam h .| bamToBedC .| sinkList
-    (bed == bed') @? "bamToBedTest"
+    bed' <- do
+        let input = "tests/data/example.bam" 
+        header <- getBamHeader input
+        runResourceT $ runConduit $ streamBam input .| bamToBedC header .| sinkList
+    forM_ (zip bed bed') $ \(a,b) -> 
+        if a == b then return () else error $ show (a,b)
+    (bed == bed') @? show (head bed, head bed')
 
 sortedBamToBedPETest :: Assertion
 sortedBamToBedPETest = do
     bedpe <- readBedPE "tests/data/pairedend.bedpe" :: IO [(BED3, BED3)]
-    bedpe' <- withBamFile "tests/data/pairedend.bam" $ \h -> runConduit $
-        readBam h .| sortedBamToBedPE .|
-        mapC (\(x,y) -> (convert x, convert y)) .| sinkList
+    bedpe' <- do
+        let input = "tests/data/pairedend.bam"
+        header <- getBamHeader input
+        runResourceT $ runConduit $ streamBam input .|
+            sortedBamToBedPE header .|
+            mapC (\(x,y) -> (convert x, convert y)) .| sinkList
     forM_ (zip bedpe bedpe') $ \(b1, b2) -> (b1 == b2 || b1 == swap b2) @? show (b1,b2)
   where
     readBedPE fl = do

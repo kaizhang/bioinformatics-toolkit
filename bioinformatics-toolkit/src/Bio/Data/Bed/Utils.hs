@@ -9,7 +9,7 @@ module Bio.Data.Bed.Utils
     , getMotifScore
     , getMotifPValue
     , monoColonalize
-    , BaseMap
+    , BaseMap(..)
     , baseMap
     , queryBaseMap
     , rpkmBed

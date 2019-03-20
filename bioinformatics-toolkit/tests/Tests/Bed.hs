@@ -80,10 +80,12 @@ intersectBedTest = do
 
 baseMapTest :: Assertion
 baseMapTest = do
-    bv <- runConduit $ readBed "tests/data/example.bed" .|
+    BaseMap bv <- runConduit $ readBed "tests/data/example.bed" .|
         baseMap [("chr1", 300000000)]
-    let res = M.lookupDefault undefined "chr1" $ fmap (map fst . filter snd . zip [0..] . toList) bv
-    expect <- runConduit $ readBed "tests/data/example.bed" .| concatMapC f .| sinkList
+    let res = M.lookupDefault undefined "chr1" $
+            fmap (map fst . filter snd . zip [0..] . toList) bv
+    expect <- runConduit $ readBed "tests/data/example.bed" .|
+        concatMapC f .| sinkList
     sort expect @=? sort res
   where
     f :: BED -> Maybe Int

@@ -136,7 +136,7 @@ instance BEDConvert BED where
                 | f6 == Just False = "-"
                 | otherwise = "."
         score' = case f5 of
-                     Just x -> (B.pack.show) x
+                     Just x -> toShortest x
                      _      -> "."
     {-# INLINE toLine #-}
 
