@@ -6,4 +6,4 @@ packages:
 
 extra-deps:
     - clustering-0.4.1
-    - HsHTSLib-1.9.1
+    - HsHTSLib-1.9.2

@@ -1,5 +1,5 @@
 name:                bioinformatics-toolkit
-version:             0.6.0-dev
+version:             0.6.0
 synopsis:            A collection of bioinformatics tools
 description:         A collection of bioinformatics tools
 license:             MIT
@@ -71,7 +71,7 @@ library
     , data-ordlist
     , data-default-class
     , double-conversion
-    , HsHTSLib >= 1.9.1
+    , HsHTSLib >= 1.9.2
     , http-conduit >= 2.1.8
     , hexpat
     , IntervalMap >= 0.5.0.0

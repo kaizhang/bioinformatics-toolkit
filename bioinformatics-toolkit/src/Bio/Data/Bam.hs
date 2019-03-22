@@ -38,7 +38,7 @@ sortedBamToBedPE header = case getSortOrder header of
   where
     loopBedPE = (,) <$$> await <***> await >>= \case
         Nothing -> return ()
-        Just (bam1, bam2) -> if seqName bam1 /= seqName bam2
+        Just (bam1, bam2) -> if queryName bam1 /= queryName bam2
             then error "Adjacent records have different query names. Aborted."
             else do
                 yield $ (,) <$> bamToBed header bam1 <*> bamToBed header bam2
@@ -48,18 +48,20 @@ sortedBamToBedPE header = case getSortOrder header of
         (<***>) = (<*>) . fmap (<*>)
 {-# INLINE sortedBamToBedPE #-}
 
+-- | Convert BAM to BED.
 bamToBed :: BAMHeader -> BAM -> Maybe BED
-bamToBed header bam = mkBed <$> getChr header bam 
+bamToBed header bam = mkBed <$> refName header bam 
   where
     mkBed chr = asBed chr start end &
         name .~ nm & score .~ sc & strand .~ str
     start = startLoc bam
     end = endLoc bam
-    nm = Just $ seqName bam
+    nm = Just $ queryName bam
     str = Just $ not $ isRev bam
     sc = Just $ fromIntegral $ mapq bam
 {-# INLINE bamToBed #-}
 
+-- | Convert BAM to Fastq.
 bamToFastq :: BAM -> Maybe Fastq
-bamToFastq bam = Fastq (seqName bam) <$> getSeq bam <*> qualityS bam
+bamToFastq bam = Fastq (queryName bam) <$> getSeq bam <*> qualityS bam
 {-# INLINE bamToFastq #-}
