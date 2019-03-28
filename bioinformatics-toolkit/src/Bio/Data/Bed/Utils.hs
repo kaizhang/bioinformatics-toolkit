@@ -34,6 +34,7 @@ import qualified Data.Vector.Algorithms.Intro as I
 import qualified Data.Vector.Generic          as G
 import qualified Data.Vector.Generic.Mutable  as GM
 import qualified Data.Vector.Unboxed          as U
+import System.IO
 
 import           Bio.Data.Bed
 import           Bio.Data.Bed.Types
@@ -68,7 +69,9 @@ motifScan :: (BEDLike b, MonadIO m)
 motifScan g motifs bg p = awaitForever $ \bed -> do
     r <- liftIO $ getSeq g (bed^.chrom, bed^.chromStart, bed^.chromEnd)
     case r of
-        Left _    -> return ()
+        Left _    -> liftIO $ hPutStrLn stderr $
+            "Warning: no sequence for region: " ++ show 
+                (bed^.chrom, bed^.chromStart, bed^.chromEnd)
         Right dna -> mapM_ (getTFBS dna (bed^.chrom, bed^.chromStart)) motifs'
   where
     getTFBS dna (chr, s) (nm, (pwm, cutoff), (pwm', cutoff')) = toProducer
