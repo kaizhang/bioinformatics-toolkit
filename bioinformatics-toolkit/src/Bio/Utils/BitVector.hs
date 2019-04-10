@@ -1,5 +1,5 @@
 module Bio.Utils.BitVector
-    ( BitVector
+    ( BitVector(..)
     , BitMVector
     , size
     , (!)

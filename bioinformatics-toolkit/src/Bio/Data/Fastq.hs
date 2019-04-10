@@ -2,6 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Bio.Data.Fastq
     ( Fastq(..)
+    , streamFastqGzip
+    , sinkFastqGzip
     , parseFastqC
     , fastqToByteString
     , qualitySummary
@@ -9,6 +11,7 @@ module Bio.Data.Fastq
     ) where
 
 import           Conduit
+import Data.Conduit.Zlib (ungzip, multiple, gzip)
 import           Control.Monad         (when)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as BL
@@ -34,6 +37,15 @@ data Fastq = Fastq
     , fastqSeq     :: B.ByteString
     , fastqSeqQual :: B.ByteString
     } deriving (Show, Eq)
+
+-- | Read gzipped fastq file.
+streamFastqGzip :: (PrimMonad m, MonadThrow m, MonadResource m) 
+                => FilePath -> ConduitT i Fastq m ()
+streamFastqGzip fl = sourceFileBS fl .| multiple ungzip .| parseFastqC
+
+sinkFastqGzip :: (PrimMonad m, MonadThrow m, MonadResource m)
+              => FilePath -> ConduitT Fastq o m ()
+sinkFastqGzip fl = mapC fastqToByteString .| unlinesAsciiC .| gzip .| sinkFileBS fl
 
 parseFastqC :: MonadThrow m => ConduitT B.ByteString Fastq m ()
 parseFastqC = conduitParser fastqParser .| mapC snd

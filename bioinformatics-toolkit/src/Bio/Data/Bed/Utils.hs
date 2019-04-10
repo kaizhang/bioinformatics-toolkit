@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE BangPatterns #-}
 
 module Bio.Data.Bed.Utils
@@ -226,36 +227,29 @@ countTagsBinBed :: (Integral a, PrimMonad m, G.Vector v a, BEDLike b)
            -> [b]   -- ^ regions
            -> ConduitT BED o m ([v a], Int)
 countTagsBinBed k beds = do
-    initRC <- lift $ forM beds $ \bed -> do
+    vs <- lift $ fmap V.fromList $ forM beds $ \bed -> do
         let start = bed^.chromStart
-            end = bed^.chromEnd
-            num = (end - start) `div` k
+            num = ((bed^.chromEnd) - start) `div` k
             index i = (i - start) `div` k
         v <- GM.replicate num 0
         return (v, index)
-
-    sink 0 $ V.fromList initRC
+    nTags <- foldMC (f vs) 0
+    rc <- lift $ mapM (G.unsafeFreeze . fst) $ G.toList vs
+    return (rc, nTags)
   where
-    sink !nTags vs = do
-        tag <- await
-        case tag of
-            Just bed -> do
-                let p | bed^.strand == Just True = bed^.chromStart
-                      | bed^.strand == Just False = bed^.chromEnd - 1
-                      | otherwise = error "profiling: unkown strand"
-                    overlaps = concat $ IM.elems $
-                        IM.containing (M.lookupDefault IM.empty (bed^.chrom) intervalMap) p
-                lift $ forM_ overlaps $ \x -> do
-                    let (v, idxFn) = vs `G.unsafeIndex` x
-                        i = let i' = idxFn p
-                                l = GM.length v
-                            in if i' >= l then l - 1 else i'
-                    GM.unsafeRead v i >>= GM.unsafeWrite v i . (+1)
-                sink (nTags+1) vs
-
-            _ -> do rc <- lift $ mapM (G.unsafeFreeze . fst) $ G.toList vs
-                    return (rc, nTags)
-
+    f vs n bed = do
+        let pos | bed^.strand == Just True = bed^.chromStart
+                | bed^.strand == Just False = bed^.chromEnd - 1
+                | otherwise = error "unkown strand."
+            overlaps = concat $ IM.elems $ IM.containing
+                (M.lookupDefault IM.empty (bed^.chrom) intervalMap) pos
+        forM_ overlaps $ \x -> do
+            let (v, idxFn) = vs `G.unsafeIndex` x
+                i = let i' = idxFn pos
+                        l = GM.length v
+                    in if i' >= l then l - 1 else i'
+            GM.unsafeModify v (+1) i
+        return $ n + 1
     intervalMap = bedToTree (++) $ zip beds $ map return [0..]
 {-# INLINE countTagsBinBed #-}
 
