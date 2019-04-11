@@ -1,6 +1,7 @@
 import qualified Tests.Bed as Bed
 import qualified Tests.Bam as Bam
 import qualified Tests.Motif as Motif
+import qualified Tests.Fastq as Fastq
 import qualified Tests.Seq as Seq
 import qualified Tests.Tools as Tools
 import Test.Tasty
@@ -12,4 +13,5 @@ main = defaultMain $ testGroup "Main"
     , Seq.tests
     , Motif.tests
     , Tools.tests
+    , Fastq.tests
     ]

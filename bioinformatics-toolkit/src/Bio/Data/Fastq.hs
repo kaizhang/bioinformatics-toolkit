@@ -3,7 +3,9 @@
 module Bio.Data.Fastq
     ( Fastq(..)
     , streamFastqGzip
+    , streamFastq
     , sinkFastqGzip
+    , sinkFastq
     , parseFastqC
     , fastqToByteString
     , qualitySummary
@@ -17,7 +19,8 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as BS
 import           Data.Maybe            (isJust)
-import Data.Attoparsec.ByteString
+import qualified Data.Attoparsec.ByteString as A
+import Data.Attoparsec.ByteString.Char8
 import Data.Conduit.Attoparsec
 
 -- | A FASTQ file normally uses four lines per sequence.
@@ -43,6 +46,14 @@ streamFastqGzip :: (PrimMonad m, MonadThrow m, MonadResource m)
                 => FilePath -> ConduitT i Fastq m ()
 streamFastqGzip fl = sourceFileBS fl .| multiple ungzip .| parseFastqC
 
+streamFastq :: (MonadResource m, MonadThrow m)
+            => FilePath -> ConduitT i Fastq m ()
+streamFastq fl = sourceFileBS fl .| parseFastqC
+
+sinkFastq :: (MonadResource m, MonadThrow m)
+          => FilePath -> ConduitT Fastq o m ()
+sinkFastq fl = mapC fastqToByteString .| unlinesAsciiC .| sinkFileBS fl
+
 sinkFastqGzip :: (PrimMonad m, MonadThrow m, MonadResource m)
               => FilePath -> ConduitT Fastq o m ()
 sinkFastqGzip fl = mapC fastqToByteString .| unlinesAsciiC .| gzip .| sinkFileBS fl
@@ -53,11 +64,19 @@ parseFastqC = conduitParser fastqParser .| mapC snd
 
 fastqParser :: Parser Fastq
 fastqParser = do
-    ident <- word8 64 *> takeTill (==10)
-    sequence <- BS.filter (/=10) <$> takeTill (==43)
-    skip (/=10)
-    score <- BS.filter (/=10) <$> takeTill (==64)
+    _ <- skipWhile (/='@') >> char8 '@'
+    ident <- A.takeTill isEndOfLine
+    endOfLine
+    sequence <- BS.filter (not . isEndOfLine) <$> takeTill (=='+')
+    char8 '+' >> A.skipWhile (not . isEndOfLine) >> endOfLine
+    score <- BS.filter (not . isEndOfLine) <$>
+        A.scan 0 (f (B.length sequence))
+    skipWhile (/='@')
     return $ Fastq ident sequence score
+  where
+    f n i x | i >= n = Nothing
+            | isEndOfLine x = Just i
+            | otherwise = Just $ i + 1
 {-# INLINE fastqParser #-}
 
 fastqToByteString :: Fastq -> B.ByteString

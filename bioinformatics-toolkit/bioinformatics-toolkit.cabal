@@ -21,6 +21,8 @@ data-files:
   tests/data/example_intersect_peaks.bed
   tests/data/motifs.fasta
   tests/data/motifs.meme
+  tests/data/test.fastq
+
 library
   hs-source-dirs: src
   ghc-options: -Wall
@@ -114,6 +116,7 @@ test-suite tests
   other-modules:
       Tests.Bed
     , Tests.Bam
+    , Tests.Fastq
     , Tests.Motif
     , Tests.Seq
     , Tests.Tools

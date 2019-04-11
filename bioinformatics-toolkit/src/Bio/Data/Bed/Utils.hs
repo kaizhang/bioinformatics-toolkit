@@ -218,6 +218,12 @@ rpkmSortedBed (Sorted regions) = do
     l = G.length regions
 {-# INLINE rpkmSortedBed #-}
 
+{-
+countTags :: (Integral a, PrimMonad m, BEDLike b, G.Vector v Double)
+          => [b] -> ConduitT BED o m (v a, Int)
+countTags regions = 
+    -}
+
 -- | divide each region into consecutive bins, and count tags for each bin and
 -- return the number of all tags. Note: a tag is considered to be overlapped
 -- with a region only if the starting position of the tag is in the region. For
@@ -295,40 +301,6 @@ countTagsBinBed' k beds = do
 
     intervalMap = bedToTree (++) $ zip beds $ map return [0..]
 {-# INLINE countTagsBinBed' #-}
-
-
-{-
--- | calculate RPKM using BAM file (*.bam) and its index file (*.bam.bai), using
--- constant space
-rpkmBam :: BEDLike b => FilePath -> Conduit b IO Double
-rpkmBam fl = do
-    nTags <- lift $ readBam fl $$ foldMC (\acc bam -> return $
-                                  if isUnmap bam then acc else acc + 1) 0.0
-    handle <- lift $ BI.open fl
-    conduit nTags handle
-  where
-    conduit n h = do
-        x <- await
-        case x of
-            Nothing -> lift $ BI.close h
-            Just bed -> do let chr = chrom bed
-                               s = chromStart bed
-                               e = chromEnd bed
-                           rc <- lift $ viewBam h (chr, s, e) $$ readCount s e
-                           yield $ rc * 1e9 / n / fromIntegral (e-s)
-                           conduit n h
-    readCount l u = foldMC f 0.0
-      where
-        f acc bam = do let p1 = fromIntegral . fromJust . position $ bam
-                           rl = fromIntegral . fromJust . queryLength $ bam
-                           p2 = p1 + rl - 1
-                       return $ if isReverse bam
-                                   then if l <= p2 && p2 < u then acc + 1
-                                                             else acc
-                                   else if l <= p1 && p1 < u then acc + 1
-                                                             else acc
-{-# INLINE rpkmBam #-}
--}
 
 tagCountDistr :: PrimMonad m => G.Vector v Int => ConduitT BED o m (v Int)
 tagCountDistr = loop M.empty
