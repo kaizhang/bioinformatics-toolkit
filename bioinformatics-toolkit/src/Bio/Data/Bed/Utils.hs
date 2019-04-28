@@ -218,12 +218,6 @@ rpkmSortedBed (Sorted regions) = do
     l = G.length regions
 {-# INLINE rpkmSortedBed #-}
 
-{-
-countTags :: (Integral a, PrimMonad m, BEDLike b, G.Vector v Double)
-          => [b] -> ConduitT BED o m (v a, Int)
-countTags regions = 
-    -}
-
 -- | divide each region into consecutive bins, and count tags for each bin and
 -- return the number of all tags. Note: a tag is considered to be overlapped
 -- with a region only if the starting position of the tag is in the region. For

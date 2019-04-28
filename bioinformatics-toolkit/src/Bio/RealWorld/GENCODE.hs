@@ -1,8 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Bio.RealWorld.GENCODE
     ( Gene(..)
     , readGenes
+    , streamElements
     ) where
 
 import           Conduit
@@ -12,6 +14,7 @@ import qualified Data.HashMap.Strict   as M
 import Data.List.Ordered (nubSort)
 import           Data.Maybe            (fromJust)
 
+import Bio.Data.Bed.Types
 import           Bio.Utils.Misc        (readInt)
 
 -- | GTF's position is 1-based, but here we convert it to 0-based indexing.
@@ -57,3 +60,12 @@ readGenes input = do
         getField x = B.init $ B.drop 2 $ fromJust $ lookup x fields
     strip = fst . B.spanEnd isSpace . B.dropWhile isSpace
     isSpace = (== ' ')
+
+streamElements :: Monad m => ConduitT B.ByteString BED m ()
+streamElements = linesUnboundedAsciiC .| concatMapC f
+  where
+    f l | B.head l == '#' = Nothing
+        | otherwise = Just $ BED chr (readInt start - 1) (readInt end - 1)
+            (Just name) Nothing (Just $ strand == "+")
+      where
+        [chr,_,name,start,end,_,strand,_,_] = B.split '\t' l

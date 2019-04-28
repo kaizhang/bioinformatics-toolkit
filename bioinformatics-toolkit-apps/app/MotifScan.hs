@@ -37,10 +37,11 @@ defaultMain :: Options -> IO ()
 defaultMain opts = do
     withGenome (genomeFile opts) $ \genome -> do
         motifs <- readMEME $ motifFile opts
-        (readBed $ input opts :: Source IO BED3) =$=
-            motifScan genome motifs def (p opts) =$=
-            getMotifScore genome motifs def =$=
-            getMotifPValue Nothing motifs def $$ hWriteBed stdout
+        runResourceT $ runConduit $
+            (streamBed (input opts) :: Source (ResourceT IO) BED3) .|
+            motifScan genome motifs def (p opts) .|
+            getMotifScore genome motifs def .|
+            getMotifPValue Nothing motifs def .| sinkHandleBed stdout
 
 main :: IO ()
 main = execParser opts >>= defaultMain

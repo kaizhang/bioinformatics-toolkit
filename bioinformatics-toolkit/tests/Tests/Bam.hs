@@ -32,7 +32,7 @@ bamIOTest = do
 
 bamToBedTest :: Assertion
 bamToBedTest = do
-    bed <- readBed' "tests/data/example.bed"
+    bed <- readBed "tests/data/example.bed"
     bed' <- do
         let input = "tests/data/example.bam" 
         header <- getBamHeader input

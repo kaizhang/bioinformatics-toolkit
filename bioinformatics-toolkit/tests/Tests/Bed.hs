@@ -27,9 +27,9 @@ tests = testGroup "Test: Bio.Data.Bed"
     ]
 
 sortBedTest :: Assertion
-sortBedTest = do beds <- readBed' "tests/data/peaks.bed" :: IO [BED]
+sortBedTest = do beds <- readBed "tests/data/peaks.bed" :: IO [BED]
                  let (Sorted actual) = sortBed beds
-                 expect <- fmap V.fromList $ readBed' "tests/data/peaks.sorted.bed"
+                 expect <- fmap V.fromList $ readBed "tests/data/peaks.sorted.bed"
                  expect @=? actual
 
 splitBedTest :: Assertion
@@ -73,18 +73,18 @@ splitOverlappedTest = expect @=? result
 
 intersectBedTest :: Assertion
 intersectBedTest = do
-    expect <- readBed' "tests/data/example_intersect_peaks.bed" :: IO [BED3]
-    peaks <- readBed' "tests/data/peaks.bed" :: IO [BED3]
-    result <- runConduit $ readBed "tests/data/example.bed" .| intersectBed peaks .| sinkList
+    expect <- readBed "tests/data/example_intersect_peaks.bed" :: IO [BED3]
+    peaks <- readBed "tests/data/peaks.bed" :: IO [BED3]
+    result <- runResourceT $ runConduit $ streamBed "tests/data/example.bed" .| intersectBed peaks .| sinkList
     expect @=? result
 
 baseMapTest :: Assertion
 baseMapTest = do
-    BaseMap bv <- runConduit $ readBed "tests/data/example.bed" .|
+    BaseMap bv <- runResourceT $ runConduit $ streamBed "tests/data/example.bed" .|
         baseMap [("chr1", 300000000)]
     let res = M.lookupDefault undefined "chr1" $
             fmap (map fst . filter snd . zip [0..] . toList) bv
-    expect <- runConduit $ readBed "tests/data/example.bed" .|
+    expect <- runResourceT $ runConduit $ streamBed "tests/data/example.bed" .|
         concatMapC f .| sinkList
     sort expect @=? sort res
   where

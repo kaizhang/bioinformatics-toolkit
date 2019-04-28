@@ -36,14 +36,15 @@ module Bio.Data.Bed
     , mergeSortedBed
     , mergeSortedBedWith
     , splitOverlapped
-    , hReadBed
-    , hReadBed'
+
+    -- * IO
+    , streamBed
+    , streamBedGzip
     , readBed
-    , readBed'
-    , hWriteBed
-    , hWriteBed'
+    , sinkFileBed
+    , sinkFileBedGzip
+    , sinkHandleBed
     , writeBed
-    , writeBed'
 
     , compareBed
     ) where
@@ -59,6 +60,7 @@ import qualified Data.HashMap.Strict          as M
 import qualified Data.IntervalMap.Strict      as IM
 import           Data.List                    (groupBy, sortBy)
 import           Data.Ord                     (comparing)
+import           Data.Conduit.Zlib           (gzip, ungzip, multiple)
 import qualified Data.Vector                  as V
 import qualified Data.Vector.Algorithms.Intro as I
 import           System.IO
@@ -252,50 +254,42 @@ splitOverlapped fun xs = filter ((>0) . size . fst) $
     chr = head xs ^. chrom
 {-# INLINE splitOverlapped #-}
 
--- | Read records from a bed file handler in a streaming fashion.
-hReadBed :: (BEDConvert b, MonadIO m) => Handle -> ConduitT i b m ()
-hReadBed h = do eof <- liftIO $ hIsEOF h
-                unless eof $ do
-                    line <- liftIO $ B.hGetLine h
-                    yield $ fromLine line
-                    hReadBed h
-{-# INLINE hReadBed #-}
 
--- | Non-streaming version.
-hReadBed' :: (BEDConvert b, MonadIO m) => Handle -> m [b]
-hReadBed' h = runConduit $ hReadBed h .| sinkList
-{-# INLINE hReadBed' #-}
+streamBed :: (MonadResource m, BEDConvert b, MonadIO m)
+          => FilePath -> ConduitT i b m () 
+streamBed input = sourceFile input .| bsToBed
+{-# INLINE streamBed #-}
 
--- | Read records from a bed file in a streaming fashion.
-readBed :: (BEDConvert b, MonadIO m) => FilePath -> ConduitT i b m ()
-readBed fl = do handle <- liftIO $ openFile fl ReadMode
-                hReadBed handle
-                liftIO $ hClose handle
+streamBedGzip :: (BEDConvert b, MonadResource m, MonadThrow m, PrimMonad m)
+              => FilePath -> ConduitT i b m () 
+streamBedGzip input = sourceFile input .| multiple ungzip .| bsToBed
+{-# INLINE streamBedGzip #-}
+
+readBed :: BEDConvert b => FilePath -> IO [b]
+readBed fl = runResourceT $ runConduit $ streamBed fl .| sinkList
 {-# INLINE readBed #-}
 
--- | Non-streaming version.
-readBed' :: (BEDConvert b, MonadIO m) => FilePath -> m [b]
-readBed' fl = runConduit $ readBed fl .| sinkList
-{-# INLINE readBed' #-}
+sinkFileBed :: (BEDConvert b, MonadResource m) => FilePath -> ConduitT b o m ()
+sinkFileBed output = bedToBS .| sinkFile output
+{-# INLINE sinkFileBed #-}
 
-hWriteBed :: (BEDConvert b, MonadIO m) => Handle -> ConduitT b o m ()
-hWriteBed handle = do
-    x <- await
-    case x of
-        Nothing -> return ()
-        Just bed -> (liftIO . B.hPutStrLn handle . toLine) bed >> hWriteBed handle
-{-# INLINE hWriteBed #-}
+sinkFileBedGzip :: (BEDConvert b, MonadResource m, MonadThrow m, PrimMonad m)
+                => FilePath -> ConduitT b o m ()
+sinkFileBedGzip output = bedToBS .| gzip .| sinkFile output
+{-# INLINE sinkFileBedGzip #-}
 
-hWriteBed' :: (BEDConvert b, MonadIO m) => Handle -> [b] -> m ()
-hWriteBed' handle beds = runConduit $ yieldMany beds .| hWriteBed handle
-{-# INLINE hWriteBed' #-}
+sinkHandleBed :: (BEDConvert b, MonadIO m) => Handle -> ConduitT b o m ()
+sinkHandleBed hdl = bedToBS .| sinkHandle hdl
+{-# INLINE sinkHandleBed #-}
 
-writeBed :: (BEDConvert b, MonadIO m) => FilePath -> ConduitT b o m ()
-writeBed fl = do handle <- liftIO $ openFile fl WriteMode
-                 hWriteBed handle
-                 liftIO $ hClose handle
+writeBed :: BEDConvert b => FilePath -> [b] -> IO ()
+writeBed fl beds = runResourceT $ runConduit $ yieldMany beds .| sinkFileBed fl
 {-# INLINE writeBed #-}
 
-writeBed' :: (BEDConvert b, MonadIO m) => FilePath -> [b] -> m ()
-writeBed' fl beds = runConduit $ yieldMany beds .| writeBed fl
-{-# INLINE writeBed' #-}
+bedToBS :: (BEDConvert b, Monad m) => ConduitT b B.ByteString m ()
+bedToBS = mapC toLine .| unlinesAsciiC
+{-# INLINE bedToBS #-}
+
+bsToBed :: (BEDConvert b, Monad m) => ConduitT B.ByteString b m ()
+bsToBed = linesUnboundedAsciiC .| mapC fromLine
+{-# INLINE bsToBed #-}
