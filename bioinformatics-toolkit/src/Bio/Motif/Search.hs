@@ -3,12 +3,10 @@
 
 module Bio.Motif.Search
     ( findTFBS
-    , findTFBS'
+    , findTFBSWith
     , findTFBSSlow
     , maxMatchSc
-    , SpaceDistribution(..)
-    , spaceConstraint
-    , spaceConstraintHelper
+    , optimalScoresSuffix
     ) where
 
 import           Conduit
@@ -40,21 +38,35 @@ findTFBS :: Monad m
          -> Double
          -> Bool    -- ^ whether to skip ambiguous sequences. Recommend: True
                     -- in most cases
-         -> ConduitT i Int m ()
-findTFBS bg pwm dna thres skip = loop 0
+         -> ConduitT i (Int, Double) m ()
+findTFBS bg pwm dna thres skip = findTFBSWith sigma bg pwm dna thres skip
+  where
+    sigma = optimalScoresSuffix bg pwm
+{-# INLINE findTFBS #-}
+
+findTFBSWith :: Monad m
+             => U.Vector Double   -- ^ best possible match score of suffixes
+             -> Bkgd
+             -> PWM
+             -> DNA a
+             -> Double
+             -> Bool    -- ^ whether to skip ambiguous sequences. Recommend: True
+                        -- in most cases
+             -> ConduitT i (Int, Double) m ()
+findTFBSWith sigma bg pwm dna thres skip = loop 0
   where
     loop !i | i >= l - n + 1 = return ()
-            | otherwise = do let (d, _) = searchFn bg pwm sigma dna i thres
+            | otherwise = do let (d, sc) = searchFn bg pwm sigma dna i thres
                              if d == n - 1
-                                then yield i >> loop (i+1)
+                                then yield (i, sc) >> loop (i+1)
                                 else loop (i+1)
-    sigma = optimalScoresSuffix bg pwm
     l = Seq.length dna
     n = size pwm
     searchFn | skip = lookAheadSearch'
              | otherwise = lookAheadSearch
-{-# INLINE findTFBS #-}
+{-# INLINE findTFBSWith #-}
 
+{-
 -- | a parallel version of findTFBS
 findTFBS' :: Bkgd
           -> PWM
@@ -78,14 +90,15 @@ findTFBS' bg pwm dna th skip = concat $ parMap rdeepseq f [0,step..l-n+1]
     searchFn | skip = lookAheadSearch'
              | otherwise = lookAheadSearch
 {-# INLINE findTFBS' #-}
+-}
 
 -- | use naive search
-findTFBSSlow :: Monad m => Bkgd -> PWM -> DNA a -> Double -> ConduitT i Int m ()
+findTFBSSlow :: Monad m => Bkgd -> PWM -> DNA a -> Double -> ConduitT i (Int, Double) m ()
 findTFBSSlow bg pwm dna thres = scores' bg pwm dna .| loop 0
   where
     loop i = do v <- await
                 case v of
-                    Just v' ->  if v' >= thres then yield i >> loop (i+1)
+                    Just v' ->  if v' >= thres then yield (i, v') >> loop (i+1)
                                                else loop (i+1)
                     _ -> return ()
 {-# INLINE findTFBSSlow #-}
@@ -193,6 +206,7 @@ lookAheadSearch' (BG (a, c, g, t)) pwm sigma dna start thres = loop (0, -1) 0
     n = size pwm
 {-# INLINE lookAheadSearch' #-}
 
+{-
 data SpaceDistribution = SpaceDistribution
     { _motif1   :: Motif
     , _nSites1  :: (Int, Int)
@@ -254,15 +268,13 @@ spaceConstraintHelper (fw1, rv1) (fw2, rv2) w k = (same, oppose)
         nRF = map (nOverlap rv1 fw2' w) $ reverse rs
 {-# INLINE spaceConstraintHelper #-}
 
-{-
 computePValue :: Double -> [Int] -> [(Int, Double)]
 computePValue p xs = zip xs $ map (pValue n p) xs
   where
     n = foldl' (+) 0 xs
-{-# INLINE computePValue #-}
 
 pValue :: Int -> Double -> Int -> Double
 pValue n p x | n > 2000 = complCumulative (poisson (fromIntegral n* p)) $ fromIntegral x
              | otherwise = complCumulative (binomial n p) $ fromIntegral x
-{-# INLINE pValue #-}
+
 -}

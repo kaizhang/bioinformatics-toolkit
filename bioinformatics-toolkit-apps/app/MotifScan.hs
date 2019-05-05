@@ -36,12 +36,11 @@ parser = Options
 defaultMain :: Options -> IO ()
 defaultMain opts = do
     withGenome (genomeFile opts) $ \genome -> do
-        motifs <- readMEME $ motifFile opts
+        motifs <- map (mkCutoffMotif def (p opts)) <$> readMEME (motifFile opts)
         runResourceT $ runConduit $
             (streamBed (input opts) :: Source (ResourceT IO) BED3) .|
-            motifScan genome motifs def (p opts) .|
-            getMotifScore genome motifs def .|
-            getMotifPValue Nothing motifs def .| sinkHandleBed stdout
+            awaitForever (\x -> mapM_ (\m -> scanMotif genome m x) motifs) .|
+            sinkHandleBed stdout
 
 main :: IO ()
 main = execParser opts >>= defaultMain

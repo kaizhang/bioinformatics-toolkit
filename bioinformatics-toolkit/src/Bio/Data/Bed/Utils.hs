@@ -1,14 +1,15 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
 
 module Bio.Data.Bed.Utils
     ( fetchSeq
     , fetchSeq'
-    , motifScan
-    , getMotifScore
-    , getMotifPValue
+    , CutoffMotif(..)
+    , mkCutoffMotif
+    , scanMotif 
     , monoColonalize
     , BaseMap(..)
     , baseMap
@@ -39,7 +40,7 @@ import System.IO
 
 import           Bio.Data.Bed
 import           Bio.Data.Bed.Types
-import           Bio.Motif                    (Bkgd (..), Motif (..))
+import           Bio.Motif                    (Bkgd (..), Motif (..), CDF)
 import qualified Bio.Motif                    as Motif
 import qualified Bio.Motif.Search             as Motif
 import           Bio.Seq hiding (length)
@@ -64,71 +65,46 @@ fetchSeq' :: (BioSeq DNA a, MonadIO m) => Genome -> [BED] -> m [Either String (D
 fetchSeq' g beds = runConduit $ yieldMany beds .| fetchSeq g .| sinkList
 {-# INLINE fetchSeq' #-}
 
--- | Identify motif binding sites
-motifScan :: (BEDLike b, MonadIO m)
-          => Genome -> [Motif] -> Bkgd -> Double -> ConduitT b BED m ()
-motifScan g motifs bg p = awaitForever $ \bed -> do
-    r <- liftIO $ getSeq g (bed^.chrom, bed^.chromStart, bed^.chromEnd)
-    case r of
-        Left _    -> liftIO $ hPutStrLn stderr $
-            "Warning: no sequence for region: " ++ show 
-                (bed^.chrom, bed^.chromStart, bed^.chromEnd)
-        Right dna -> mapM_ (getTFBS dna (bed^.chrom, bed^.chromStart)) motifs'
+-- | Motif with predefined cutoff score
+data CutoffMotif = CutoffMotif
+    { _motif :: Motif
+    , _sigma :: U.Vector Double
+    , _background :: Bkgd
+    , _cutoff :: Double
+    , _cdf :: CDF }
+
+mkCutoffMotif :: Bkgd
+              -> Double  -- ^ p-value
+              -> Motif -> CutoffMotif
+mkCutoffMotif bg p motif = CutoffMotif motif sigma bg sc $
+    Motif.truncateCDF (1 - p * 10) cdf
   where
-    getTFBS dna (chr, s) (nm, (pwm, cutoff), (pwm', cutoff')) = toProducer
-        ( (Motif.findTFBS bg pwm (dna :: DNA IUPAC) cutoff True .|
-            mapC (\i -> bed & chromStart +~ i & chromEnd +~ i & strand .~ Just True)) >>
-          (Motif.findTFBS bg pwm' dna cutoff' True .|
-            mapC (\i -> bed & chromStart +~ i & chromEnd +~ i & strand .~ Just False)) )
+    cdf = Motif.scoreCDF bg $ _pwm motif
+    sc = Motif.cdf' cdf $ 1 - p
+    sigma = Motif.optimalScoresSuffix bg $ _pwm motif
+
+scanMotif :: (BEDLike b, MonadIO m)
+          => Genome -> CutoffMotif -> b -> ConduitT i BED m ()
+scanMotif g CutoffMotif{..} bed = liftIO (getSeq g (chr, start, end)) >>= \case
+    Left _    -> liftIO $ hPutStrLn stderr $
+        "Warning: no sequence for region: " ++ show (chr, start, end)
+    Right dna -> do
+        search dna .| mapC mkBedFwd
+        search (rc dna) .| mapC mkBedRev
+  where
+    search dna = Motif.findTFBSWith _sigma _background (_pwm _motif)
+        (dna :: DNA IUPAC) _cutoff True 
+    mkBedFwd (i, sc) = BED chr (start + i) (start + i + n)
+        (Just $ _name _motif) (Just p) (Just True)
       where
-        n = Motif.size pwm
-        bed = asBed chr s (s+n) & name .~ Just nm
-    motifs' = flip map motifs $ \(Motif nm pwm) ->
-        let cutoff = Motif.pValueToScore p bg pwm
-            cutoff' = Motif.pValueToScore p bg pwm'
-            pwm' = Motif.rcPWM pwm
-        in (nm, (pwm, cutoff), (pwm', cutoff'))
-{-# INLINE motifScan #-}
-
--- | Retrieve motif matching scores
-getMotifScore :: MonadIO m
-              => Genome -> [Motif] -> Bkgd -> ConduitT BED BED m ()
-getMotifScore g motifs bg = awaitForever $ \bed -> do
-    r <- liftIO $ getSeq g (bed^.chrom, bed^.chromStart, bed^.chromEnd)
-    let r' = case bed^.strand of
-            Just False -> rc <$> r
-            _          -> r
-    case r' of
-        Left _ -> return ()
-        Right dna -> do
-            let pwm = M.lookupDefault (error "can't find motif with given name")
-                        (fromJust $ bed^.name) motifMap
-                sc = Motif.score bg pwm (dna :: DNA IUPAC)
-            yield $ score .~ Just sc $ bed
-  where
-    motifMap = M.fromListWith (error "found motif with same name") $
-        map (\(Motif nm pwm) -> (nm, pwm)) motifs
-{-# INLINE getMotifScore #-}
-
-getMotifPValue :: Monad m
-               => Maybe Double   -- ^ whether to truncate the motif score CDF.
-                                 -- Doing this will significantly reduce memory
-                                 -- usage without sacrifice accuracy.
-               -> [Motif] -> Bkgd -> ConduitT BED BED m ()
-getMotifPValue truncation motifs bg = mapC $ \bed ->
-    let nm = fromJust $ bed^.name
-        sc = fromJust $ bed^.score
-        d = M.lookupDefault (error "can't find motif with given name")
-                nm motifMap
-        p = 1 - Motif.cdf d sc
-     in score .~ Just p $ bed
-  where
-    motifMap = M.fromListWith (error "getMotifPValue: found motif with same name") $
-        map (\(Motif nm pwm) -> (nm, compressCDF $ Motif.scoreCDF bg pwm)) motifs
-    compressCDF = case truncation of
-        Nothing -> id
-        Just x  -> Motif.truncateCDF x
-{-# INLINE getMotifPValue #-}
+        p = 1 - Motif.cdf _cdf sc
+    mkBedRev (i, sc) = BED chr (end - i - n) (end - i)
+        (Just $ _name _motif) (Just p) (Just False)
+      where
+        p = 1 - Motif.cdf _cdf sc
+    (chr, start, end) = (bed^.chrom, bed^.chromStart, bed^.chromEnd)
+    n = Motif.size $ _pwm _motif
+{-# INLINE scanMotif #-}
 
 -- | process a sorted BED stream, keep only mono-colonal tags
 monoColonalize :: Monad m => ConduitT BED BED m ()

@@ -252,15 +252,18 @@ cdf (CDF v) x = let i = binarySearchBy cmp v x
 cdf' :: CDF -> Double -> Double
 cdf' (CDF v) p
     | p > 1 || p < 0 = error "p must be in [0,1]"
-    | otherwise = let i = binarySearchBy cmp v p
-                  in case () of
-                      _ | i >= n -> 1/0
-                        | i == 0 -> if p == snd (U.head v) then fst (U.head v) else undefined
-                        | otherwise -> let (a, a') = v U.! (i-1)
-                                           (b, b') = v U.! i
-                                           α = (b' - p) / (b' - a')
-                                           β = (p - a') / (b' - a')
-                                       in α * a + β * b
+    | otherwise =
+        let i = binarySearchBy cmp v p
+        in case () of
+          _ | i >= n -> 1/0
+            | i == 0 -> if p == snd (U.head v)
+                then fst (U.head v)
+                else error "cdf': impossible!"
+            | otherwise -> let (a, a') = v U.! (i-1)
+                               (b, b') = v U.! i
+                               α = (b' - p) / (b' - a')
+                               β = (p - a') / (b' - a')
+                           in α * a + β * b
   where
     cmp (_,a) = compare a
     n = U.length v

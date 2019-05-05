@@ -25,19 +25,6 @@ executable scan_motif
                      , optparse-applicative
   default-language:    Haskell2010
 
-executable motif_score
-  hs-source-dirs:      app
-  main-is:             MotifScore.hs
-  -- ghc-options:         -threaded -Wall -optl-static -optc-static -optl-pthread
-  ghc-options:         -threaded -Wall
-  other-modules:     Paths_bioinformatics_toolkit_apps
-  build-depends:       base
-                     , bioinformatics-toolkit
-                     , conduit >=1.3.0
-                     , data-default
-                     , optparse-applicative
-  default-language:    Haskell2010
-
 executable mkindex
   hs-source-dirs:      app
   main-is:             MkIndex.hs
