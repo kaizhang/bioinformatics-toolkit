@@ -43,6 +43,7 @@ tests = testGroup "Test: Bio.Motif"
     , testCase "Max matching score" maxScTest
     , testCase "pValue calculation" pValueTest
     , testCase "CDF truncate test" cdfTruncateTest
+    , testCase "Reverse Complentary" reverseComplentary
     ]
 
 
@@ -86,3 +87,12 @@ cdfTruncateTest = do
     assertEqual "CDF truncate" expect actual
   where
     pValueToScore' p bg pwm = cdf' (truncateCDF 0.999 $ scoreCDF bg pwm) $ 1 - p
+
+reverseComplentary :: Assertion
+reverseComplentary = do
+    ms <- motifs
+    let expect = map (\x -> map approx $ scores def (_pwm x) dna) ms
+        actual = map (\x -> map approx $ reverse $ scores def (rcPWM $ _pwm x) $ rc dna) ms
+    assertEqual "reverse complentary" expect actual
+  where
+    approx x = round $ 100000 * x

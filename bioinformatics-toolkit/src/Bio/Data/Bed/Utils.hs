@@ -40,7 +40,7 @@ import System.IO
 
 import           Bio.Data.Bed
 import           Bio.Data.Bed.Types
-import           Bio.Motif                    (Bkgd (..), Motif (..), CDF)
+import           Bio.Motif                    (Bkgd (..), Motif (..), CDF, PWM)
 import qualified Bio.Motif                    as Motif
 import qualified Bio.Motif.Search             as Motif
 import           Bio.Seq hiding (length)
@@ -65,10 +65,14 @@ fetchSeq' :: (BioSeq DNA a, MonadIO m) => Genome -> [BED] -> m [Either String (D
 fetchSeq' g beds = runConduit $ yieldMany beds .| fetchSeq g .| sinkList
 {-# INLINE fetchSeq' #-}
 
--- | Motif with predefined cutoff score
+-- | Motif with predefined cutoff score. All necessary intermediate data
+-- structure for motif scanning are stored.
 data CutoffMotif = CutoffMotif
-    { _motif :: Motif
-    , _sigma :: U.Vector Double
+    { _motif_name :: B.ByteString
+    , _motif_pwm :: PWM
+    , _motif_sigma :: U.Vector Double
+    , _motif_pwm_rc :: PWM
+    , _motif_sigma_rc :: U.Vector Double
     , _background :: Bkgd
     , _cutoff :: Double
     , _cdf :: CDF }
@@ -76,34 +80,33 @@ data CutoffMotif = CutoffMotif
 mkCutoffMotif :: Bkgd
               -> Double  -- ^ p-value
               -> Motif -> CutoffMotif
-mkCutoffMotif bg p motif = CutoffMotif motif sigma bg sc $
-    Motif.truncateCDF (1 - p * 10) cdf
+mkCutoffMotif bg p motif = CutoffMotif (_name motif) (_pwm motif) sigma pwm'
+    sigma' bg sc $ Motif.truncateCDF (1 - p * 10) cdf
   where
     cdf = Motif.scoreCDF bg $ _pwm motif
     sc = Motif.cdf' cdf $ 1 - p
     sigma = Motif.optimalScoresSuffix bg $ _pwm motif
+    pwm' = Motif.rcPWM $ _pwm motif
+    sigma' = Motif.optimalScoresSuffix bg pwm'
 
 scanMotif :: (BEDLike b, MonadIO m)
-          => Genome -> CutoffMotif -> b -> ConduitT i BED m ()
-scanMotif g CutoffMotif{..} bed = liftIO (getSeq g (chr, start, end)) >>= \case
-    Left _    -> liftIO $ hPutStrLn stderr $
-        "Warning: no sequence for region: " ++ show (chr, start, end)
-    Right dna -> do
-        search dna .| mapC mkBedFwd
-        search (rc dna) .| mapC mkBedRev
-  where
-    search dna = Motif.findTFBSWith _sigma _background (_pwm _motif)
-        (dna :: DNA IUPAC) _cutoff True 
-    mkBedFwd (i, sc) = BED chr (start + i) (start + i + n)
-        (Just $ _name _motif) (Just p) (Just True)
-      where
-        p = 1 - Motif.cdf _cdf sc
-    mkBedRev (i, sc) = BED chr (end - i - n) (end - i)
-        (Just $ _name _motif) (Just p) (Just False)
-      where
-        p = 1 - Motif.cdf _cdf sc
-    (chr, start, end) = (bed^.chrom, bed^.chromStart, bed^.chromEnd)
-    n = Motif.size $ _pwm _motif
+          => Genome -> [CutoffMotif] -> ConduitT b BED m ()
+scanMotif g motifs = awaitForever $ \bed -> do
+    let (chr, start, end) = (bed^.chrom, bed^.chromStart, bed^.chromEnd)
+    liftIO (getSeq g (chr, start, end)) >>= \case
+        Left _    -> liftIO $ hPutStrLn stderr $
+            "Warning: no sequence for region: " ++ show (chr, start, end)
+        Right dna -> forM_ motifs $ \CutoffMotif{..} -> do
+            let mkBed str (i, sc) = BED chr (start + i) (start + i + n)
+                    (Just $ _motif_name) (Just $ 1 - Motif.cdf _cdf sc)
+                    (Just str)
+                n = Motif.size _motif_pwm
+            -- Scan forward strand
+            Motif.findTFBSWith _motif_sigma _background _motif_pwm
+                (dna :: DNA IUPAC) _cutoff True .| mapC (mkBed True)
+            -- Scan reverse strand
+            Motif.findTFBSWith _motif_sigma_rc _background _motif_pwm_rc
+                dna _cutoff True .| mapC (mkBed False)
 {-# INLINE scanMotif #-}
 
 -- | process a sorted BED stream, keep only mono-colonal tags

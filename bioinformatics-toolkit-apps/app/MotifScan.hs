@@ -39,8 +39,7 @@ defaultMain opts = do
         motifs <- map (mkCutoffMotif def (p opts)) <$> readMEME (motifFile opts)
         runResourceT $ runConduit $
             (streamBed (input opts) :: Source (ResourceT IO) BED3) .|
-            awaitForever (\x -> mapM_ (\m -> scanMotif genome m x) motifs) .|
-            sinkHandleBed stdout
+            scanMotif genome motifs .| sinkHandleBed stdout
 
 main :: IO ()
 main = execParser opts >>= defaultMain
