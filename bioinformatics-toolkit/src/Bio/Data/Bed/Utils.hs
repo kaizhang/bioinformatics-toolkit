@@ -89,6 +89,7 @@ mkCutoffMotif bg p motif = CutoffMotif (_name motif) (_pwm motif) sigma pwm'
     pwm' = Motif.rcPWM $ _pwm motif
     sigma' = Motif.optimalScoresSuffix bg pwm'
 
+-- | Motif score is in [0, 1000]: ( 1 / (1 + exp (-(-logP - 5))) ) * 1000.
 scanMotif :: (BEDLike b, MonadIO m)
           => Genome -> [CutoffMotif] -> ConduitT b BED m ()
 scanMotif g motifs = awaitForever $ \bed -> do
@@ -98,7 +99,7 @@ scanMotif g motifs = awaitForever $ \bed -> do
             "Warning: no sequence for region: " ++ show (chr, start, end)
         Right dna -> forM_ motifs $ \CutoffMotif{..} -> do
             let mkBed str (i, sc) = BED chr (start + i) (start + i + n)
-                    (Just $ _motif_name) (Just $ 1 - Motif.cdf _cdf sc)
+                    (Just $ _motif_name) (Just $ toAffinity $ 1 - Motif.cdf _cdf sc)
                     (Just str)
                 n = Motif.size _motif_pwm
             -- Scan forward strand
@@ -107,6 +108,11 @@ scanMotif g motifs = awaitForever $ \bed -> do
             -- Scan reverse strand
             Motif.findTFBSWith _motif_sigma_rc _background _motif_pwm_rc
                 dna _cutoff True .| mapC (mkBed False)
+  where
+    toAffinity x' = round $ sc * 1000
+      where
+        sc = 1 / (1 + exp (-(x - 5)))
+        x = negate $ logBase 10 $ max 1e-20 x'
 {-# INLINE scanMotif #-}
 
 -- | process a sorted BED stream, keep only mono-colonal tags

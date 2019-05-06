@@ -56,7 +56,7 @@ class BEDLike b where
     chromStart :: Lens' b Int
     chromEnd :: Lens' b Int
     name :: Lens' b (Maybe B.ByteString)
-    score :: Lens' b (Maybe Double)
+    score :: Lens' b (Maybe Int)
     strand :: Lens' b (Maybe Bool)
 
     -- | Return the size of a bed region.
@@ -90,7 +90,7 @@ data BED = BED
     , _bed_chromStart :: !Int
     , _bed_chromEnd   :: !Int
     , _bed_name       :: !(Maybe B.ByteString)
-    , _bed_score      :: !(Maybe Double)
+    , _bed_score      :: !(Maybe Int)
     , _bed_strand     :: !(Maybe Bool)  -- ^ True: "+", False: "-"
     } deriving (Eq, Show, Read)
 
@@ -122,21 +122,24 @@ instance BEDConvert BED where
         getName x | x == "." = Nothing
                   | otherwise = Just x
         getScore x | x == "." = Nothing
-                   | otherwise = Just . readDouble $ x
+                   | s >= 0 && s <= 1000 = Just s
+                   | otherwise = error "score must be in [0, 1000]."
+          where
+            s = readInt x
         getStrand str | str == "-" = Just False
                       | str == "+" = Just True
                       | otherwise = Nothing
     {-# INLINE fromLine #-}
 
     toLine (BED f1 f2 f3 f4 f5 f6) = B.intercalate "\t"
-        [ f1, (B.pack.show) f2, (B.pack.show) f3, fromMaybe "." f4, score'
-        , strand' ]
+        [ f1, fromJust $ packDecimal f2, fromJust $ packDecimal f3
+        , fromMaybe "." f4, score', strand' ]
       where
         strand' | f6 == Just True = "+"
                 | f6 == Just False = "-"
                 | otherwise = "."
         score' = case f5 of
-                     Just x -> toShortest x
+                     Just x -> fromJust $ packDecimal x
                      _      -> "."
     {-# INLINE toLine #-}
 
@@ -180,7 +183,7 @@ data NarrowPeak = NarrowPeak
     , _npStart  :: !Int
     , _npEnd    :: !Int
     , _npName   :: !(Maybe B.ByteString)
-    , _npScore  :: !Double
+    , _npScore  :: !Int
     , _npStrand :: !(Maybe Bool)
     , _npSignal  :: !Double
     , _npPvalue :: !(Maybe Double)
@@ -207,7 +210,7 @@ instance BEDConvert NarrowPeak where
 
     fromLine l = NarrowPeak a (readInt b) (readInt c)
         (if d == "." then Nothing else Just d)
-        (readDouble e)
+        (readInt e)
         (if f == "." then Nothing else if f == "+" then Just True else Just False)
         (readDouble g)
         (readDoubleNonnegative h)
@@ -219,7 +222,7 @@ instance BEDConvert NarrowPeak where
 
     toLine (NarrowPeak a b c d e f g h i j) = B.intercalate "\t"
         [ a, fromJust $ packDecimal b, fromJust $ packDecimal c, fromMaybe "." d
-        , toShortest e
+        , fromJust $ packDecimal e
         , case f of
             Nothing   -> "."
             Just True -> "+"
@@ -239,7 +242,7 @@ data BroadPeak = BroadPeak
     , _bpStart  :: !Int
     , _bpEnd    :: !Int
     , _bpName   :: !(Maybe B.ByteString)
-    , _bpScore  :: !Double
+    , _bpScore  :: !Int
     , _bpStrand :: !(Maybe Bool)
     , _bpSignal  :: !Double
     , _bpPvalue :: !(Maybe Double)
@@ -264,7 +267,7 @@ instance BEDConvert BroadPeak where
 
     fromLine l = BroadPeak a (readInt b) (readInt c)
         (if d == "." then Nothing else Just d)
-        (readDouble e)
+        (readInt e)
         (if f == "." then Nothing else if f == "+" then Just True else Just False)
         (readDouble g)
         (readDoubleNonnegative h)
@@ -275,7 +278,7 @@ instance BEDConvert BroadPeak where
 
     toLine (BroadPeak a b c d e f g h i) = B.intercalate "\t"
         [ a, fromJust $ packDecimal b, fromJust $ packDecimal c, fromMaybe "." d
-        , toShortest e
+        , fromJust $ packDecimal e
         , case f of
             Nothing   -> "."
             Just True -> "+"
