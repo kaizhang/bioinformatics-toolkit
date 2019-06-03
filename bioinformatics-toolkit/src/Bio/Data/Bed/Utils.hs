@@ -145,7 +145,7 @@ baseMap chrs = do
         Nothing -> return ()
         Just bv -> if fromMaybe True $ bed^.strand
             then BV.set bv $ bed^.chromStart
-            else BV.set bv $ bed^.chromEnd
+            else BV.set bv $ bed^.chromEnd - 1
 
     lift $ fmap BaseMap $ sequence $ fmap BV.unsafeFreeze bvs 
 
