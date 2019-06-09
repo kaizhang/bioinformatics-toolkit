@@ -191,18 +191,23 @@ isOverlapped :: (BEDLike b1, BEDLike b2) => b1 -> b2 -> Bool
 isOverlapped b1 b2 = b1^.chrom == b2^.chrom &&
     not (b1^.chromEnd <= b2^.chromStart || b2^.chromEnd <= b1^.chromStart)
 
+-- | Merge overlapping regions.
 mergeBed :: (BEDConvert b, Monad m) => [b] -> ConduitT i b m ()
-mergeBed = mergeSortedBed . sortBed
+mergeBed xs = yieldMany xs' .| mergeSortedBed
+  where
+    Sorted xs' = sortBed xs
 {-# INLINE mergeBed #-}
 
+-- | Merge overlapping regions according to a merging function.
 mergeBedWith :: (BEDLike b, Monad m)
              => ([b] -> a) -> [b] -> ConduitT i a m ()
-mergeBedWith f = mergeSortedBedWith f . sortBed
+mergeBedWith f xs = yieldMany xs' .| mergeSortedBedWith f
+  where
+    Sorted xs' = sortBed xs
 {-# INLINE mergeBedWith #-}
 
-mergeSortedBed :: (BEDConvert b, Monad m)
-               => Sorted (V.Vector b)
-               -> ConduitT i b m ()
+-- | Merge overlapping regions. The input stream must be sorted first.
+mergeSortedBed :: (BEDConvert b, Monad m) => ConduitT b b m ()
 mergeSortedBed = mergeSortedBedWith f
   where
     f xs = asBed (head xs ^. chrom) lo hi
@@ -211,25 +216,24 @@ mergeSortedBed = mergeSortedBedWith f
         hi = maximum $ map (^.chromEnd) xs
 {-# INLINE mergeSortedBed #-}
 
+-- | Merge overlapping regions according to a merging function. The input
+-- stream must be sorted first.
 mergeSortedBedWith :: (BEDLike b, Monad m)
-                   => ([b] -> a) -> Sorted (V.Vector b) -> ConduitT i a m ()
-mergeSortedBedWith mergeFn (Sorted beds)
-    | V.null beds = return ()
-    | otherwise = do
-        (_, r) <- V.foldM' f acc0 . V.tail $ beds
-        yield $ mergeFn r
+                   => ([b] -> a) -> ConduitT b a m ()
+mergeSortedBedWith mergeFn = headC >>= ( maybe mempty $ \b0 ->
+    go ((b0^.chrom, b0^.chromStart, b0^.chromEnd), [b0]) )
   where
-    x0 = V.head beds
-    acc0 = ((x0^.chrom, x0^.chromStart, x0^.chromEnd), [x0])
-    f ((chr,lo,hi), acc) bed
-        | chr /= chr' || s' > hi = yield (mergeFn acc) >>
-                                   return ((chr',s',e'), [bed])
-        | e' > hi = return ((chr',lo,e'), bed:acc)
-        | otherwise = return ((chr,lo,hi), bed:acc)
+    go ((chr, s, e), acc) = headC >>= maybe (yield $ mergeFn acc) f
       where
-        chr' = bed^.chrom
-        s' = bed^.chromStart
-        e' = bed^.chromEnd
+        f bed | chr /= chr' || s' > e =
+                    yield (mergeFn acc) >> go ((chr',s',e'), [bed])
+              | s' < s = error "input stream is not sorted"
+              | e' > e = go ((chr',s,e'), bed:acc)
+              | otherwise = go ((chr,s,e), bed:acc)
+          where
+            chr' = bed^.chrom
+            s' = bed^.chromStart
+            e' = bed^.chromEnd
 {-# INLINE mergeSortedBedWith #-}
 
 -- | Split overlapped regions into non-overlapped regions. The input must be overlapped.

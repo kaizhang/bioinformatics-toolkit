@@ -22,6 +22,7 @@ tests = testGroup "Test: Bio.Data.Bed"
     [ testCase "sortBed" sortBedTest
     , testCase "split" splitBedTest
     , testCase "splitOverlapped" splitOverlappedTest
+    , testCase "mergeBed" mergeBedTest
     , testCase "intersectBed" intersectBedTest
     , testCase "baseMap" baseMapTest
     ]
@@ -71,6 +72,25 @@ splitOverlappedTest = expect @=? result
         ]
     result = sortBy (compareBed `on` fst) $ splitOverlapped length input
 
+mergeBedTest :: Assertion
+mergeBedTest = expect @=? result
+  where
+    input :: [BED3]
+    input = map (\(a,b) -> asBed "chr1" a b)
+        [ (0, 100)
+        , (10, 20)
+        , (50, 150)
+        , (120, 160)
+        , (155, 200)
+        , (155, 220)
+        , (500, 1000)
+        ]
+    expect = map (\(a,b) -> asBed "chr1" a b)
+        [ (0, 220)
+        , (500, 1000)
+        ]
+    result = runIdentity $ runConduit $ mergeBed input .| sinkList
+
 intersectBedTest :: Assertion
 intersectBedTest = do
     expect <- readBed "tests/data/example_intersect_peaks.bed" :: IO [BED3]
@@ -92,5 +112,5 @@ baseMapTest = do
     f bed = if bed^.chrom == "chr1"
         then Just $ if fromJust (bed^.strand)
             then bed^.chromStart
-            else bed^.chromEnd
+            else bed^.chromEnd - 1
         else Nothing
