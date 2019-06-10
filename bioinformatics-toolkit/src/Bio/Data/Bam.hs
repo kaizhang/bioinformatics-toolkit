@@ -17,7 +17,7 @@ import           Bio.Data.Fastq
 import           Bio.HTS
 import           Bio.HTS.Types        (BAM, BAMHeader, SortOrder(..))
 import           Conduit
-import           Control.Lens         ((&), (.~))
+import           Lens.Micro         ((&), (.~))
 
 -- | Convert bam record to bed record. Unmapped reads will be discarded.
 bamToBedC :: MonadIO m => BAMHeader -> ConduitT BAM BED m ()

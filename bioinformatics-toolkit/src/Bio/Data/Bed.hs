@@ -51,7 +51,7 @@ module Bio.Data.Bed
 
 import           Conduit
 import           Control.Arrow                ((***))
-import           Control.Lens
+import           Lens.Micro
 import           Control.Monad.State.Strict
 import qualified Data.ByteString.Char8        as B
 import qualified Data.Foldable                as F

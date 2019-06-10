@@ -6,7 +6,7 @@ module Bio.ChIPSeq.FragLen
     ) where
 
 import           Bio.Data.Bed
-import           Control.Lens                ((^.))
+import           Lens.Micro                ((^.))
 import           Control.Parallel.Strategies (parMap, rpar)
 import qualified Data.ByteString.Char8       as B
 import qualified Data.HashMap.Strict         as M

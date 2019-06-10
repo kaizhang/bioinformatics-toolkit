@@ -6,7 +6,7 @@ import           Bio.Data.Bed
 import           Bio.Data.Bed.Types
 import           Bio.Data.Bed.Utils
 import Bio.Utils.BitVector
-import Control.Lens
+import Lens.Micro
 import           Conduit
 import           Data.Function    (on)
 import           Data.List        (sortBy, sort)

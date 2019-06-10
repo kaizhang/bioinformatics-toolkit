@@ -3,7 +3,7 @@
 module Tests.Fastq (tests) where
 
 import           Bio.Data.Fastq
-import Control.Lens
+import Lens.Micro
 import           Conduit
 import           Test.Tasty
 import           Test.Tasty.Golden

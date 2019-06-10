@@ -22,7 +22,8 @@ module Bio.Data.Bed.Types
     , Sorted(..)
     ) where
 
-import           Control.Lens
+import Lens.Micro
+import Lens.Micro.TH (makeLensesFor)
 import qualified Data.ByteString.Char8             as B
 import           Data.ByteString.Lex.Integral      (packDecimal)
 import           Data.Default.Class                (Default (..))

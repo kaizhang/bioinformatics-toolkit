@@ -6,7 +6,7 @@ module Bio.Utils.Overlap
 
 import           Bio.Data.Bed
 import           Conduit
-import           Control.Lens                ((^.))
+import           Lens.Micro                ((^.))
 import           Control.Monad
 import qualified Data.ByteString.Char8       as B
 import           Data.Function
