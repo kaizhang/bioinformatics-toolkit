@@ -39,13 +39,11 @@ readOWL fl = do
         namespace = case findChild "oboInOwl:hasOBONamespace" record of
             Nothing -> error "readOWL: cannot find namespace field"
             Just ns -> decodeUtf8 $ getText $ head $ getChildren ns
-        parent = case findChildren "rdfs:subClassOf" record of
-            [] -> Nothing
-            [p] -> case lookup "rdf:resource" (getAttributes p) of
-                Nothing -> error "readOWL: cannot find 'rdf:resource' attribute"
-                Just at -> Just $ readInt $ snd $ B.breakEnd (=='_') at
-            _ -> error "readOWL: encounter multiple parents."
-
+        parent =
+            let f p = case lookup "rdf:resource" (getAttributes p) of
+                    Nothing -> error "readOWL: cannot find 'rdf:resource' attribute"
+                    Just at -> readInt $ snd $ B.breakEnd (=='_') at
+            in map f $ findChildren "rdfs:subClassOf" record 
 
 readOWLAsMap :: FilePath -> IO GOMap
 readOWLAsMap fl = M.fromListWith errMsg . map (_oboId &&& id) <$> readOWL fl

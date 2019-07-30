@@ -3,9 +3,6 @@ module Bio.GO
     ( GO(..)
     , GOId
     , GOMap
-    , getParentById
-    , addTerm
-    , enrichment
     ) where
 
 import           Bio.Utils.Functions (hyperquick)
@@ -16,7 +13,7 @@ import qualified Data.Text           as T
 data GO = GO
     { _oboId        :: !GOId
     , _label        :: !T.Text
-    , _subProcessOf :: !(Maybe GOId)
+    , _subProcessOf :: ![GOId]
     , _oboNS        :: !T.Text
     } deriving (Show, Read)
 
@@ -26,6 +23,7 @@ type GOMap = M.HashMap GOId GO
 
 type TermCount = M.HashMap GOId Int
 
+{-
 getParentById :: GOId -> GOMap -> Maybe GO
 getParentById gid goMap = M.lookup gid goMap >>= _subProcessOf
                                              >>= (`M.lookup` goMap)
@@ -55,3 +53,4 @@ enrichment (bg, bg_total) (fg, fg_total) =
             bg_count = M.lookupDefault undefined gid bg
             p = 1 - hyperquick fg_count bg_count fg_total bg_total
         in (gid, enrich, p)
+-}
