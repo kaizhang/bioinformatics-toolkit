@@ -3,11 +3,11 @@ module Bio.GO
     ( GO(..)
     , GOId
     , GOMap
+    , getGOLevel
     ) where
 
-import           Bio.Utils.Functions (hyperquick)
 import qualified Data.HashMap.Strict as M
-import qualified Data.HashSet        as S
+import Data.Maybe
 import qualified Data.Text           as T
 
 data GO = GO
@@ -22,6 +22,15 @@ type GOId = Int
 type GOMap = M.HashMap GOId GO
 
 type TermCount = M.HashMap GOId Int
+
+-- | The top level is 0.
+getGOLevel :: GOId -> GOMap -> Int
+getGOLevel gid gm = loop 0 [gid]
+  where
+    loop l ids | null parents = l
+               | otherwise = loop (l+1) parents
+      where
+        parents = concatMap _subProcessOf $ flip mapMaybe ids $ \i -> M.lookup i gm 
 
 {-
 getParentById :: GOId -> GOMap -> Maybe GO

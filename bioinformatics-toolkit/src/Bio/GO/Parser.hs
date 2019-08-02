@@ -16,40 +16,42 @@ import qualified Data.HashMap.Strict        as M
 import           Data.Text.Encoding         (decodeUtf8)
 import           Text.XML.Expat.Proc
 import           Text.XML.Expat.Tree
+import Data.Maybe
 import qualified Data.CaseInsensitive as CI
+import Data.ByteString.Lex.Integral
 
 import           Bio.GO
 import           Bio.Utils.Misc (readInt)
 
 readOWL :: FilePath -> IO [GO]
 readOWL fl = do
-    c <- L.readFile fl
-    let (xml, _) = parse defaultParseOptions c
-        goTerms = findChildren "owl:Class" (xml :: Node B.ByteString B.ByteString)
-    return $ map process goTerms
+    xml <- parseThrowing defaultParseOptions <$> L.readFile fl :: IO (Node B.ByteString B.ByteString)
+    return $ map process $ filterChildren (\x -> "owl:Class" == getName x && not (isDeprecated x)) xml
   where
+    isDeprecated x = isJust $ findChild "owl:deprecated" x
     process record = GO id' label parent namespace
       where
         id' = case findChild "oboInOwl:id" record of
-            Nothing -> error "readOWL: cannot find id field"
-            Just i -> readInt $ snd $ B.breakEnd (==':') $ getText $ head $ getChildren i
+            Nothing -> error $ "Cannot find id field for: " <> show record
+            Just i -> case readDecimal (snd $ B.breakEnd (==':') $ B.concat $ map getText $ getChildren i) of
+              Nothing -> error $ show i
+              Just (x,_) -> x
         label = case findChild "rdfs:label" record of
             Nothing -> error "readOWL: cannot find label field"
-            Just l -> decodeUtf8 $ getText $ head $ getChildren l
+            Just l -> decodeUtf8 $ B.concat $ map getText $ getChildren l
         namespace = case findChild "oboInOwl:hasOBONamespace" record of
             Nothing -> error "readOWL: cannot find namespace field"
-            Just ns -> decodeUtf8 $ getText $ head $ getChildren ns
+            Just ns -> decodeUtf8 $ B.concat $ map getText $ getChildren ns
         parent =
             let f p = case lookup "rdf:resource" (getAttributes p) of
-                    Nothing -> error "readOWL: cannot find 'rdf:resource' attribute"
-                    Just at -> readInt $ snd $ B.breakEnd (=='_') at
-            in map f $ findChildren "rdfs:subClassOf" record 
+                    Nothing -> Nothing
+                    Just at -> Just $ readInt $ snd $ B.breakEnd (=='_') at
+            in mapMaybe f $ findChildren "rdfs:subClassOf" record 
 
 readOWLAsMap :: FilePath -> IO GOMap
 readOWLAsMap fl = M.fromListWith errMsg . map (_oboId &&& id) <$> readOWL fl
   where
     errMsg = error "readOWLAsMap: Duplicate records."
-
 
 data GAF = GAF
     { gafDb :: B.ByteString
