@@ -162,7 +162,7 @@ quantileNormalization mat = M.fromColumns $ map
     groupBy ((==) `on` (snd . snd)) . zip averages . G.toList) $
     M.toColumns srtMat
   where
-    f [(a,(b,c))] = [(a,b)]
+    f [(a,(b,_))] = [(a,b)]
     f xs = let m = mean $ U.fromList $ fst $ unzip xs
            in map (\(_,(i,_)) -> (m, i)) xs
     srtMat :: M.Matrix (Int, Double)

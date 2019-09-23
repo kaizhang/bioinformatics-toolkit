@@ -18,7 +18,6 @@ import           Text.XML.Expat.Proc
 import           Text.XML.Expat.Tree
 import Data.Maybe
 import qualified Data.CaseInsensitive as CI
-import Data.ByteString.Lex.Integral
 
 import           Bio.GO
 import           Bio.Utils.Misc (readInt)
@@ -33,9 +32,7 @@ readOWL fl = do
       where
         id' = case findChild "oboInOwl:id" record of
             Nothing -> error $ "Cannot find id field for: " <> show record
-            Just i -> case readDecimal (snd $ B.breakEnd (==':') $ B.concat $ map getText $ getChildren i) of
-              Nothing -> error $ show i
-              Just (x,_) -> x
+            Just i -> readInt $ snd $ B.breakEnd (==':') $ B.concat $ map getText $ getChildren i
         label = case findChild "rdfs:label" record of
             Nothing -> error "readOWL: cannot find label field"
             Just l -> decodeUtf8 $ B.concat $ map getText $ getChildren l

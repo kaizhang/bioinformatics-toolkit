@@ -10,21 +10,12 @@ module Bio.Motif.Search
     ) where
 
 import           Conduit
-import           Control.Arrow               ((***))
-import           Control.Monad.ST            (runST)
-import           Control.Parallel.Strategies (parMap, rdeepseq)
 import qualified Data.ByteString.Char8       as B
-import           Data.Function               (on)
-import qualified Data.HashMap.Strict         as HM
-import qualified Data.HashSet                as S
-import           Data.List                   (nubBy)
 import qualified Data.Matrix.Unboxed         as M
 import           Data.Ord                    (comparing)
 import qualified Data.Vector.Unboxed         as U
 
-import           Bio.Motif                   (Bkgd (..), Motif (..), PWM (..),
-                                              pValueToScore, rcPWM, scores',
-                                              size)
+import           Bio.Motif                   (Bkgd (..), PWM (..), scores', size)
 import           Bio.Seq                     (DNA, toBS)
 import qualified Bio.Seq                     as Seq (length)
 

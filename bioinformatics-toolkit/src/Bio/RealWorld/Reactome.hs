@@ -14,7 +14,7 @@ base :: String
 base = "https://reactome.org/ContentService"
 
 data Obj = Obj
-    { className	:: Maybe T.Text
+    { className :: Maybe T.Text
     , dbId :: Int 
     , displayName :: T.Text
     , schemaClass :: Maybe T.Text

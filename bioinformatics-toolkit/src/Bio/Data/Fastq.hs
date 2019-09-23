@@ -14,11 +14,8 @@ module Bio.Data.Fastq
 
 import           Conduit
 import Data.Conduit.Zlib (ungzip, multiple, gzip)
-import           Control.Monad         (when)
 import qualified Data.ByteString.Char8 as B
-import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as BS
-import           Data.Maybe            (isJust)
 import qualified Data.Attoparsec.ByteString as A
 import Data.Attoparsec.ByteString.Char8
 import Data.Conduit.Attoparsec
@@ -67,12 +64,12 @@ fastqParser = do
     _ <- skipWhile (/='@') >> char8 '@'
     ident <- A.takeTill isEndOfLine
     endOfLine
-    sequence <- BS.filter (not . isEndOfLine) <$> takeTill (=='+')
+    sequ <- BS.filter (not . isEndOfLine) <$> takeTill (=='+')
     char8 '+' >> A.skipWhile (not . isEndOfLine) >> endOfLine
     score <- BS.filter (not . isEndOfLine) <$>
-        A.scan 0 (f (B.length sequence))
+        A.scan 0 (f (B.length sequ))
     skipWhile (/='@')
-    return $ Fastq ident sequence score
+    return $ Fastq ident sequ score
   where
     f n i x | i >= n = Nothing
             | isEndOfLine x = Just i

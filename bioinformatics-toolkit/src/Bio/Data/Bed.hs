@@ -246,12 +246,12 @@ splitOverlapped fun xs = filter ((>0) . size . fst) $
     xs' = sortBy (comparing (fromEither . fst)) $ concatMap
         ( \x -> [(Left $ x^.chromStart, x), (Right $ x^.chromEnd, x)] ) xs
     f (i, x) acc = do
-        (j, set) <- get
-        let bed = (asBed chr (fromEither i) j, fun $ M.elems set)
-            set' = case i of
-                Left _  -> M.delete (x^.chromStart, x^.chromEnd) set
-                Right _ -> M.insert (x^.chromStart, x^.chromEnd) x set
-        put (fromEither i, set')
+        (j, s) <- get
+        let bed = (asBed chr (fromEither i) j, fun $ M.elems s)
+            s' = case i of
+                Left _  -> M.delete (x^.chromStart, x^.chromEnd) s
+                Right _ -> M.insert (x^.chromStart, x^.chromEnd) x s
+        put (fromEither i, s')
         return (bed:acc)
     fromEither (Left x)  = x
     fromEither (Right x) = x
