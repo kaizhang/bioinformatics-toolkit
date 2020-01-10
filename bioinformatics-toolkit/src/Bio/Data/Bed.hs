@@ -35,7 +35,8 @@ module Bio.Data.Bed
     , mergeBedWith
     , mergeSortedBed
     , mergeSortedBedWith
-    , splitOverlapped
+--    , splitOverlapped
+    , countOverlapped
 
     -- * IO
     , streamBed
@@ -58,7 +59,7 @@ import qualified Data.Foldable                as F
 import           Data.Function                (on)
 import qualified Data.HashMap.Strict          as M
 import qualified Data.IntervalMap.Strict      as IM
-import           Data.List                    (groupBy, sortBy)
+import           Data.List                    (groupBy, sortBy, group)
 import           Data.Ord                     (comparing)
 import           Data.Conduit.Zlib           (gzip, ungzip, multiple)
 import qualified Data.Vector                  as V
@@ -236,14 +237,16 @@ mergeSortedBedWith mergeFn = headC >>= ( maybe mempty $ \b0 ->
             e' = bed^.chromEnd
 {-# INLINE mergeSortedBedWith #-}
 
+{-
 -- | Split overlapped regions into non-overlapped regions. The input must be overlapped.
 -- This function is usually used with `mergeBedWith`.
 splitOverlapped :: BEDLike b => ([b] -> a) -> [b] -> [(BED3, a)]
 splitOverlapped fun xs = filter ((>0) . size . fst) $
-    evalState (F.foldrM f [] $ init xs') x0
+    evalState (F.foldrM f [] $ init anchors) $
+        (\(a,b) -> (fromEither a, M.singleton (b^.chromStart, b^.chromEnd) b)) $
+        last anchors
   where
-    x0 = (\(a,b) -> (fromEither a, M.singleton (b^.chromStart, b^.chromEnd) b)) $ last xs'
-    xs' = sortBy (comparing (fromEither . fst)) $ concatMap
+    anchors = sortBy (comparing (fromEither . fst)) $ concatMap
         ( \x -> [(Left $ x^.chromStart, x), (Right $ x^.chromEnd, x)] ) xs
     f (i, x) acc = do
         (j, s) <- get
@@ -257,7 +260,32 @@ splitOverlapped fun xs = filter ((>0) . size . fst) $
     fromEither (Right x) = x
     chr = head xs ^. chrom
 {-# INLINE splitOverlapped #-}
+-}
 
+-- | Split overlapped regions into non-overlapped regions. The input must be overlapped.
+-- This function is usually used with `mergeBedWith`.
+countOverlapped :: BEDLike b => [b] -> [(BED3, Int)]
+countOverlapped xs = reverse $ (\(_,_,x) -> x) $
+    F.foldl' go (p0, c0, []) $ tail anchors
+  where
+    (Left p0, c0) = head anchors
+    go (x, accum, result) (Left p, count)
+        | x == p = (p, accum + count, result)
+        | otherwise = (p, accum + count, (asBed chr x $ p, accum):result)
+    go (x, accum, result) (Right p, count) =
+      (p+1, accum - count, (asBed chr x $ p + 1, accum):result)
+    anchors = map (\x -> (head x, length x)) $ group $ sortBy cmp $ concatMap
+        (\x -> [Left $ x^.chromStart, Right $ x^.chromEnd - 1]) xs
+    cmp (Left x) (Left y) = compare x y
+    cmp (Right x) (Right y) = compare x y
+    cmp (Left x) (Right y) = case compare x y of
+        EQ -> LT
+        o -> o
+    cmp (Right x) (Left y) = case compare x y of
+        EQ -> GT
+        o -> o
+    chr = head xs ^. chrom
+{-# INLINE countOverlapped #-}
 
 streamBed :: (MonadResource m, BEDConvert b, MonadIO m)
           => FilePath -> ConduitT i b m () 

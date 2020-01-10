@@ -57,9 +57,11 @@ splitOverlappedTest = expect @=? result
         , (120, 160)
         , (155, 200)
         , (155, 220)
+        , (0, 10)
+        , (0, 10)
         ]
     expect = map (\((a,b), x) -> (asBed "chr1" a b, x))
-        [ ((0, 10), 1)
+        [ ((0, 10), 3)
         , ((10, 20), 2)
         , ((20, 50), 1)
         , ((50, 100), 2)
@@ -70,7 +72,8 @@ splitOverlappedTest = expect @=? result
         , ((160, 200), 2)
         , ((200, 220), 1)
         ]
-    result = sortBy (compareBed `on` fst) $ splitOverlapped length input
+    --result = sortBy (compareBed `on` fst) $ splitOverlapped length input
+    result = sortBy (compareBed `on` fst) $ countOverlapped input
 
 mergeBedTest :: Assertion
 mergeBedTest = expect @=? result
