@@ -20,7 +20,6 @@ import           Bio.Data.Bed
 import           Bio.Data.Bed.Types
 import           Bio.Data.Fastq
 import           Bio.HTS
-import           Bio.HTS.Types        (BAM, BAMHeader, SortOrder(..))
 import           Conduit
 
 -- | Convert bam record to bed record. Unmapped reads will be discarded.

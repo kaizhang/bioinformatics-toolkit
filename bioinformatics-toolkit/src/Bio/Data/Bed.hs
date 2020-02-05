@@ -53,14 +53,12 @@ module Bio.Data.Bed
 import           Conduit
 import           Control.Arrow                ((***))
 import           Lens.Micro
-import           Control.Monad.State.Strict
 import qualified Data.ByteString.Char8        as B
 import qualified Data.Foldable                as F
 import           Data.Function                (on)
 import qualified Data.HashMap.Strict          as M
 import qualified Data.IntervalMap.Strict      as IM
 import           Data.List                    (groupBy, sortBy, group)
-import           Data.Ord                     (comparing)
 import           Data.Conduit.Zlib           (gzip, ungzip, multiple)
 import qualified Data.Vector                  as V
 import qualified Data.Vector.Algorithms.Intro as I

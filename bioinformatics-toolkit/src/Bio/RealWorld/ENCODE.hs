@@ -35,7 +35,6 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
-import Data.Semigroup (Semigroup(..))
 import Network.HTTP.Conduit
 import Data.Default.Class
 

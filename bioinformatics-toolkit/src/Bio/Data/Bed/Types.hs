@@ -31,7 +31,6 @@ import           Data.Double.Conversion.ByteString (toShortest)
 import qualified Data.HashMap.Strict               as M
 import qualified Data.IntervalMap.Strict           as IM
 import           Data.Maybe                        (fromJust, fromMaybe)
-import           Data.Monoid                       ((<>))
 
 import           Bio.Utils.Misc                    (readDouble, readInt)
 
