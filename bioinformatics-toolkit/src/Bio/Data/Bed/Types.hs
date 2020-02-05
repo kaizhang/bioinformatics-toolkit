@@ -209,16 +209,17 @@ instance BEDLike NarrowPeak where
 instance BEDConvert NarrowPeak where
     asBed chr s e = NarrowPeak chr s e Nothing 0 Nothing 0 Nothing Nothing Nothing
 
-    fromLine l = NarrowPeak a (readInt b) (readInt c)
-        (if d == "." then Nothing else Just d)
-        (readInt e)
-        (if f == "." then Nothing else if f == "+" then Just True else Just False)
-        (readDouble g)
-        (readDoubleNonnegative h)
-        (readDoubleNonnegative i)
-        (readIntNonnegative j)
+    fromLine = go . B.split '\t'
       where
-        (a:b:c:d:e:f:g:h:i:j:_) = B.split '\t' l
+        go [a,b,c] = convert $ BED3 a (readInt b) $ readInt c
+        go (a:b:c:d:e:f:g:h:i:j:_) = NarrowPeak a (readInt b) (readInt c)
+            (if d == "." then Nothing else Just d)
+            (readInt e)
+            (if f == "." then Nothing else if f == "+" then Just True else Just False)
+            (readDouble g)
+            (readDoubleNonnegative h)
+            (readDoubleNonnegative i)
+            (readIntNonnegative j)
     {-# INLINE fromLine #-}
 
     toLine (NarrowPeak a b c d e f g h i j) = B.intercalate "\t"
