@@ -4,6 +4,7 @@
 module Bio.RealWorld.GENCODE
     ( Gene(..)
     , Transcript(..)
+    , TranscriptType(..)
     , readGenes
     ) where
 
