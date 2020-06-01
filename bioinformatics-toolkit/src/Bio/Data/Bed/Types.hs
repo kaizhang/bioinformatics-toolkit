@@ -122,10 +122,7 @@ instance BEDConvert BED where
         getName x | x == "." = Nothing
                   | otherwise = Just x
         getScore x | x == "." = Nothing
-                   | s >= 0 && s <= 1000 = Just s
-                   | otherwise = error "score must be in [0, 1000]."
-          where
-            s = readInt x
+                   | otherwise = readInt x
         getStrand str | str == "-" = Just False
                       | str == "+" = Just True
                       | otherwise = Nothing
@@ -219,6 +216,7 @@ instance BEDConvert NarrowPeak where
             (readDoubleNonnegative h)
             (readDoubleNonnegative i)
             (readIntNonnegative j)
+        go x = error $ "Cannot parse line: " <> show x
     {-# INLINE fromLine #-}
 
     toLine (NarrowPeak a b c d e f g h i j) = B.intercalate "\t"

@@ -13,7 +13,7 @@ import qualified Data.ByteString.Char8 as B
 import           Data.CaseInsensitive  (CI, mk)
 import qualified Data.HashMap.Strict   as M
 import Data.List.Ordered (nubSort)
-import           Data.Maybe            (fromJust)
+import           Data.Maybe            (fromMaybe)
 import Lens.Micro
 import Data.List (foldl')
 import Data.Char (toLower)
@@ -78,13 +78,14 @@ readElements input = runResourceT $ runConduit $ sourceFile input .|
         | featType == "utr" = _4 %~ ((tid, utr):) $ acc
         | otherwise = acc
       where
-        gene = Gene (mk $ fromJust $ getField "gene_name") gid chr lPos rPos (f7=="+") []
+        gene = Gene (mk $ fromMaybe (error "could not find \"gene_name\"") $
+            getField "gene_name") gid chr lPos rPos (f7=="+") []
         transcript = Transcript tid lPos rPos (f7=="+") [] [] tTy
         exon = (lPos, rPos)
         utr = (lPos, rPos)
         [chr,_,f3,f4,f5,_,f7,_,f9] = B.split '\t' l
-        gid = fromJust $ getField "gene_id"
-        tid = fromJust $ getField "transcript_id"
+        gid = fromMaybe (error "could not find \"gene_id\"") $ getField "gene_id"
+        tid = fromMaybe (error "could not find \"transcript_id\"") $ getField "transcript_id"
         tTy = case getField "transcript_type" of
             Just "protein_coding" -> Coding
             Nothing -> Coding
