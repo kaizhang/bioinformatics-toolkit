@@ -122,7 +122,10 @@ instance BEDConvert BED where
         getName x | x == "." = Nothing
                   | otherwise = Just x
         getScore x | x == "." = Nothing
-                   | otherwise = readInt x
+                   | s >= 0 = Just s
+                   | otherwise = error "Read BED fail: score must be greater than 0"
+          where
+            s = readInt x
         getStrand str | str == "-" = Just False
                       | str == "+" = Just True
                       | otherwise = Nothing
