@@ -6,6 +6,7 @@ module Bio.Data.Bed.Types
     , BEDConvert(..)
     , BED(..)
     , BED3(..)
+    , BEDGraph(..)
     , NarrowPeak(..)
     , npSignal
     , npPvalue
@@ -146,8 +147,7 @@ instance BEDConvert BED where
     convert bed = BED (bed^.chrom) (bed^.chromStart) (bed^.chromEnd) (bed^.name)
                       (bed^.score) (bed^.strand)
 
--- * BED3 format
-
+-- | BED3 format
 data BED3 = BED3
     { _bed3_chrom       :: !B.ByteString
     , _bed3_chrom_start :: !Int
@@ -176,6 +176,42 @@ instance BEDConvert BED3 where
     toLine (BED3 a b c) = B.intercalate "\t"
         [a, fromJust $ packDecimal b, fromJust $ packDecimal c]
     {-# INLINE toLine #-}
+
+-- | Bedgraph format.
+data BEDGraph = BEDGraph
+    { _bdg_chrom       :: !B.ByteString
+    , _bdg_chrom_start :: !Int
+    , _bdg_chrom_end   :: !Int
+    , _bdg_value       :: !Double
+    } deriving (Eq, Show, Read)
+
+makeLensesFor [("_bdg_value", "bdgValue")] ''BEDGraph
+
+instance Ord BEDGraph where
+    compare (BEDGraph x1 x2 x3 x4) (BEDGraph y1 y2 y3 y4) =
+        compare (x1,x2,x3,x4) (y1,y2,y3,y4)
+
+instance BEDLike BEDGraph where
+    chrom = lens _bdg_chrom (\bed x -> bed { _bdg_chrom = x })
+    chromStart = lens _bdg_chrom_start (\bed x -> bed { _bdg_chrom_start = x })
+    chromEnd = lens _bdg_chrom_end (\bed x -> bed { _bdg_chrom_end = x })
+    name = lens (const Nothing) (\bed _ -> bed)
+    score = lens (const Nothing) (\bed _ -> bed)
+    strand = lens (const Nothing) (\bed _ -> bed)
+
+instance BEDConvert BEDGraph where
+    asBed a b c = BEDGraph a b c 0
+    {-# INLINE asBed #-}
+
+    fromLine l = case B.split '\t' l of
+        (a:b:c:d:_) -> BEDGraph a (readInt b) (readInt c) $ readDouble d
+        _ -> error "Read BEDGraph fail: Incorrect number of fields"
+    {-# INLINE fromLine #-}
+
+    toLine (BEDGraph a b c d) = B.intercalate "\t"
+        [a, fromJust $ packDecimal b, fromJust $ packDecimal c, toShortest d]
+    {-# INLINE toLine #-}
+
 
 -- | ENCODE narrowPeak format: https://genome.ucsc.edu/FAQ/FAQformat.html#format12
 data NarrowPeak = NarrowPeak
