@@ -4,9 +4,11 @@
 module Bio.Data.Bed
     ( BEDLike(..)
     , BEDConvert(..)
-    , BED
-    , BED3
-    , NarrowPeak
+    , BED(..)
+    , BED3(..)
+    , BEDGraph(..)
+    , bdgValue
+    , NarrowPeak(..)
     , npSignal
     , npPvalue
     , npQvalue

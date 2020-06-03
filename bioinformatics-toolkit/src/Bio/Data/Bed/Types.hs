@@ -7,6 +7,7 @@ module Bio.Data.Bed.Types
     , BED(..)
     , BED3(..)
     , BEDGraph(..)
+    , bdgValue
     , NarrowPeak(..)
     , npSignal
     , npPvalue
