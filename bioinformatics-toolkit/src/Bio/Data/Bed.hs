@@ -20,6 +20,7 @@ module Bio.Data.Bed
     , BEDTree
     , bedToTree
     , sortedBedToTree
+    , query
     , intersecting
     , isIntersected
     , sizeOverlapped
@@ -53,7 +54,7 @@ module Bio.Data.Bed
     ) where
 
 import           Conduit
-import           Control.Arrow                ((***))
+import           Control.Arrow                ((***), first)
 import           Lens.Micro
 import qualified Data.ByteString.Char8        as B
 import qualified Data.Foldable                as F
@@ -94,6 +95,14 @@ bedToTree f xs = M.fromList $ map ((head *** IM.fromAscListWith f) . unzip) $
         I.sortBy (compareBed `on` fst) v
         return v
 {-# INLINE bedToTree #-}
+
+query :: BEDLike b => b -> BEDTree a -> [(BED3, a)]
+query x tree = map (first f) $ IM.assocs $ intersecting tree x
+  where
+    f (IM.IntervalCO lo hi) = BED3 chr lo hi
+    f _ = undefined
+    chr = x^.chrom
+{-# INLINE query #-}
 
 intersecting :: BEDLike b => BEDTree a -> b -> IM.IntervalMap Int a
 intersecting tree x = IM.intersecting (M.lookupDefault IM.empty (x^.chrom) tree) $
