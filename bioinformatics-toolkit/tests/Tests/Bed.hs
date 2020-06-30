@@ -5,7 +5,7 @@ module Tests.Bed (tests) where
 import           Bio.Data.Bed
 import           Bio.Data.Bed.Types
 import           Bio.Data.Bed.Utils
-import Bio.Utils.BitVector
+import Bio.Utils.BitVector hiding (size)
 import Lens.Micro
 import           Conduit
 import           Data.Function    (on)
@@ -16,6 +16,8 @@ import           Test.Tasty.HUnit
 import qualified Data.HashMap.Strict as M
 import Data.Ord
 import Data.Maybe
+import Bio.RealWorld.GENCODE
+import Data.Conduit.Zlib 
 
 tests :: TestTree
 tests = testGroup "Test: Bio.Data.Bed"
@@ -25,13 +27,17 @@ tests = testGroup "Test: Bio.Data.Bed"
     , testCase "mergeBed" mergeBedTest
     , testCase "intersectBed" intersectBedTest
     , testCase "baseMap" baseMapTest
+    , testCase "domain assignment" geneDomainTest
     ]
 
 sortBedTest :: Assertion
-sortBedTest = do beds <- readBed "tests/data/peaks.bed" :: IO [BED]
-                 let (Sorted actual) = sortBed beds
-                 expect <- fmap V.fromList $ readBed "tests/data/peaks.sorted.bed"
-                 expect @=? actual
+sortBedTest = do
+    beds <- runResourceT $ runConduit $
+        streamBedGzip "tests/data/peaks.bed.gz" .| sinkList :: IO [BED3]
+    let (Sorted actual) = sortBed beds
+    expect <- runResourceT $ runConduit $
+        streamBedGzip "tests/data/peaks.sorted.bed.gz" .| sinkVector
+    expect @=? actual
 
 splitBedTest :: Assertion
 splitBedTest = (s1', s2', s3') @=? (s1, s2, s3)
@@ -96,18 +102,21 @@ mergeBedTest = expect @=? result
 
 intersectBedTest :: Assertion
 intersectBedTest = do
-    expect <- readBed "tests/data/example_intersect_peaks.bed" :: IO [BED3]
-    peaks <- readBed "tests/data/peaks.bed" :: IO [BED3]
-    result <- runResourceT $ runConduit $ streamBed "tests/data/example.bed" .| intersectBed peaks .| sinkList
+    expect <- runResourceT $ runConduit $
+        streamBedGzip "tests/data/example_intersect_peaks.bed.gz" .| sinkList :: IO [BED3]
+    peaks <- runResourceT $ runConduit $
+        streamBedGzip "tests/data/peaks.bed.gz" .| sinkList :: IO [BED3]
+    result <- runResourceT $ runConduit $
+        streamBedGzip "tests/data/example.bed.gz" .| intersectBed peaks .| sinkList
     expect @=? result
 
 baseMapTest :: Assertion
 baseMapTest = do
-    BaseMap bv <- runResourceT $ runConduit $ streamBed "tests/data/example.bed" .|
+    BaseMap bv <- runResourceT $ runConduit $ streamBedGzip "tests/data/example.bed.gz" .|
         baseMap [("chr1", 300000000)]
     let res = M.lookupDefault undefined "chr1" $
             fmap (map fst . filter snd . zip [0..] . toList) bv
-    expect <- runResourceT $ runConduit $ streamBed "tests/data/example.bed" .|
+    expect <- runResourceT $ runConduit $ streamBedGzip "tests/data/example.bed.gz" .|
         concatMapC f .| sinkList
     sort expect @=? sort res
   where
@@ -117,3 +126,18 @@ baseMapTest = do
             then bed^.chromStart
             else bed^.chromEnd - 1
         else Nothing
+
+geneDomainTest :: Assertion
+geneDomainTest = do
+    genes <- runResourceT $ runConduit $ sourceFile "tests/data/genes.gtf.gz" .|
+        multiple ungzip .| readGenesC
+    let promoters = bedToTree const $ zip (concatMap (getPromoters 5000 1000) genes) $ repeat ()
+        domain = getDomains 1000000 $ concatMap (getPromoters 5000 1000) genes
+        f x = not (isIntersected promoters x) && (c1 || c2)
+          where
+            c1 = isIntersected promoters (chromStart %~ (`subtract` 1) $ x) &&
+                isIntersected promoters (chromEnd %~ (+1) $ x) &&
+                size x < 1000000
+            c2 = isIntersected promoters (chromStart %~ (`subtract` 1) $ chromEnd %~ (+1) $ x) &&
+                size x == 1000000
+    all f domain @=? True

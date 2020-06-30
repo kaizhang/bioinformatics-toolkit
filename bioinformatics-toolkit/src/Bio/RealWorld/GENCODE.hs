@@ -1,11 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Bio.RealWorld.GENCODE
     ( Gene(..)
     , Transcript(..)
     , TranscriptType(..)
     , readGenes
+    , readGenesC
+    , getPromoters
+    , getDomains
     ) where
 
 import           Conduit
@@ -13,11 +17,14 @@ import qualified Data.ByteString.Char8 as B
 import           Data.CaseInsensitive  (CI, mk)
 import qualified Data.HashMap.Strict   as M
 import Data.List.Ordered (nubSort)
-import           Data.Maybe            (fromMaybe)
+import           Data.Maybe            (fromMaybe, fromJust, isNothing)
 import Lens.Micro
 import Data.List (foldl')
 import Data.Char (toLower)
+import qualified Data.Vector as V
 
+import Bio.Data.Bed
+import Bio.Data.Bed.Types
 import           Bio.Utils.Misc        (readInt)
 
 data TranscriptType = Coding
@@ -47,12 +54,16 @@ data Transcript = Transcript
 
 -- | Read gene information from Gencode GTF file
 readGenes :: FilePath -> IO [Gene]
-readGenes input = do
-    (genes, transcripts, exons, utrs) <- readElements input
+readGenes input = runResourceT $ runConduit $ sourceFile input .| readGenesC
+
+readGenesC :: Monad m => ConduitT B.ByteString o m [Gene]
+readGenesC = do
+    (genes, transcripts, exons, utrs) <- readElements
     let t = M.fromList $ map (\(a,b) -> (transId b, (a,b))) transcripts
     return $ nubGene $ M.elems $ foldl' addTranscript
         (M.fromList $ map (\x -> (geneId x, x)) genes) $
         M.elems $ foldl' addUTR (foldl' addExon t exons) utrs
+{-# INLINE readGenesC #-}
 
 nubGene :: [Gene] -> [Gene]
 nubGene gs = nubSort $ map nubG gs
@@ -62,13 +73,10 @@ nubGene gs = nubSort $ map nubG gs
                , transUTR = nubSort $ transUTR t  }
 {-# INLINE nubGene #-}
 
-readElements :: FilePath
-             -> IO ( [Gene]
-                   , [(B.ByteString, Transcript)]
-                   , [(B.ByteString, (Int, Int))]
-                   , [(B.ByteString, (Int, Int))] )
-readElements input = runResourceT $ runConduit $ sourceFile input .|
-    linesUnboundedAsciiC .| foldlC f ([], [], [], [])
+readElements :: Monad m => ConduitT B.ByteString o m
+    ( [Gene], [(B.ByteString, Transcript)]
+    , [(B.ByteString, (Int, Int))], [(B.ByteString, (Int, Int))] )
+readElements = linesUnboundedAsciiC .| foldlC f ([], [], [], [])
   where
     f acc l
         | B.head l == '#' = acc
@@ -120,13 +128,44 @@ addTranscript m (key, val) = M.adjust (\gene ->
     gene{geneTranscripts = val : geneTranscripts gene}) key m
 {-# INLINE addTranscript #-}
 
-{-
-streamElements :: Monad m => ConduitT B.ByteString BED m ()
-streamElements = linesUnboundedAsciiC .| concatMapC f
+getPromoters :: Int   -- ^ upstream
+             -> Int   -- ^ downstream
+             -> Gene
+             -> [BEDExt BED3 (Int, CI B.ByteString)]
+getPromoters up down Gene{..} = map g $ nubSort tss
   where
-    f l | B.head l == '#' = Nothing
-        | otherwise = Just $ BED chr (readInt start - 1) (readInt end - 1)
-            (Just name) Nothing (Just $ strand == "+")
+    g x | geneStrand = BEDExt (asBed geneChrom (max 0 $ x - up) (x + down)) (x, geneName)
+        | otherwise = BEDExt (asBed geneChrom (max 0 $ x - down) (x + up)) (x, geneName)
+    tss | geneStrand = geneLeft : map transLeft geneTranscripts
+        | otherwise = geneRight : map transRight geneTranscripts
+{-# INLINE getPromoters #-}
+
+-- | Compute genes' regulatory domains using the algorithm described in GREAT.
+-- NOTE: the result doesn't contain promoters
+getDomains :: BEDLike b
+           => Int             -- ^ Extension length. A good default is 1M.
+           -> [b] -- ^ A list of promoters
+           -> [b] -- ^ Regulatory domains
+getDomains ext genes
+    | null genes = error "No gene available for domain assignment!"
+    | otherwise = filter ((>0) . size) $ concatMap f $ triplet $
+        [Nothing] ++ map Just basal ++ [Nothing]
+  where
+    f (left, Just bed, right) =
+      [ chromStart .~ leftPos $ chromEnd .~ s $ bed
+      , chromStart .~ e $ chromEnd .~ rightPos $ bed ]
       where
-        [chr,_,name,start,end,_,strand,_,_] = B.split '\t' l
--}
+        chr = bed^.chrom
+        s = bed^.chromStart
+        e = bed^.chromEnd
+        leftPos
+            | isNothing left || chr /= fromJust left ^. chrom = max (s - ext) 0
+            | otherwise = min s $ max (s - ext) $ fromJust left ^. chromEnd
+        rightPos
+            | isNothing right || chr /= fromJust right ^. chrom = e + ext   -- TODO: bound check
+            | otherwise = max e $ min (e + ext) $ fromJust right ^. chromStart
+    f _ = undefined
+    triplet (x1:x2:x3:xs) = (x1,x2,x3) : triplet xs
+    triplet _ = []
+    basal = V.toList $ fromSorted $ sortBed genes
+{-# INLINE getDomains #-}

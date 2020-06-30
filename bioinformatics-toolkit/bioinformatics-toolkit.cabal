@@ -1,5 +1,5 @@
 name:                bioinformatics-toolkit
-version:             0.9.3.1
+version:             0.9.4
 synopsis:            A collection of bioinformatics tools
 description:         A collection of bioinformatics tools
 license:             MIT
@@ -13,15 +13,16 @@ extra-source-files:  README.md
 cabal-version:       >=1.18
 data-files:
   tests/data/example.bam
-  tests/data/example.bed
+  tests/data/example.bed.gz
   tests/data/pairedend.bam
   tests/data/pairedend.bedpe
-  tests/data/peaks.bed
-  tests/data/peaks.sorted.bed
-  tests/data/example_intersect_peaks.bed
+  tests/data/peaks.bed.gz
+  tests/data/peaks.sorted.bed.gz
+  tests/data/example_intersect_peaks.bed.gz
   tests/data/motifs.fasta
   tests/data/motifs.meme
   tests/data/test.fastq
+  tests/data/genes.gtf.gz
 
 library
   hs-source-dirs: src
@@ -48,7 +49,6 @@ library
     Bio.RealWorld.GDC
     Bio.RealWorld.ID
     Bio.RealWorld.Reactome
-    Bio.RealWorld.UCSC
     Bio.RealWorld.Uniprot
     Bio.Seq
     Bio.Seq.IO
@@ -135,7 +135,7 @@ test-suite tests
     , tasty-hunit
     , bioinformatics-toolkit
     , conduit
-    , conduit-combinators
+    , conduit-extra
     , unordered-containers
     , mtl
     , matrices

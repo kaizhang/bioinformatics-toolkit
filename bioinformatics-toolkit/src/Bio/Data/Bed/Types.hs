@@ -28,7 +28,6 @@ import Lens.Micro
 import Lens.Micro.TH (makeLensesFor)
 import qualified Data.ByteString.Char8             as B
 import           Data.ByteString.Lex.Integral      (packDecimal)
-import           Data.Default.Class                (Default (..))
 import           Data.Double.Conversion.ByteString (toShortest)
 import qualified Data.HashMap.Strict               as M
 import qualified Data.IntervalMap.Strict           as IM
@@ -346,8 +345,8 @@ instance BEDLike bed => BEDLike (BEDExt bed a) where
     score = _bed . score
     strand = _bed . strand
 
-instance (Default a, Read a, Show a, BEDConvert bed) => BEDConvert (BEDExt bed a) where
-    asBed chr s e = BEDExt (asBed chr s e) def
+instance (Read a, Show a, BEDConvert bed) => BEDConvert (BEDExt bed a) where
+    asBed chr s e = BEDExt (asBed chr s e) $ error "data not available"
 
     fromLine l = let (a, b) = B.breakEnd (=='\t') l
                  in BEDExt (fromLine $ B.init a) $ read $ B.unpack b

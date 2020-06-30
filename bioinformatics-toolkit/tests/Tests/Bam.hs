@@ -32,7 +32,8 @@ bamIOTest = do
 
 bamToBedTest :: Assertion
 bamToBedTest = do
-    bed <- readBed "tests/data/example.bed"
+    bed <- runResourceT $ runConduit $
+        streamBedGzip "tests/data/example.bed.gz" .| sinkList
     bed' <- do
         let input = "tests/data/example.bam" 
         header <- getBamHeader input
