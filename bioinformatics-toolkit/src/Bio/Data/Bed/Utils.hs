@@ -6,7 +6,7 @@
 
 module Bio.Data.Bed.Utils
     ( fetchSeq
-    , fetchSeq'
+    , clipBed
     , CutoffMotif(..)
     , mkCutoffMotif
     , scanMotif 
@@ -47,23 +47,28 @@ import           Bio.Seq hiding (length)
 import           Bio.Seq.IO
 import qualified Bio.Utils.BitVector as BV
 
+clipBed :: (BEDLike b, Monad m)
+        => [(B.ByteString, Int)]  -- ^ Chromosome sizes
+        -> ConduitT b b m ()
+clipBed chrsize = mapC f
+  where
+    f x = case M.lookup (x^.chrom) chrsize' of
+        Nothing -> x
+        Just n -> chromStart %~ max 0 $ chromEnd %~ min n $ x
+    chrsize' = M.fromListWith (error "redundant chromosomes") chrsize
+{-# INLINE clipBed #-}
 
 -- | retreive sequences
-fetchSeq :: (BioSeq DNA a, MonadIO m)
+fetchSeq :: BioSeq DNA a
          => Genome
-         -> ConduitT BED (Either String (DNA a)) m ()
-fetchSeq g = mapMC f
-  where
-    f bed = do
-        dna <- liftIO $ getSeq g (bed^.chrom, bed^.chromStart, bed^.chromEnd)
-        return $ case bed^.strand of
-            Just False -> rc <$> dna
-            _          -> dna
+         -> BED
+         -> IO (Either String (DNA a))
+fetchSeq g bed = do
+    dna <- getSeq g (bed^.chrom, bed^.chromStart, bed^.chromEnd)
+    return $ case bed^.strand of
+        Just False -> rc <$> dna
+        _          -> dna
 {-# INLINE fetchSeq #-}
-
-fetchSeq' :: (BioSeq DNA a, MonadIO m) => Genome -> [BED] -> m [Either String (DNA a)]
-fetchSeq' g beds = runConduit $ yieldMany beds .| fetchSeq g .| sinkList
-{-# INLINE fetchSeq' #-}
 
 -- | Motif with predefined cutoff score. All necessary intermediate data
 -- structure for motif scanning are stored.
