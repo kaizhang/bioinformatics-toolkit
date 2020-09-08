@@ -54,7 +54,9 @@ clipBed chrsize = concatMapC f
   where
     f x = case M.lookup (x^.chrom) chrsize' of
         Nothing -> Nothing
-        Just n -> Just $ chromStart %~ max 0 $ chromEnd %~ min n $ x
+        Just n -> if x^.chromStart >= n
+            then Nothing
+            else Just $ chromStart %~ max 0 $ chromEnd %~ min n $ x
     chrsize' = M.fromListWith (error "redundant chromosomes") chrsize
 {-# INLINE clipBed #-}
 
