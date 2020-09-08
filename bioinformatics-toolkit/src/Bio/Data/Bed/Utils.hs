@@ -50,11 +50,11 @@ import qualified Bio.Utils.BitVector as BV
 clipBed :: (BEDLike b, Monad m)
         => [(B.ByteString, Int)]  -- ^ Chromosome sizes
         -> ConduitT b b m ()
-clipBed chrsize = mapC f
+clipBed chrsize = concatMapC f
   where
     f x = case M.lookup (x^.chrom) chrsize' of
-        Nothing -> x
-        Just n -> chromStart %~ max 0 $ chromEnd %~ min n $ x
+        Nothing -> Nothing
+        Just n -> Just $ chromStart %~ max 0 $ chromEnd %~ min n $ x
     chrsize' = M.fromListWith (error "redundant chromosomes") chrsize
 {-# INLINE clipBed #-}
 
