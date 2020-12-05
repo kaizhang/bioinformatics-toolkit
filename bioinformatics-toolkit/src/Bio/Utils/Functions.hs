@@ -14,6 +14,7 @@ module Bio.Utils.Functions (
     , binarySearchBy
     , binarySearchByBounds
     , quantileNormalization
+    , quantileNormalization'
 ) where
 
 import Data.Bits (shiftR)
@@ -26,6 +27,7 @@ import qualified Data.Vector.Unboxed as U
 import qualified Data.Matrix as M
 import Statistics.Sample (meanVarianceUnb, mean)
 import Statistics.Function (sortBy)
+import Control.Parallel.Strategies (parMap, rseq)
 
 -- | inverse hyperbolic sine transformation
 ihs :: Double  -- ^ θ, determine the shape of the function
@@ -171,3 +173,20 @@ quantileNormalization mat = M.fromColumns $ map
     averages = map (mean . snd . G.unzip) $ M.toRows srtMat
     n = M.rows mat
 {-# INLINE quantileNormalization #-}
+
+-- | Columns are samples, rows are features / genes.
+quantileNormalization' :: M.Matrix Double -> M.Matrix Double
+quantileNormalization' mat = M.fromColumns $ parMap rseq
+    (fst . G.unzip . sortBy (comparing snd) . G.fromList . concatMap f .
+    groupBy ((==) `on` (snd . snd)) . zip averages . G.toList) $
+    M.toColumns srtMat
+  where
+    f [(a,(b,_))] = [(a,b)]
+    f xs = let m = mean $ U.fromList $ fst $ unzip xs
+           in map (\(_,(i,_)) -> (m, i)) xs
+    srtMat :: M.Matrix (Int, Double)
+    srtMat = M.fromColumns $ parMap rseq (sortBy (comparing snd) . G.zip (G.enumFromN 0 n)) $
+        M.toColumns mat
+    averages = parMap rseq (mean . snd . G.unzip) $ M.toRows srtMat
+    n = M.rows mat
+{-# INLINE quantileNormalization' #-}
