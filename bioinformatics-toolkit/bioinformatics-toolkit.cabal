@@ -1,12 +1,12 @@
 name:                bioinformatics-toolkit
-version:             0.9.4
+version:             0.9.5
 synopsis:            A collection of bioinformatics tools
 description:         A collection of bioinformatics tools
 license:             MIT
 license-file:        LICENSE
 author:              Kai Zhang
 maintainer:          kai@kzhang.org
-copyright:           (c) 2014-2020 Kai Zhang
+copyright:           (c) 2014-2021 Kai Zhang
 category:            Bio
 build-type:          Simple
 extra-source-files:  README.md

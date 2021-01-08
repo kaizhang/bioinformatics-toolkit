@@ -8,6 +8,7 @@ module Bio.Utils.Functions (
     , filterFDR
     , slideAverage
     , hyperquick
+    , kdeWeight
     , kld
     , jsd
     , binarySearch
@@ -28,6 +29,7 @@ import qualified Data.Matrix as M
 import Statistics.Sample (meanVarianceUnb, mean)
 import Statistics.Function (sortBy)
 import Control.Parallel.Strategies (parMap, rseq)
+import Statistics.Sample.KernelDensity (kde)
 
 -- | inverse hyperbolic sine transformation
 ihs :: Double  -- ^ θ, determine the shape of the function
@@ -92,6 +94,20 @@ hyperquick x m _n _N = loop (m-2) s s (2*e)
                           ( 1 - fromIntegral (_n-1-_x) / fromIntegral (_N-1-_m) )
     e = 1e-20
 
+-- | Assign weights to the points according to density estimation.
+kdeWeight :: Int  -- ^ number of mesh points used in KDE
+          -> U.Vector Double -> U.Vector Double
+kdeWeight n xs = U.map getDensity xs
+  where
+    (points, den) = kde n xs
+    getDensity x = let i = binarySearch points x
+                       lo = points U.! (i - 1)
+                       lo_d = den U.! (i - 1) 
+                       hi = points U.! i
+                       hi_d = den U.! i
+                       hi_w = (x - lo) / (hi - lo)
+                       lo_w = 1 - hi_w
+                    in lo_w * lo_d + hi_w * hi_d
 
 -- | compute the Kullback-Leibler divergence between two valid (not check) probability distributions.
 -- kl(X,Y) = \sum_i P(x_i) log_2(P(x_i)\/P(y_i)).
