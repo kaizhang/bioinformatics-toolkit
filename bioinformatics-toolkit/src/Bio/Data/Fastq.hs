@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Bio.Data.Fastq
     ( Fastq(..)
     , streamFastqGzip
@@ -17,8 +18,11 @@ import Data.Conduit.Zlib (ungzip, multiple, gzip)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString as BS
 import qualified Data.Attoparsec.ByteString as A
+import Data.Word8
 import Data.Attoparsec.ByteString.Char8
 import Data.Conduit.Attoparsec
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 -- | A FASTQ file normally uses four lines per sequence.
 --
@@ -36,7 +40,7 @@ data Fastq = Fastq
     { fastqSeqId   :: B.ByteString
     , fastqSeq     :: B.ByteString
     , fastqSeqQual :: B.ByteString
-    } deriving (Show, Eq)
+    } deriving (Show, Eq, Generic, NFData)
 
 -- | Read gzipped fastq file.
 streamFastqGzip :: (PrimMonad m, MonadThrow m, MonadResource m) 
@@ -55,6 +59,84 @@ sinkFastqGzip :: (PrimMonad m, MonadThrow m, MonadResource m)
               => FilePath -> ConduitT Fastq o m ()
 sinkFastqGzip fl = mapC fastqToByteString .| unlinesAsciiC .| gzip .| sinkFileBS fl
 
+data FQBuilder = Init FQBuilder
+               | FQ1 B.ByteString FQBuilder
+               | FQ2 B.ByteString FQBuilder
+               | FQ3 B.ByteString FQBuilder
+               | Complete
+
+fqBuilder :: FQBuilder -> Fastq
+fqBuilder = go ([], [], [])
+  where
+    go acc (Init bldr) = go acc bldr
+    go (f1,f2,f3) (FQ1 x bldr) = go (x:f1, f2, f3) bldr
+    go (f1,f2,f3) (FQ2 x bldr) = go (f1, x:f2, f3) bldr
+    go (f1,f2,f3) (FQ3 x bldr) = go (f1, f2, x:f3) bldr
+    go (f1,f2,f3) Complete = Fastq (B.concat $ reverse f1)
+        (B.concat $ reverse f2) (B.concat $ reverse f3)
+{-# INLINE fqBuilder #-}
+
+parseFastqC :: Monad m => ConduitT B.ByteString Fastq m ()
+parseFastqC = read1 >>= loop Init 'a'
+  where
+    read1 = await >>= \case
+        Nothing -> error ""
+        Just x -> return x
+    loop acc st input = case st of
+        'a' -> if B.head input == '@'
+            then let (x, rest) = B.break (=='\n') $ B.tail input
+                 in loop (FQ1 x) 'A' rest
+            else error "Record does not start with \'@\'"
+        'A' -> if B.null input
+            then do
+                input' <- read1
+                let (x, rest) = B.break (=='\n') input'
+                loop (acc . FQ1 x) 'A' rest
+            else 
+              let (x, rest) = B.break (=='\n') $ B.tail input in loop (acc . FQ2 x) 'b' rest
+        'b' -> if B.null input
+            then do
+                input' <- read1
+                let (x, rest) = B.break (=='\n') input'
+                loop (acc . FQ2 x) 'b' rest
+            else 
+              if (B.head $ B.tail input) == '+'
+                  then loop acc 'c' $ B.drop 2 input
+                  else 
+                      let (x, rest) = B.break (=='\n') $ B.tail input
+                      in loop (acc . FQ2 x) 'b' rest
+        'c' -> let (x, rest) = B.break (=='\n') input
+               in if B.null rest
+                  then do
+                      bs <- read1
+                      loop acc 'c' bs 
+                  else 
+                      loop acc 'd' $ B.tail rest
+        'd' -> do
+            input' <- if B.null input then read1 else return input
+            let (x, rest) = B.break (=='\n') input'
+            if B.null rest 
+                then loop (acc . FQ3 x) 'd' rest
+                else loop (acc . FQ3 x) 'D' $ B.tail rest
+        'D' -> do 
+            if B.null input
+              then await >>= \case
+                  Nothing -> yield $ fqBuilder $ acc Complete
+                  Just input' -> if B.head input' == '@'
+                      then do
+                          yield $ fqBuilder $ acc Complete
+                          let (x, rest) = B.break (=='\n') $ B.tail input'
+                          loop (Init . FQ1 x) 'A' rest
+                      else let (x, rest) = B.break (=='\n') input' in loop (acc . FQ3 x) 'D' $ B.tail rest
+            else if B.head input == '@'
+                then do
+                    yield $ fqBuilder $ acc Complete
+                    let (x, rest) = B.break (=='\n') $ B.tail input
+                    loop (Init . FQ1 x) 'A' rest
+                else let (x, rest) = B.break (=='\n') input in loop (acc . FQ3 x) 'D' $ B.tail rest
+{-# INLINE parseFastqC #-}
+
+{-
 parseFastqC :: MonadThrow m => ConduitT B.ByteString Fastq m ()
 parseFastqC = conduitParser fastqParser .| mapC snd
 {-# INLINE parseFastqC #-}
@@ -75,6 +157,7 @@ fastqParser = do
             | isEndOfLine x = Just i
             | otherwise = Just $ i + 1
 {-# INLINE fastqParser #-}
+-}
 
 fastqToByteString :: Fastq -> B.ByteString
 fastqToByteString (Fastq a b c) = "@" <> a <> "\n" <> b <> "\n+\n" <> c

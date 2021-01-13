@@ -22,6 +22,7 @@ data-files:
   tests/data/motifs.fasta
   tests/data/motifs.meme
   tests/data/test.fastq
+  tests/data/test_wrap.fastq
   tests/data/genes.gtf.gz
 
 library
@@ -62,7 +63,7 @@ library
       base >=4.11 && <5.0
     , aeson
     , aeson-pretty
-    , attoparsec
+    , attoparsec >= 0.13.0.0
     , bytestring >= 0.10
     , bytestring-lexing >= 0.5
     , case-insensitive
@@ -73,6 +74,7 @@ library
     , data-ordlist
     , data-default-class
     , double-conversion
+    , deepseq
     , HsHTSLib >= 1.9.2
     , http-conduit >= 2.1.8
     , hexpat
