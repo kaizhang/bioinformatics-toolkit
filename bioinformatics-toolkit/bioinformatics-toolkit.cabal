@@ -21,8 +21,8 @@ data-files:
   tests/data/example_intersect_peaks.bed.gz
   tests/data/motifs.fasta
   tests/data/motifs.meme
-  tests/data/test.fastq
-  tests/data/test_wrap.fastq
+  tests/data/test.fastq.gz
+  tests/data/test_wrap.fastq.gz
   tests/data/genes.gtf.gz
 
 library
@@ -110,6 +110,7 @@ benchmark bench
     , bytestring
     , data-default-class
     , conduit
+    , conduit-extra
     , mtl
 
 test-suite tests
