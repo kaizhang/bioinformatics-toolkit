@@ -150,7 +150,7 @@ parseFastqC' = conduitParser fastqParser .| mapC snd
 {-# INLINE parseFastqC' #-}
 
 fastqToByteString :: Fastq -> B.ByteString
-fastqToByteString (Fastq a b c) = "@" <> a <> "\n" <> b <> "\n+\n" <> c
+fastqToByteString (Fastq a b c) = B.concat ["@", a, "\n", b, "\n+\n", c]
 {-# INLINE fastqToByteString #-}
 
 -- | Get the mean and variance of quality scores at every position.
