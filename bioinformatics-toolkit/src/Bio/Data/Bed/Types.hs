@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE StrictData #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 
 module Bio.Data.Bed.Types
     ( BEDLike(..)
@@ -32,6 +34,8 @@ import           Data.Double.Conversion.ByteString (toShortest)
 import qualified Data.HashMap.Strict               as M
 import qualified Data.IntervalMap.Strict           as IM
 import           Data.Maybe                        (fromJust, fromMaybe)
+import GHC.Generics (Generic)
+import Control.DeepSeq (NFData)
 
 import           Bio.Utils.Misc                    (readDouble, readInt)
 
@@ -87,13 +91,13 @@ class BEDLike b => BEDConvert b where
 
 -- | BED6 format, as described in http://genome.ucsc.edu/FAQ/FAQformat.html#format1.7
 data BED = BED
-    { _bed_chrom      :: !B.ByteString
-    , _bed_chromStart :: !Int
-    , _bed_chromEnd   :: !Int
-    , _bed_name       :: !(Maybe B.ByteString)
-    , _bed_score      :: !(Maybe Int)
-    , _bed_strand     :: !(Maybe Bool)  -- ^ True: "+", False: "-"
-    } deriving (Eq, Show, Read)
+    { _bed_chrom      :: B.ByteString
+    , _bed_chromStart :: Int
+    , _bed_chromEnd   :: Int
+    , _bed_name       :: Maybe B.ByteString
+    , _bed_score      :: Maybe Int
+    , _bed_strand     :: Maybe Bool  -- ^ True: "+", False: "-"
+    } deriving (Eq, Show, Read, Generic, NFData)
 
 instance Ord BED where
     compare (BED x1 x2 x3 x4 x5 x6) (BED y1 y2 y3 y4 y5 y6) =
@@ -149,10 +153,10 @@ instance BEDConvert BED where
 
 -- | BED3 format
 data BED3 = BED3
-    { _bed3_chrom       :: !B.ByteString
-    , _bed3_chrom_start :: !Int
-    , _bed3_chrom_end   :: !Int
-    } deriving (Eq, Show, Read)
+    { _bed3_chrom       :: B.ByteString
+    , _bed3_chrom_start :: Int
+    , _bed3_chrom_end   :: Int
+    } deriving (Eq, Show, Read, Generic, NFData)
 
 instance Ord BED3 where
     compare (BED3 x1 x2 x3) (BED3 y1 y2 y3) = compare (x1,x2,x3) (y1,y2,y3)
@@ -179,11 +183,11 @@ instance BEDConvert BED3 where
 
 -- | Bedgraph format.
 data BEDGraph = BEDGraph
-    { _bdg_chrom       :: !B.ByteString
-    , _bdg_chrom_start :: !Int
-    , _bdg_chrom_end   :: !Int
-    , _bdg_value       :: !Double
-    } deriving (Eq, Show, Read)
+    { _bdg_chrom       :: B.ByteString
+    , _bdg_chrom_start :: Int
+    , _bdg_chrom_end   :: Int
+    , _bdg_value       :: Double
+    } deriving (Eq, Show, Read, Generic, NFData)
 
 makeLensesFor [("_bdg_value", "bdgValue")] ''BEDGraph
 
@@ -215,17 +219,17 @@ instance BEDConvert BEDGraph where
 
 -- | ENCODE narrowPeak format: https://genome.ucsc.edu/FAQ/FAQformat.html#format12
 data NarrowPeak = NarrowPeak
-    { _npChrom  :: !B.ByteString
-    , _npStart  :: !Int
-    , _npEnd    :: !Int
-    , _npName   :: !(Maybe B.ByteString)
-    , _npScore  :: !Int
-    , _npStrand :: !(Maybe Bool)
-    , _npSignal  :: !Double
-    , _npPvalue :: !(Maybe Double)
-    , _npQvalue :: !(Maybe Double)
-    , _npPeak   :: !(Maybe Int)
-    } deriving (Eq, Show, Read)
+    { _npChrom  :: B.ByteString
+    , _npStart  :: Int
+    , _npEnd    :: Int
+    , _npName   :: Maybe B.ByteString
+    , _npScore  :: Int
+    , _npStrand :: Maybe Bool
+    , _npSignal :: Double
+    , _npPvalue :: Maybe Double
+    , _npQvalue :: Maybe Double
+    , _npPeak   :: Maybe Int
+    } deriving (Eq, Show, Read, Generic, NFData)
 
 makeLensesFor [ ("_npSignal", "npSignal")
               , ("_npPvalue", "npPvalue")
@@ -276,16 +280,16 @@ instance BEDConvert NarrowPeak where
 
 -- | ENCODE broadPeak format: https://genome.ucsc.edu/FAQ/FAQformat.html#format13
 data BroadPeak = BroadPeak
-    { _bpChrom  :: !B.ByteString
-    , _bpStart  :: !Int
-    , _bpEnd    :: !Int
-    , _bpName   :: !(Maybe B.ByteString)
-    , _bpScore  :: !Int
-    , _bpStrand :: !(Maybe Bool)
-    , _bpSignal  :: !Double
-    , _bpPvalue :: !(Maybe Double)
-    , _bpQvalue :: !(Maybe Double)
-    } deriving (Eq, Show, Read)
+    { _bpChrom  :: B.ByteString
+    , _bpStart  :: Int
+    , _bpEnd    :: Int
+    , _bpName   :: Maybe B.ByteString
+    , _bpScore  :: Int
+    , _bpStrand :: Maybe Bool
+    , _bpSignal :: Double
+    , _bpPvalue :: Maybe Double
+    , _bpQvalue :: Maybe Double
+    } deriving (Eq, Show, Read, Generic, NFData)
 
 makeLensesFor [ ("_bpSignal", "bpSignal")
               , ("_bpPvalue", "bpPvalue")
@@ -333,7 +337,7 @@ instance BEDConvert BroadPeak where
 data BEDExt bed a = BEDExt
     { _ext_bed :: bed
     , _ext_data :: a
-    } deriving (Eq, Show, Read)
+    } deriving (Eq, Show, Read, Generic, NFData)
 
 makeLensesFor [("_ext_bed", "_bed"), ("_ext_data", "_data")] ''BEDExt
 

@@ -16,6 +16,7 @@ module Bio.Data.Bed.Utils
     , queryBaseMap
     , rpkmBed
     , rpkmSortedBed
+    , countTagsBed
     , countTagsBinBed
     , countTagsBinBed'
     , tagCountDistr
@@ -176,11 +177,11 @@ rpkmBed regions = do
                    V.unsafeFreeze v'
     let (idx, sortedRegions) = V.unzip v
         n = G.length idx
-    rc <- rpkmSortedBed $ Sorted sortedRegions
+    readCount <- rpkmSortedBed $ Sorted sortedRegions
 
     lift $ do
         result <- GM.new n
-        G.sequence_ . G.imap (\x i -> GM.unsafeWrite result i (rc U.! x)) $ idx
+        G.sequence_ . G.imap (\x i -> GM.unsafeWrite result i (readCount U.! x)) $ idx
         G.unsafeFreeze result
 {-# INLINE rpkmBed #-}
 
@@ -210,6 +211,27 @@ rpkmSortedBed (Sorted regions) = do
     l = G.length regions
 {-# INLINE rpkmSortedBed #-}
 
+countTagsBed :: (PrimMonad m, BEDLike b, G.Vector v Int)
+             => [b] -> ConduitT BED o m (v Int, Int)
+countTagsBed regions = do
+    vec <- lift $ GM.replicate l 0
+    n <- foldMC (count vec) (0 :: Int)
+    vec' <- lift $ G.unsafeFreeze vec
+    return (vec', n)
+  where
+    count v nTags tag = do
+        let p | tag^.strand == Just True = tag^.chromStart
+              | tag^.strand == Just False = tag^.chromEnd - 1
+              | otherwise = error "Unkown strand"
+            xs = concat $ IM.elems $
+                IM.containing (M.lookupDefault IM.empty (tag^.chrom) intervalMap) p
+        addOne v xs
+        return $ succ nTags
+    intervalMap = bedToTree (++) $ zip regions $ map return [0..]
+    addOne v' = mapM_ $ \x -> GM.unsafeRead v' x >>= GM.unsafeWrite v' x . (+1)
+    l = length regions
+{-# INLINE countTagsBed #-}
+
 -- | divide each region into consecutive bins, and count tags for each bin and
 -- return the number of all tags. Note: a tag is considered to be overlapped
 -- with a region only if the starting position of the tag is in the region. For
@@ -226,8 +248,8 @@ countTagsBinBed k beds = do
         v <- GM.replicate num 0
         return (v, index)
     nTags <- foldMC (f vs) 0
-    rc <- lift $ mapM (G.unsafeFreeze . fst) $ G.toList vs
-    return (rc, nTags)
+    readCount <- lift $ mapM (G.unsafeFreeze . fst) $ G.toList vs
+    return (readCount, nTags)
   where
     f vs n bed = do
         let pos | bed^.strand == Just True = bed^.chromStart
@@ -282,8 +304,8 @@ countTagsBinBed' k beds = do
                         GM.unsafeRead v i >>= GM.unsafeWrite v i . (+1)
                 sink (nTags+1) vs
 
-            _ -> do rc <- lift $ mapM (G.unsafeFreeze . fst) $ G.toList vs
-                    return (rc, nTags)
+            _ -> do readCount <- lift $ mapM (G.unsafeFreeze . fst) $ G.toList vs
+                    return (readCount, nTags)
 
     intervalMap = bedToTree (++) $ zip beds $ map return [0..]
 {-# INLINE countTagsBinBed' #-}

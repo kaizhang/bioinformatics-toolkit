@@ -17,7 +17,6 @@ module Bio.Data.Bam
 import Control.Monad (mzero)
 import Data.List (foldl')
 import           Bio.Data.Bed
-import           Bio.Data.Bed.Types
 import           Bio.Data.Fastq
 import           Bio.HTS
 import           Conduit
