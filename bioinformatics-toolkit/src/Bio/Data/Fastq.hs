@@ -19,7 +19,6 @@ import Data.Conduit.Zlib (ungzip, multiple, gzip)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString as BS
 import qualified Data.Attoparsec.ByteString as A
-import Data.Word8
 import Data.Attoparsec.ByteString.Char8
 import Data.Conduit.Attoparsec
 import GHC.Generics (Generic)
@@ -160,7 +159,7 @@ qualitySummary = mapC (map fromIntegral . decodeQualSc) .| meanVarianceC
 meanVarianceC :: Monad m => ConduitT [Double] o m [(Double, Double)]
 meanVarianceC = peekC >>= \case
     Nothing -> error "Empty input"
-    Just x -> fst <$> foldlC f (replicate (length x) (0,0), 0)
+    Just x -> fst <$> foldlC f (replicate (length x) (0,0), 0 :: Int)
   where
     f (acc, n) xs = let acc' = zipWith g acc xs in (acc', n')
       where

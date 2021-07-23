@@ -10,7 +10,7 @@ copyright:           (c) 2014-2021 Kai Zhang
 category:            Bio
 build-type:          Simple
 extra-source-files:  README.md
-cabal-version:       >=1.18
+cabal-version:       1.18
 data-files:
   tests/data/example.bam
   tests/data/example.bed.gz

@@ -21,8 +21,6 @@ type GOId = Int
 
 type GOMap = M.HashMap GOId GO
 
-type TermCount = M.HashMap GOId Int
-
 -- | The top level is 0.
 getGOLevel :: GOId -> GOMap -> Int
 getGOLevel gid gm = loop 0 [gid]

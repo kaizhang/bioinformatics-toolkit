@@ -350,7 +350,7 @@ instance BEDLike bed => BEDLike (BEDExt bed a) where
     strand = _bed . strand
 
 instance (Read a, Show a, BEDConvert bed) => BEDConvert (BEDExt bed a) where
-    asBed chr s e = BEDExt (asBed chr s e) $ error "data not available"
+    asBed _ _ _ = error "Unable to transform arbitrary record to BEDExt"
 
     fromLine l = let (a, b) = B.breakEnd (=='\t') l
                  in BEDExt (fromLine $ B.init a) $ read $ B.unpack b
