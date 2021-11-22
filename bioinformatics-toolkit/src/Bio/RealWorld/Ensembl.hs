@@ -7,7 +7,7 @@ import Prelude hiding (lookup)
 import Data.Aeson
 import Data.List.Split (chunksOf)
 import qualified Data.ByteString.Char8 as B
-import qualified Data.HashMap.Strict as M
+import qualified Data.Aeson.KeyMap as M
 import Network.HTTP.Conduit
 
 import Bio.RealWorld.ID (BioID(..), EnsemblID)

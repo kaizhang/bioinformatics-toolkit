@@ -1,0 +1,4 @@
+packages: *.cabal
+
+package cryptonite
+  flags: -use_target_attributes

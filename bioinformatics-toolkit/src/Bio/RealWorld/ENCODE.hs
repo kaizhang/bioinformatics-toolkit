@@ -29,12 +29,14 @@ module Bio.RealWorld.ENCODE
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Aeson.Encode.Pretty (encodePretty)
-import qualified Data.HashMap.Lazy as M
+import qualified Data.Aeson.KeyMap as M
+import qualified Data.Aeson.Key as M
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
+import Data.Maybe (fromMaybe)
 import Network.HTTP.Conduit
 import Data.Default.Class
 
@@ -115,7 +117,7 @@ jsonFromUrl url = eitherDecode <$> openUrl (base ++ url) "application/json"
 
 
 (|@) :: Value -> T.Text -> Value
-(|@) (Object obj) key = M.lookupDefault (error errMsg) key obj
+(|@) (Object obj) key = fromMaybe (error errMsg) $ M.lookup (M.fromText key) obj
   where
     errMsg = "No such key: " ++ T.unpack key ++ " In: " ++ show obj
 (|@) _ _ = error "not an object"
