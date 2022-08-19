@@ -6,7 +6,7 @@ license:             MIT
 license-file:        LICENSE
 author:              Kai Zhang
 maintainer:          kai@kzhang.org
-copyright:           (c) 2014-2021 Kai Zhang
+copyright:           (c) 2014-2022 Kai Zhang
 category:            Bio
 build-type:          Simple
 extra-source-files:  README.md
@@ -95,12 +95,12 @@ library
     , vector
     , vector-algorithms
 
-  default-language:    Haskell2010
+  default-language:    GHC2021
 
 benchmark bench
   type: exitcode-stdio-1.0
   main-is: benchmarks/bench.hs
-  default-language:    Haskell2010
+  default-language:    GHC2021
   build-depends:
       base >=4.8 && <5.0
     , bioinformatics-toolkit
@@ -125,7 +125,7 @@ test-suite tests
     , Tests.Seq
     , Tests.Tools
 
-  default-language:    Haskell2010
+  default-language:    GHC2021
   build-depends:
       base
     , bytestring

@@ -22,6 +22,7 @@ module Bio.Data.Bed
     , sortedBedToTree
     , queryIntersect
     , intersecting
+    , within
     , isIntersected
     , sizeOverlapped
     , splitBed
@@ -104,10 +105,17 @@ queryIntersect x tree = map (first f) $ IM.assocs $ intersecting tree x
     chr = x^.chrom
 {-# INLINE queryIntersect #-}
 
+-- | Return the submap of key intervals intersecting the given interval.
 intersecting :: BEDLike b => BEDTree a -> b -> IM.IntervalMap Int a
 intersecting tree x = IM.intersecting (M.lookupDefault IM.empty (x^.chrom) tree) $
     IM.IntervalCO (x^.chromStart) $ x^.chromEnd
 {-# INLINE intersecting #-}
+
+-- | Return the submap of key intervals completely inside the given interval.
+within:: BEDLike b => BEDTree a -> b -> IM.IntervalMap Int a
+within tree x = IM.within (M.lookupDefault IM.empty (x^.chrom) tree) $
+    IM.IntervalCO (x^.chromStart) $ x^.chromEnd
+{-# INLINE within #-}
 
 isIntersected :: BEDLike b => BEDTree a -> b -> Bool
 isIntersected tree = not . IM.null . intersecting tree
