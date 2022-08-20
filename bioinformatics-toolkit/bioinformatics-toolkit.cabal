@@ -95,12 +95,12 @@ library
     , vector
     , vector-algorithms
 
-  default-language:    GHC2021
+  default-language:    Haskell2010
 
 benchmark bench
   type: exitcode-stdio-1.0
   main-is: benchmarks/bench.hs
-  default-language:    GHC2021
+  default-language:    Haskell2010
   build-depends:
       base >=4.8 && <5.0
     , bioinformatics-toolkit
@@ -125,7 +125,7 @@ test-suite tests
     , Tests.Seq
     , Tests.Tools
 
-  default-language:    GHC2021
+  default-language:    Haskell2010
   build-depends:
       base
     , bytestring
